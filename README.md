@@ -1,4 +1,4 @@
-Cross Pascal Compiler XPC
+Cross Pascal Compiler (XPC)
 ========================
 
 _XPC_ is a portable Object Pascal compiler/transpiler.
