@@ -1,0 +1,2816 @@
+Unit XPC_PascalParser;
+
+{$I terra.inc}
+
+Interface
+Uses XPC_Parser, XPC_PascalLexer, TERRA_Utils, TERRA_IO, TERRA_Error, TERRA_FileIO, TERRA_Collections;
+
+//    | LBRAC lvalue RBRAC                { $$ := $2; }
+
+Type
+  PascalParser = Class(CustomParser)
+    Protected
+      _Lexer:PascalLexer;
+      _lastObjName:StringObject;
+      
+      procedure yyaction ( yyruleno : Integer );
+
+      function yyact(state, sym : Integer; var act : Integer) : Boolean;
+
+      function yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
+
+      function yycharsym(i : Integer) : String;
+     
+    Public
+        Constructor Create(Source:Stream);
+        Destructor Destroy(); Override;
+
+      Function Parse: integer; Override;
+
+      Property Lexer:PascalLexer Read _Lexer;
+  End;
+
+
+Const
+  functionDirective_Assembler = 1;
+  functionDirective_Export    = 2;
+  functionDirective_Inline    = 3;
+  functionDirective_VarArgs   = 4;
+  functionDirective_Far       = 5;
+  functionDirective_Near      = 6;
+  functionDirective_Resident  = 7;
+  functionDirective_Overload  = 8;
+
+  methodDirective_Abstract  = 9;
+  methodDirective_Override = 10;
+  methodDirective_Virtual = 11;
+  methodDirective_Dynamic = 12;
+  methodDirective_Reintroduce = 13;
+
+  callConvention_Pascal = 0;
+  callConvention_SafeCall = 1;
+  callConvention_StdCall = 2;
+  callConvention_CDecl = 3;
+  callConvention_Register = 4;
+
+	importDirective_Default = 0;
+  importDirective_External = 1;
+  importDirective_Forward = 2;
+
+  scope_Public    = 0;
+  scope_Protected = 1;
+  scope_Private   = 2;
+  scope_Published = 3;
+
+Type
+  PascalNode = Class(ListObject)
+  End;
+
+	SourceNode = Class(PascalNode)
+    Name:StringObject;
+  End;
+
+  ProgramSection = Class;
+  NodeList = List;
+
+  TypeNode = Class(PascalNode)
+		// TODO each derive should set the typesize
+		typeSize:Integer;
+  End;
+
+  MetaTypeClass = Class Of TypeNode;
+
+  MetaType = Class(TypeNode)
+    Value:MetaTypeClass;
+
+    Constructor Create(TypeClass:MetaTypeClass);
+  End;
+
+  Declaration = Class(PascalNode)
+		Name:StringObject;
+		DeclType:TypeNode;
+
+		Constructor Create(Name:StringObject; T:TypeNode = Nil);
+  End;
+
+  DeclarationList = Class(PascalNode)
+    Declarations:Array Of Declaration;
+    Count:Integer;
+
+    Constructor Create(Decl:Declaration = Nil);
+    Procedure Add(Decl:Declaration); Overload;
+    Procedure Add(DeclList:DeclarationList); Overload;
+
+    Procedure InsertAt(Index:Integer; DeclList:DeclarationList);
+  End;
+
+  UnitItem = Class(Declaration)
+    Location:StringObject;
+
+    Constructor Create(Name:StringObject; Location:StringObject); Overload;
+    Constructor Create(Name:StringObject); Overload;
+  End;
+
+	Statement = Class(PascalNode)
+  End;
+
+  BlockStatement = Class;
+
+	ProgramNode = Class(SourceNode)
+    Section:ProgramSection;
+
+    Constructor Create(Name:StringObject; UsesList:NodeList; Decls:DeclarationList; Body:BlockStatement);
+  End;
+
+  ObjectSection = Class;
+  CompositeDeclaration = Class;
+  CompositeType = Class(TypeNode)
+		//heritage:StringList;
+
+		section:ObjectSection ;
+
+		decl:CompositeDeclaration;
+
+		IsPacked:Boolean;
+
+		// optional
+		Name:StringObject;
+
+
+    Ancestors:Array Of CompositeType;
+    AncestorCount:Integer;
+
+		//public List<CompositeType> ancestors;
+
+		Function IsForward:Boolean;  
+  End;
+
+	Section = Class(PascalNode)
+		Decls:DeclarationList;
+
+		Constructor Create(Decls:DeclarationList);
+  End;
+
+  TopLevelDeclarationSection = Class(Section)
+    Useslist:NodeList;
+
+		Constructor Create(UsesList:NodeList; Decls:DeclarationList);
+  End;
+
+
+	InterfaceSection = Class(TopLevelDeclarationSection)
+  End;
+
+	ImplementationSection = Class(TopLevelDeclarationSection)
+  End;
+
+  StatementList = Class(Statement)
+    Statements:Array Of Statement;
+    Count:Integer;
+
+    Constructor Create(St:Statement);
+    Procedure Add(St:Statement);
+  End;
+
+	BlockStatement = Class(Statement)
+		List:StatementList;
+
+		Constructor Create(List:StatementList);
+  End;
+
+	ProgramSection = Class(TopLevelDeclarationSection)
+    Block:BlockStatement;
+
+    Constructor Create(UsesList:NodeList; Decls:DeclarationList; Code:BlockStatement);
+  End;
+
+	ConstantValue = Class(PascalNode)
+  End;
+
+  Expression = Class(PascalNode)
+		ForcedType:TypeNode;
+    EnforceConst:Boolean;
+  End;
+
+  ExpressionList = Class(PascalNode)
+    Expressions:Array Of Expression;
+    Count:Integer;
+
+    Constructor Create(Exp:Expression = Nil);
+    Procedure Add(Exp:Expression);
+
+    Procedure InsertAt(Index:Integer; Exp:Expression);
+  End;
+
+  Literal = Class;
+  IntLiteral = Class;
+  
+  ConstExpression = Class(Expression)
+    Function ResolveToLiteral():Literal;
+  End;
+
+	LabelDeclaration = Class(Declaration)
+  End;
+
+	ValueDeclaration = Class(Declaration)
+  End;
+
+	VarDeclaration = Class(ValueDeclaration)
+		Init:Expression;
+		AbsoluteID:StringObject;
+		IsThrVar:Boolean;
+
+		Constructor Create(Name:StringObject; VarType:TypeNode; Init:Expression; AbsoluteId:StringObject);  Overload;
+		Constructor Create(Name:StringObject; VarType:TypeNode; Init:Expression = Nil);  Overload;
+  End;
+
+  ParameterKind = (param_Default, param_Var, param_Out, param_Const);
+
+	/// Routine parameters. May be value (default), variable, constant, or out.
+	/// Param types must be an id, string or open array (array of paramtype)
+	ParamDeclaration = Class(ValueDeclaration)
+		Init:Expression;
+    Kind:ParameterKind;
+
+		Constructor Create(Name:StringObject; ParamType:TypeNode; Init:Expression; Kind:ParameterKind);
+  End;
+
+	VarParamDeclaration = Class(ParamDeclaration)
+		Constructor Create(Name:StringObject; VarType:TypeNode);
+  End;
+
+	ConstParamDeclaration = Class(ParamDeclaration)
+		Constructor Create(Name:StringObject; ConstType:TypeNode; Init:Expression = Nil);
+  End;
+
+	OutParamDeclaration = Class(ParamDeclaration)
+		Constructor Create(Name:StringObject; VarType:TypeNode);
+  End;
+
+
+  ParametersSection = Class(Section)
+		  ReturnVar:ParamDeclaration; //TODO
+
+		  Constructor Create(Decls:DeclarationList=Nil);
+		//public override bool Equals(object obj)
+		{
+			ParametersSection sec = obj as ParametersSection;
+			return sec != null && returnVar.Equals(sec.returnVar) && decls.SequenceEqual(sec.decls);
+		}
+  End;
+
+
+	/// Directives constraints:
+	///		Override | Abstract
+	///		Abstract => virtual
+	///		varargs => cdecl
+  FunctionDirective = Integer;
+
+	FunctionDirectiveList  = Class(PascalNode)
+		CallConv:Integer;
+		Directives:Array Of FunctionDirective;
+    Count:Integer;
+
+    Constructor Create(Dir:FunctionDirective);
+		Procedure Add(Dir:FunctionDirective); Overload;
+		Procedure Add(Dirs:FunctionDirectiveList); Overload;
+
+		//public virtual void Add(int dir)
+		Function Contains(Dir:FunctionDirective ):Boolean;
+		/// Checks the immediate coherence between function directives.
+		/// Must be called after all directives are added
+		Function CheckDirectives():Boolean;
+  End;
+
+  ProceduralType = Class;
+
+	/// Declaration of a Callable unit, i.e. a global routine or method
+	CallableDeclaration = Class(Declaration)
+		/// Gets the fully qualified name of this callable
+		/// (obj+metname for methods, plus parameter types for overloads)
+		/// To be set by the Resolver
+		QualifiedName:StringObject;
+
+		/// Section that declares this callable.
+		/// To be set by resolver
+		DeclaringSection:Section;
+
+    SignatureType:ProceduralType;
+    ResultType:TypeNode;
+
+    Directives:FunctionDirectiveList;
+
+		Constructor Create(Name:StringObject; Params:ParametersSection; RetType:TypeNode = Nil; Dirs:FunctionDirectiveList = Nil);
+  End;
+
+
+	RoutineSection = Class(Section)
+    Block:Statement;
+
+		 // to be set by resolver
+		DeclaringCallable:CallableDeclaration;
+
+		Constructor Create(Decls:DeclarationList; Block:Statement);
+  End;
+
+	LibraryNode = Class(SourceNode)
+		Section:ProgramSection;
+
+		Constructor Create(Name:StringObject; UsesList:NodeList; Decls:DeclarationList; Body:BlockStatement);
+  End;
+
+	UnitNode = Class(SourceNode)
+		Interfaces:InterfaceSection;
+		Implements:ImplementationSection;
+		Inits:BlockStatement;
+		Final:BlockStatement;
+
+		Constructor Create(Name:StringObject; Interfce:InterfaceSection; Impl:ImplementationSection;  Init:BlockStatement = Nil; Final:BlockStatement = Nil);
+  End;
+
+  PackageNode = Class(SourceNode)
+		Requires:NodeList;
+		Contains:NodeList;
+
+		Constructor Create(Name:StringObject; requires, contains:NodeList);
+  End;
+
+  StructuredConstant = Class(ConstExpression)
+    ExprList:ExpressionList;
+
+		Constructor Create(ExprList:ExpressionList);
+  End;
+
+	ArrayConst = Class(StructuredConstant)
+    Constructor Create(ExprList:ExpressionList); Overload;
+		Constructor Create(ArrayElems:StringObject); Overload;
+			//: base(new ExpressionList(arrayElems.ToCharArray().Select(x => new CharLiteral(x)))){ }
+	End;
+
+  FieldInit = Class(ConstExpression)
+	  FieldName:StringObject;
+    Expr:Expression;
+
+    Constructor Create(Name:StringObject; Expr:Expression);
+  End;
+
+  FieldInitList = Class(ExpressionList)
+    Constructor Create(F:FieldInit = Nil);
+    //Procedure Add(F:FieldInit);
+  End;
+
+  RecordConst = Class(StructuredConstant)
+    Constructor Create(ExprList:FieldInitList);
+  End;
+
+  ConstIdentifier = Class(ConstExpression)
+    Name:StringObject;
+
+    Constructor Create(Name:StringObject);
+  End;
+
+  ScalarType = Class(TypeNode)
+  End;
+
+  TypeClass = Class Of ScalarType;
+
+  IntegralType = Class(ScalarType)
+    Function GetMinValue():Int64 ; Virtual; Abstract;
+    Function GetMaxValue():Int64 ; Virtual; Abstract;
+  End;
+
+	IntegerType = Class(IntegralType)
+  End;
+
+	SignedIntegerType = Class(IntegerType)
+  End;
+
+	UnsignedIntegerType = Class(IntegerType)
+  End;
+
+	UnsignedInt8Type = Class(UnsignedIntegerType)		// byte
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	UnsignedInt16Type = Class(UnsignedIntegerType)	// word
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	UnsignedInt32Type = Class(UnsignedIntegerType)	// cardinal
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	UnsignedInt64Type = Class(UnsignedIntegerType)	// uint64
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	SignedInt8Type = Class(SignedIntegerType)			// smallint
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	SignedInt16Type = Class(SignedIntegerType)		// smallint
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	SignedInt32Type = Class(SignedIntegerType)		// integer
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	SignedInt64Type = Class(IntegerType)				// int64
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	BoolType = Class(IntegralType)
+	End;
+
+	CharType = Class(IntegralType)
+	End;
+
+	RealType = Class(ScalarType)
+  End;
+
+	FloatType = Class(RealType)
+  End;
+
+	DoubleType = Class(RealType)
+  End;
+
+	ExtEndedType = Class(RealType)
+  End;
+
+	CurrencyType = Class(RealType)
+  End;
+
+	StringType = Class(ScalarType)
+    Length:Expression;
+
+    Constructor Create(Len:Expression = Nil);
+	End;
+
+	FixedStringType = Class(StringType)
+		Expr:Expression;
+		Len:Integer;
+
+		Constructor Create(Expr:Expression);
+  End;
+
+	RangeType = Class(TypeNode)
+		Min:Expression;
+		Max:Expression;
+
+		Constructor Create(Min, Max:Expression);
+  End;
+
+  EnumValue = Class;
+  EnumValueList = Class(PascalNode)
+		Values:Array Of EnumValue;
+    Count:Integer;
+
+    Constructor Create(Val:EnumValue);
+    Procedure Add(Val:EnumValue);
+  End;
+
+	EnumType = Class(TypeNode)
+    List:EnumValueList;
+
+		Constructor Create(enumVals:EnumValueList);
+  End;
+
+	/// Variants can hold values of any type except records, sets, static arrays, files, classes, class references, and pointers.
+	/// I.e. can hold anything but structured types and pointers.
+	/// They can hold interfaces, dynamic arrays, variant arrays
+	VariantType = Class(TypeNode)
+		actualtype:TypeNode ;
+  End;
+
+	/// PointedType may be any type.
+	/// It may be a not yet declared type (forward declaration)
+	PointerType = Class(ScalarType)
+		PointedType:TypeNode;
+
+		Constructor Create(PointedType:TypeNode);
+  End;
+
+
+	FieldDeclaration = Class(ValueDeclaration)
+		isStatic:Boolean;
+		Scope:Integer;
+		DeclaringObject:CompositeType;
+
+		Constructor FieldDeclaration(Id:StringObject; T:TypeNode = Nil; IsStatic:Boolean = False);
+  End;
+
+	PropertySpecifiers  = Class(PascalNode)
+		Public
+      Index:IntLiteral;
+		  Read:StringObject;
+		  Write:StringObject;
+      Stored:ConstExpression;
+		  Default:Literal;	// nodefault == Int32.MaxValue
+		  Impl:StringObject;
+
+		  Constructor Create(Read, Write:StringObject); Overload;
+		  Constructor Create(Index:IntLiteral; Read, Write:StringObject; Stored:ConstExpression; Default:Literal; Impl:StringObject = Nil); Overload;
+  End;
+
+	PropertyDeclaration = Class(FieldDeclaration)
+    Public
+  		Specifiers:PropertySpecifiers;
+
+		  IsStatic:Boolean;
+
+		  Constructor Create(ID:StringObject; T:TypeNode; Specs:PropertySpecifiers = Nil);
+  End;
+
+	ArrayProperty = Class(PropertyDeclaration)
+		Indexes:DeclarationList;
+		IsDefault:Boolean;
+
+		Constructor Create(Id:StringObject; T:TypeNode; Indexes:DeclarationList; Specs:PropertySpecifiers; Def:Boolean);
+	End;
+
+
+  MethodDeclaration = Class;
+
+	ObjectSection = Class(Section)
+		Fields:DeclarationList;
+		Properties:DeclarationList;
+    //Methods:DeclarationList;
+		DeclaringObject:CompositeType;
+
+		Constructor Create(Fields:DeclarationList = Nil; Decls:DeclarationList = Nil; Scope:Integer = Scope_Published);
+
+		Procedure Add(Sec:ObjectSection);
+
+		Procedure AddFields(Fields:DeclarationList; Scope:Integer);
+
+		Procedure AddMethods(Methods:DeclarationList; Scope:Integer);
+
+		Procedure AddProperties(Properties:DeclarationList; Scope:Integer);
+
+		/// Add unknown-type declarations
+		Procedure AddDecls(Decls:DeclarationList; Scope:Integer);
+
+		/// Fields, Methods and Properties
+		{
+		public IEnumerable<Declaration> Decls(Scope s = (Scope) 0xffffff)
+			foreach (var f in fields.Cast<FieldDeclaration>().Where(f => (f.scope & s) != 0))
+				yield return f;
+			foreach (var d in decls.Cast<MethodDeclaration>().Where(d => (d.scope & s) != 0))
+				yield return d;
+			foreach (var p in properties.Cast<PropertyDeclaration>().Where(p => (p.scope & s) != 0))
+				yield return p;
+		}
+
+
+		/// Returns a member with the given name
+		Function GetMember(id:AnsiString):Declaration;
+
+		/// Returns a method with the given name
+		Function GetMethod(id:AnsiString):MethodDeclaration;
+
+		/// Returns a field with the given name
+		Function GetField(id:AnsiString):FieldDeclaration;
+
+		/// Returns a property with the given name
+		Function GetProperty(id:AnsiString):PropertyDeclaration;
+  End;
+
+  ClassTypeNode = Class(CompositeType)
+		_self:FieldDeclaration;
+
+    Public
+		  Constructor Create(Heritage:NodeList; Sec:ObjectSection  = Nil);
+  End;
+
+	ClassRefType = Class(ClassTypeNode)
+		QualifID:StringObject;
+		RefType:ClassTypeNode;
+
+		Constructor Create(reftype:ClassTypeNode); Overload;
+		Constructor Create(qualifid:StringObject; reftype:ClassTypeNode = Nil); Overload;
+  End;
+
+	MetaClassType = Class(ScalarType)
+		BaseType:TypeNode;
+
+		Constructor Create(baseType:TypeNode);
+  End;
+
+  Literal = Class(ConstExpression)
+    //Constructor Create(Val:ConstantValue; T:TypeNode);
+  End;
+
+	OrdinalLiteral = Class(Literal)
+    //Constructor Create(V:Cardinal; T:IntegralType);
+  End;
+
+	IntLiteral = Class(OrdinalLiteral)
+    Value:Int64;
+
+    Constructor Create(Value:Int64);
+  End;
+
+	CharLiteral = Class(OrdinalLiteral)
+    Value:AnsiChar;
+
+    Constructor Create(Value:AnsiChar);
+  End;
+
+	BoolLiteral = Class(OrdinalLiteral)
+    Value:Boolean;
+
+    Constructor Create(Value:Boolean);
+  End;
+
+	StringLiteral = Class(Literal)
+    Value:StringObject;
+
+    Constructor Create(Value:StringObject);
+  End;
+
+	RealLiteral = Class(Literal)
+    Value:Double;
+
+    Constructor Create(Value:Double);
+  End;
+
+	PointerLiteral = Class(Literal)
+    Value:Int64;
+
+    Constructor Create(val:Int64);
+  End;
+
+	BinaryExpression = Class(Expression)
+		Left:Expression;
+		Right:Expression;
+
+    Constructor Create(A, B:Expression);
+  End;
+
+	SetIn = Class(BinaryExpression)
+		Expr:Expression;
+		_Set:Expression;		// enforce that 'set' is in fact a set
+
+		Constructor Create(A, B:Expression );
+  End;
+
+	SetRange = Class(BinaryExpression)
+    Range:RangeType;
+
+		Constructor Create(_type:RangeType);
+		{
+			this.ForcedType = this.Type = type;
+			this.EnforceConst = true;
+		}
+  End;
+
+  ArithmeticBinaryOp = (op_ADD, op_SUB, op_DIV, op_MUL, op_QUOT, op_MOD, op_SHR, op_SHL);
+
+	ArithmeticBinaryExpression  = Class(BinaryExpression)
+    Op:ArithmeticBinaryOp;
+  End;
+
+	Subtraction = Class(ArithmeticBinaryExpression)
+  End;
+
+	Addition = Class(ArithmeticBinaryExpression)
+	End;
+
+	Product = Class(ArithmeticBinaryExpression)
+  End;
+
+	Division = Class(ArithmeticBinaryExpression)
+  End;
+
+	// Integer division
+	Quotient = Class(ArithmeticBinaryExpression)
+  End;
+
+	Modulus = Class(ArithmeticBinaryExpression)
+  End;
+
+	ShiftRight = Class(ArithmeticBinaryExpression)
+  End;
+
+	ShiftLeft = Class(ArithmeticBinaryExpression)
+  End;
+
+
+	LogicalBinaryOp = (op_AND, op_OR, op_XOR);
+
+	LogicalBinaryExpression = Class(BinaryExpression)
+		  op:LogicalBinaryOp ;
+  End;
+
+	ComparisonBinaryOp = (op_EQ, op_NE, op_LT, op_LE, op_GT, op_GE, op_SGT, op_SGE,op_SLT,op_SLE);
+
+	ComparisonBinaryExpression = Class(BinaryExpression)
+		op:ComparisonBinaryOp;
+  End;
+
+  LogicalAnd = Class(LogicalBinaryExpression)
+  End;
+
+	LogicalOr = Class(LogicalBinaryExpression)
+  End;
+
+
+	LogicalXor = Class(LogicalBinaryExpression)
+  End;
+
+
+	Equal = Class(ComparisonBinaryExpression)
+  End;
+
+
+	NotEqual = Class(ComparisonBinaryExpression)
+  End;
+
+
+	LessThan = Class(ComparisonBinaryExpression)
+  End;
+
+
+	LessOrEqual = Class(ComparisonBinaryExpression)
+  End;
+
+
+	GreaterThan = Class(ComparisonBinaryExpression)
+  End;
+
+
+	GreaterOrEqual = Class(ComparisonBinaryExpression)
+  End;
+
+	TypeBinaryExpression = Class(BinaryExpression)
+		Expr:Expression;
+		Types:TypeNode;
+
+		Constructor Create(Expr:Expression; ExprType:TypeNode);
+  End;
+
+	TypeIs = Class(TypeBinaryExpression)
+  End;
+
+	RuntimeCast = Class(TypeBinaryExpression)
+  End;
+
+	UnaryExpression = Class(Expression)
+  End;
+
+	SimpleUnaryExpression = Class(Expression)
+		Expr:Expression;
+
+		Constructor Create(Expr:Expression);
+  End;
+
+	UnaryPlus = Class(SimpleUnaryExpression)
+  End;
+
+	UnaryMinus = Class(SimpleUnaryExpression)
+  End;
+
+	LogicalNot = Class(SimpleUnaryExpression)
+  End;
+
+	AddressLvalue = Class(SimpleUnaryExpression)
+  End;
+
+
+	SetExpression = Class(UnaryExpression)
+		Elements:ExpressionList;
+
+		Constructor Create(Elements:ExpressionList = Nil);
+  End;
+
+  LvalueExpression = Class;
+
+	/// Cast an lvalue to an rvalue (Expr)
+	LvalueAsExpr = Class(UnaryExpression)
+		lval:LvalueExpression;
+
+		Constructor Create(lval:LvalueExpression);
+  End;
+
+	LvalueExpression = Class(UnaryExpression)
+  End;
+
+	/// Cast an rvalue (Expr) to an lvalue
+	ExprAsLvalue = Class(LvalueExpression)
+		Expr:Expression;
+
+		Constructor Create(Expr:Expression);
+  End;
+
+	/// VarType(expr)
+	StaticCast = Class(LvalueExpression)
+		CastType:TypeNode;
+    CastPrimitive:TypeClass;
+		Expr:Expression;
+
+		Constructor Create(t:TypeNode; e:Expression); Overload;
+    Constructor Create(t:TypeClass; e:Expression); Overload;
+  End;
+
+	ArrayAccess = Class(LvalueExpression)
+		LValue:LvalueExpression;
+		Acessors:ExpressionList;
+		// object alternative to lvalue
+		_Array:ArrayConst;
+
+		Constructor Create(_array:ArrayConst; acessors:ExpressionList); Overload;
+		Constructor Create(lvalue:LvalueExpression; acessors:ExpressionList ); Overload;
+  End;
+
+	PointerDereference = Class(LvalueExpression)
+		Expr:Expression;
+
+		Constructor Create(Expr:Expression);
+  End;
+
+	RoutineCall = Class(LvalueExpression)
+		Func:LvalueExpression;
+		Args:ExpressionList;
+
+		Constructor Create(Func:LvalueExpression; RetType:TypeNode = Nil);
+	//RoutineCall(LvalueExpression func, ExpressionList args, TypeNode retType = null)
+  End;
+
+	InheritedCall = Class(RoutineCall)
+		FuncName:StringObject;
+		// to be set by resolver
+		DeclaringObject:CompositeType;
+
+		Constructor Create(FuncName:StringObject; Args:ExpressionList =Nil);
+  End;
+
+	/// An access to a member in an object (record, class or interface)
+	ObjectAccess = Class(LvalueExpression)
+		Obj:LvalueExpression;
+		Field:StringObject;
+
+		Constructor Create(Obj:LvalueExpression; Field:StringObject);
+  End;
+
+	/// Identifier that refers to a named declaration
+	Identifier = Class(LvalueExpression)
+    Name:StringObject;
+		Decl:Declaration;
+
+		Constructor Create(Name:StringObject; T:TypeNode = Nil);
+  End;
+
+	/// Identifier that refers to a named class. Static access
+	IdentifierStatic = Class(Identifier)
+  End;
+
+	UnresolvedLvalue = Class(LvalueExpression)
+	End;
+
+	UnresolvedId = Class(UnresolvedLvalue)
+		ID:Identifier;
+
+		Constructor Create(ID:Identifier);
+  End;
+
+	/// Call, to be resolver after parsing
+	UnresolvedCall = Class(UnresolvedLvalue)
+		Func:LvalueExpression;
+		Args:ExpressionList;
+
+		Constructor Create(lval:LvalueExpression; Args:ExpressionList = Nil);
+  End;
+
+
+	/// TODO!! Must Derive type
+	ConstDeclaration = Class(ValueDeclaration)
+		Init:Expression;
+
+		Constructor Create(Name:StringObject; Init:Expression; T:TypeNode = Nil);
+  End;
+
+	EnumValue = Class(ConstDeclaration)
+    Constructor Create(Name:StringObject; Init:Expression = Nil);
+  End;
+
+	/// Creates a custom, user-defined name for some Type
+	TypeDeclaration  = Class(Declaration)
+  End;
+
+	ProceduralType  = Class(TypeNode)
+		Params:ParametersSection;
+
+		/// Function's return type. Must be null for every non-function routine.
+		FuncRet:TypeNode ;
+
+		Directives:FunctionDirectiveList ;
+
+		Constructor Create(Params:ParametersSection; ret:TypeNode = Nil; Dirs:FunctionDirectiveList = Nil);
+  End;
+
+	MethodKind = (method_Default,	method_Constructor, method_Destructor);
+
+	MethodType = Class(ProceduralType)
+		Kind:MethodKind;
+  End;
+
+	/// Declaration of a global Routine
+	RoutineDeclaration = Class(CallableDeclaration)
+		Constructor Create(Name:StringObject; Params:ParametersSection; Ret:TypeNode = Nil; Dirs:FunctionDirectiveList = Nil);
+  End;
+
+	/// Declaration of a Method
+	MethodDeclaration = Class(CallableDeclaration)
+		isStatic:Boolean;
+		Objname:StringObject;
+		Name:StringObject;
+    Scope:Integer;
+		DeclaringObject:CompositeType;
+    Kind:MethodKind;
+
+		Constructor Create(objname:StringObject; name:StringObject; params:ParametersSection; ret:TypeNode = Nil; dirs:FunctionDirectiveList  = Nil; kind:MethodKind  = method_Default);
+	End;
+
+	/// Routine definition (implementation)
+	RoutineDefinition = Class(RoutineDeclaration)
+		Body:RoutineSection;
+
+		Constructor Create(name:StringObject; params:ParametersSection; ret:TypeNode  = Nil; dirs:FunctionDirectiveList  = nil; body:RoutineSection  = Nil); Overload;
+    Constructor Create(name:StringObject; signatureType:ProceduralType; dirs:FunctionDirectiveList  = nil; body:RoutineSection  = Nil); Overload;
+  End;
+
+	/// Method definition (implementation)
+	MethodDefinition = Class(MethodDeclaration)
+		Body:RoutineSection;
+
+		Constructor Create(objname:StringObject; name:StringObject; params:ParametersSection; ret:TypeNode  = Nil; dirs:FunctionDirectiveList = Nil; kind:MethodKind  = Method_Default; body:RoutineSection  = Nil);
+  End;
+
+	CompositeDeclaration = Class(TypeDeclaration)
+
+		Constructor Create(Name:StringObject; ctype:CompositeType);
+  End;
+
+	ClassDeclaration = Class(CompositeDeclaration)
+  End;
+
+  InterfaceType = Class;
+	InterfaceDeclaration = Class(CompositeDeclaration)
+  End;
+
+	/// Routine Directives
+
+ {	MethodDirectives = Class(FunctionDirectiveList)
+		methoddirs:Array Of FunctionDirective;
+
+		Procedure Add(dir:FunctionDirective);
+		Function Contains(dir:FunctionDirective):Boolean;
+		Function CheckDirectives():Boolean;
+  End;}
+
+	ExternalDirective = Class(PascalNode)
+		_File:Expression;
+		Name:Expression;
+
+		Constructor Create(_file:Expression; name:Expression = Nil);
+  End;
+
+	ImportDirectives = Class(FunctionDirectiveList)
+		Importdir:FunctionDirective;
+		_external:ExternalDirective;
+
+    Constructor Create(ImportDir:FunctionDirective);
+  End;
+
+
+	LabelStatement = Class(Statement)
+		Name:StringObject;
+		Stmt:Statement;
+
+		// to be set by the resolver
+		decl:LabelDeclaration;
+
+		Constructor Create(Name:StringObject; stmt:Statement);
+  End;
+
+	GotoStatement = Class(Statement)
+		GotoLabel:StringObject;
+
+		// to be set by the resolver
+		Decl:LabelDeclaration;
+
+		Constructor Create(LabelName:StringObject);
+  End;
+
+	EmptyStatement = Class(Statement)
+  End;
+
+	BreakStatement = Class(Statement)
+  End;
+
+	ContinueStatement = Class(Statement)
+  End;
+
+	Assignment = Class(Statement)
+		lvalue:LvalueExpression;
+		Expr:Expression;
+
+		Constructor Create(lvalue:LvalueExpression; expr:Expression);
+  End;
+
+	IfStatement = Class(Statement)
+		Condition:Expression;
+		ThenBlock:Statement;
+		ElseBlock:Statement;
+
+		Constructor Create(condition:Expression ; ifTrue:Statement; ifFalse:Statement=Nil);
+  End;
+
+	ExpressionStatement = Class(Statement)
+		Expr:Expression;
+
+		Constructor Create(Expr:Expression);
+  End;
+
+	CaseSelector = Class(Statement)
+		List:ExpressionList;
+		Stmt:Statement;
+
+		Constructor Create(list:ExpressionList; stmt:Statement);
+  End;
+
+	CaseStatement = Class(Statement)
+		Condition:Expression;
+		Selectors:StatementList;
+		CaseElse:Statement;
+
+		Constructor Create(condition:Expression ; selectors:StatementList ; caseelse:Statement );
+  End;
+
+	LoopStatement = Class(Statement)
+		Condition:Expression;
+		Block:Statement;
+
+		Constructor Create(Block:Statement; Condition:Expression);
+  End;
+
+	RepeatLoop = Class(LoopStatement)
+  End;
+
+	WhileLoop = Class(LoopStatement)
+  End;
+
+	ForLoop = Class(LoopStatement)
+		_var:Identifier;
+		Start:Expression;
+		_End:Expression;
+		Direction:Integer;
+
+		Constructor Create(_var:Identifier; start:Expression; _End:Expression; body:Statement; dir:Integer);
+  End;
+
+	WithStatement = Class(Statement)
+		_With:ExpressionList;
+		Body:Statement;
+
+		Constructor Create(_with:ExpressionList; Body:Statement);
+  End;
+
+	TryFinallyStatement = Class(Statement)
+		Body:BlockStatement;
+		Final:BlockStatement;
+
+		Constructor Create(Body, Final:BlockStatement);
+  End;
+
+	ExceptionBlock = Class(Statement)
+  	onList:StatementList;
+		Default:BlockStatement;	// else or default, same semantics
+
+		Constructor Create(onList:StatementList; default:BlockStatement = Nil);
+  End;
+
+	TryExceptStatement = Class(Statement)
+		Body:BlockStatement;
+		Final:ExceptionBlock;
+
+		Constructor Create(Body:BlockStatement; Final:ExceptionBlock);
+  End;
+
+
+	RaiseStatement = Class(Statement)
+		LValue:LvalueExpression;
+		Expr:Expression;
+
+		Constructor Create(lvalue:LvalueExpression; Expr:Expression);
+  End;
+
+	OnStatement = Class(Statement)
+		Ident:StringObject;
+		_type:StringObject;
+		Body:Statement;
+
+		Constructor Create(Ident, _type:StringObject; Body:Statement);
+  End;
+
+	AssemblerBlock = Class(BlockStatement)
+		Constructor AssemblerBlock(asmInstrs:StatementList );
+  End;
+
+  InterfaceList = List;
+
+	InterfaceType = Class(CompositeType)
+    Heritage:InterfaceList;
+    Ssec:ObjectSection;
+		Guid:StringLiteral;
+
+		Constructor Create(Heritage:InterfaceList; Ssec:ObjectSection = Nil; guid:StringLiteral  = Nil);
+  End;
+
+
+	///			StructuredType > Type
+	///				Array > Type
+	///				Set	  > OrdinalType 
+	///				File  > VariableType
+	///		 		Record > TypeNode ...
+
+	StructuredType = Class(TypeNode)
+		BaseType:TypeNode;
+		IsPacked:Boolean;
+		{
+		public override bool Equals(Object o)
+			if (!(o is StructuredType))
+				return false;
+
+			StructuredType otype = (StructuredType) o;
+			if (IsPacked != otype.IsPacked)
+				return false;
+
+			return basetype.Equals(otype.basetype);
+		}
+  End;
+
+	RecordType = Class(StructuredType)
+		CompTypes:DeclarationList;
+
+		Constructor Create(compTypes:DeclarationList);
+  End;
+
+	RecordFieldDeclaration = Class(ValueDeclaration)
+  End;
+
+  ArrayType = Class(StructuredType)
+  	Dimensions:Array Of Integer;
+    DimensionCount:Integer;
+
+  	Constructor Create(baseType:TypeNode; dims:List); Overload;
+	  Constructor Create(baseType, sizeType:TypeNode); Overload;
+    Constructor Create(sizeType:TypeNode); Overload;
+
+  	Procedure AddDimension(size:Integer);
+  End;
+
+  SetType = Class(StructuredType)
+    Constructor Create(T:TypeNode);
+  End;
+
+  FileType = Class(StructuredType)
+    Constructor Create(T:TypeNode);
+  End;
+
+	VariantDeclaration = Class(RecordFieldDeclaration)
+		Fields:DeclarationList;
+
+		Constructor Create(ID:StringObject; T:TypeNode; Fields:DeclarationList);
+  End;
+
+	/// Variant case entry declaration
+	VarEntryDeclaration = Class(RecordFieldDeclaration)
+		TagValue:Expression;
+		Fields:RecordType;
+
+		Constructor Create(TagValue:Expression; Fields:DeclarationList);	// type must be later set to the variant type
+	End;
+
+  ExportItem = Class(UnitItem)
+		FormalParams:ParametersSection;
+		ExportName:StringObject;
+		Index:Integer;
+
+		Constructor Create(name:StringObject; pars:ParametersSection; exportname:StringObject = Nil); Overload;
+    Constructor Create(name:StringObject; pars:ParametersSection; Index:Integer); Overload;
+  End;
+
+	UnresolvedType = Class(TypeNode)
+		ID:StringObject;
+
+		Constructor Create(ID:StringObject);
+  End;
+
+	UnresolvedVariableType = Class(TypeNode)
+		ID:StringObject;
+
+		Constructor Create(ID:StringObject);
+  End;
+
+	UnresolvedIntegralType = Class(IntegralType)
+		ID:StringObject;
+
+		Constructor Create(ID:StringObject);
+  End;
+
+
+	UnresolvedOrdinalType = Class(TypeNode)
+		ID:StringObject;
+
+		Constructor Create(ID:StringObject);
+  End;
+
+  StringList = List;
+  TypeList = List;
+
+  
+%%
+
+Var
+    yylval : YYSType;
+  
+Implementation
+
+Function MakeThreadVars(Src:DeclarationList):DeclarationList;
+Var
+  I:Integer;
+  VarDecl:VarDeclaration;
+Begin
+  For I:=0 To Pred(Src.Count) Do
+  Begin
+    VarDeclaration(Src.Declarations[I]).IsThrVar := True;
+  End;
+
+  Result := Src;
+End;
+
+Function CreateDecls(Ids:StringList; VarTypes:TypeNode; Init:Expression; AbsoluteID:StringObject):DeclarationList;
+Var
+  It:Iterator;
+  S:StringObject;
+  V:VarDeclaration;
+Begin
+  Result := DeclarationList.Create();
+  It := Ids.CreateIterator();
+  While It.HasNext Do
+  Begin
+    S := StringObject(It.GetNext());
+    V := VarDeclaration.Create(S, VarTypes, Init, AbsoluteID);
+    Result.Add(V);
+  End;
+  It.Destroy;
+End;
+
+Function CreateLabelDecls(Ids:StringList):DeclarationList;
+Var
+  It:Iterator;
+  S:StringObject;
+  L:LabelDeclaration;
+Begin
+  Result := DeclarationList.Create();
+  It := Ids.CreateIterator();
+  While It.HasNext Do
+  Begin
+    S := StringObject(It.GetNext());
+    L := LabelDeclaration.Create(S, Nil);
+    Result.Add(L);
+  End;
+  It.Destroy;
+End;
+
+Function CreateParamDecls(Ids:StringList; ParamType:TypeNode; Init:Expression; Kind:ParameterKind):DeclarationList;
+Var
+  It:Iterator;
+  S:StringObject;
+  P:ParamDeclaration;
+Begin
+  Result := DeclarationList.Create();
+  It := Ids.CreateIterator();
+  While It.HasNext Do
+  Begin
+    S := StringObject(It.GetNext());
+    P := ParamDeclaration.Create(S, ParamType, Init, Kind);
+    Result.Add(P);
+  End;
+  It.Destroy;
+End;
+
+Function CreateVarParamDecls(Ids:StringList; ParamType:TypeNode):DeclarationList;
+Var
+  It:Iterator;
+  S:StringObject;
+  P:ParamDeclaration;
+Begin
+  Result := DeclarationList.Create();
+  It := Ids.CreateIterator();
+  While It.HasNext Do
+  Begin
+    S := StringObject(It.GetNext());
+    P := VarParamDeclaration.Create(S, ParamType);
+    Result.Add(P);
+  End;
+  It.Destroy;
+End;
+
+Function CreateConstParamDecls(Ids:StringList; ParamType:TypeNode; init:Expression = Nil):DeclarationList;
+Var
+  It:Iterator;
+  S:StringObject;
+  P:ParamDeclaration;
+Begin
+  Result := DeclarationList.Create();
+  It := Ids.CreateIterator();
+  While It.HasNext Do
+  Begin
+    S := StringObject(It.GetNext());
+    P := ConstParamDeclaration.Create(S, ParamType, Init);
+    Result.Add(P);
+  End;
+  It.Destroy;
+End;
+
+Function CreateFieldDecls(Ids:StringList; FieldsType:TypeNode):DeclarationList;
+Var
+  It:Iterator;
+  S:StringObject;
+  P:FieldDeclaration;
+Begin
+  Result := DeclarationList.Create();
+  It := Ids.CreateIterator();
+  While It.HasNext Do
+  Begin
+    S := StringObject(It.GetNext());
+    P := FieldDeclaration.Create(S, FieldsType);
+    Result.Add(P);
+  End;
+  It.Destroy;
+End;
+
+Function JoinImportDirectives(d1, d2:FunctionDirectiveList; i:FunctionDirective):ImportDirectives; Overload;
+Begin
+  Result := ImportDirectives.Create(i);
+  Result.Add(d1);
+	Result.Add(d2);
+End;
+
+Function JoinImportDirectives(d1, d2:FunctionDirectiveList; e:ExternalDirective):ImportDirectives; Overload;
+Begin
+  Result := JoinImportDirectives(d1, d2, importDirective_External);
+  Result._External := e;
+End;
+
+Function CreateRecordUnionField(Src:ExpressionList; Fields:DeclarationList):DeclarationList;
+Var
+  I:Integer;
+Begin
+  Result := DeclarationList.Create();
+  For I:=0 To Pred(Src.Count) Do
+  Begin
+    Result.Add(VarEntryDeclaration.Create(Src.Expressions[I], Fields));
+  End;
+End;
+
+Procedure MakeFieldDeclarationsStatic(DeclList:DeclarationList);
+Var
+  I:Integer;
+Begin
+  For I:=0 To Pred(DeclList.Count) Do
+    FieldDeclaration(DeclList.Declarations[I]).IsStatic := True;
+End;
+
+Function CheckDirectiveId(expected:AnsiString; idtoken:StringObject):Boolean;
+Begin
+  If (expected <> idtoken.Value) Then
+  Begin
+    RaiseError('Invalid directive ' + idtoken.Value + ', expected: ' + expected);
+    Result := False;
+  End Else
+    Result := True;
+End;
+
+Function CreateBinaryExpression(e1:Expression; token:Integer; e2:Expression):BinaryExpression;
+
+Begin
+  Case token Of
+				KW_MUL: Result := Product.Create(e1, e2);
+				KW_DIV: Result := Division.Create(e1, e2);
+				KW_QUOT:Result := Quotient.Create(e1, e2);
+				KW_MOD: Result := Modulus.Create(e1, e2);
+				KW_SHR: Result := ShiftRight.Create(e1, e2);
+				KW_SHL: Result := ShiftLeft.Create(e1, e2);
+				KW_AND: Result := LogicalAnd.Create(e1, e2);
+				KW_SUB: Result := Subtraction.Create(e1, e2);
+				KW_SUM: Result := Addition.Create(e1, e2);
+				KW_OR : Result := LogicalOr.Create(e1, e2);
+				KW_XOR: Result := LogicalXor.Create(e1, e2);
+				KW_EQ : Result := Equal.Create(e1, e2);
+				KW_NE : Result := NotEqual.Create(e1, e2);
+				KW_LT : Result := LessThan.Create(e1, e2);
+				KW_LE : Result := LessOrEqual.Create(e1, e2);
+				KW_GT : Result := GreaterThan.Create(e1, e2);
+				KW_GE : Result := GreaterOrEqual.Create(e1, e2);
+    Else
+      RaiseError('Invalid Binary Operation token: ' + IntToString(token));
+  End;
+End;
+
+
+Constructor PascalParser.Create(Source:Stream);
+Begin
+    _Lexer := PascalLexer.Create(Source);
+End;
+
+Destructor PascalParser.Destroy();
+Begin
+    _Lexer.Destroy();
+    _Lexer := Nil;
+End;
+  
+Var
+  yyval : YYSType;
+  yys : array [1..yymaxdepth] of Integer;
+  yyv : array [1..yymaxdepth] of YYSType;
+  
+Procedure PascalParser.yyaction(yyruleno : Integer );
+  (* local definitions: *)
+%%
+Begin
+  (* actions: *)
+  case yyruleno of
+%%
+  End;
+End(*yyaction*);
+
+(* parse table: *)
+%%
+
+const _error = 256; (* error token *)
+
+function PascalParser.yyact(state, sym : Integer; var act : Integer) : Boolean;
+  (* search action table *)
+  var k : Integer;
+  Begin
+    k := yyal[state];
+    while (k<=yyah[state]) and (yya[k].sym<>sym) do inc(k);
+    if k>yyah[state] then
+      yyact := false
+    else
+      Begin
+        act := yya[k].act;
+        yyact := true;
+      End;
+  End(*yyact*);
+
+function PascalParser.yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
+  (* search goto table *)
+  var k : Integer;
+  Begin
+    k := yygl[state];
+    while (k<=yygh[state]) and (yyg[k].sym<>sym) do inc(k);
+    if k>yygh[state] then
+      yygoto := false
+    else
+      Begin
+        nstate := yyg[k].act;
+        yygoto := true;
+      End;
+  End(*yygoto*);
+
+function PascalParser.yycharsym(i : Integer) : String;
+Begin
+  if (i >= 1) and (i <= 255) then
+    Begin
+      if i < 32 then
+        Begin
+          if i = 9 then
+            Result := #39'\t'#39
+          else if i = 10 then
+            Result := #39'\f'#39
+          else if i = 13 then
+            Result := #39'\n'#39
+          else
+            Result := #39'\0x' + HexStr(Byte(i)) + #39;
+        End
+      else
+        Result := #39 + Char(i) + #39;
+      Result := ' literal ' + Result;
+    End
+  else
+    Begin
+      if i < -1 then
+        Result := ' unknown'
+      else if i = -1 then
+        Result := ' token $accept'
+      else if i = 0 then
+        Result := ' token $eof'
+      else if i = 256 then
+        Result := ' token $error'
+{$ifdef yyextradebug}
+      else if i <= yymaxtoken then
+        Result := ' token ' + yytokens[yychar].tokenname
+      else
+        Result := ' unknown token';
+{$else}
+      else
+        Result := ' token';
+{$Endif}
+    End;
+  Result := Result + ' ' + IntToString(yychar);
+End;
+
+Function PascalParser.parse():Integer;
+label parse, next, error, errlab, shift, reduce, accept, abort;
+
+Begin(*yyparse*)
+
+  (* initialize: *)
+
+  yystate := 0; yychar := -1; yynerrs := 0; yyerrflag := 0; yysp := 0;
+
+parse:
+
+  (* push state and value: *)
+
+  inc(yysp);
+  if yysp>yymaxdepth then
+    Begin
+      yyerror('yyparse stack overflow');
+      goto abort;
+    End;
+  yys[yysp] := yystate; yyv[yysp] := yyval;
+
+next:
+
+  If (yyd[yystate]=0) and (yychar=-1) Then // get next symbol
+    Begin
+      yychar := lexer.parse(); 
+      If yychar<0 Then 
+        yychar := 0;
+    End;
+
+  {$IFDEF YYDEBUG}writeln('state ', yystate, yycharsym(yychar));{$EndIF}
+
+  // determine parse action: 
+
+  yyn := yyd[yystate];
+  If yyn<>0 Then 
+    goto reduce; // simple state 
+
+  // no default action; search parse table 
+
+  If Not yyact(yystate, yychar, yyn) Then 
+    goto error
+  Else If yyn>0 Then                      
+    goto shift
+  Else If yyn<0 Then                      
+    goto reduce
+  Else                                    
+    goto accept;
+
+error:
+
+  (* error; start error recovery: *)
+
+  if yyerrflag=0 then 
+  Begin
+    yyerror('syntax error at line '+ IntToString(Lexer.CurrentLine) + ', row '+ IntToString(Lexer.CurrentRow));
+  End;
+    
+errlab:
+
+  if yyerrflag=0 then inc(yynerrs);     (* new error *)
+
+  if yyerrflag<=2 then                  (* incomplete recovery; try again *)
+    Begin
+      yyerrflag := 3;
+      (* uncover a state with shift action on error token *)
+      while (yysp>0) and not ( yyact(yys[yysp], _error, yyn) and
+                               (yyn>0) ) do
+        Begin
+          {$IFDEF YYDEBUG}
+            if yysp>1 then
+              writeln('error recovery pops state ', yys[yysp], ', uncovers ',
+                      yys[yysp-1])
+            else
+              writeln('error recovery fails ... abort');
+          {$EndIF}
+          dec(yysp);
+        End;
+      if yysp=0 then goto abort; (* parser has fallen from stack; abort *)
+      yystate := yyn;            (* simulate shift on error *)
+      goto parse;
+    End
+  else                                  (* no shift yet; discard symbol *)
+    Begin
+      {$IFDEF YYDEBUG}writeln('error recovery discards ' + yycharsym(yychar));{$EndIF}
+      if yychar=0 then goto abort; (* End of input; abort *)
+      yychar := -1; goto next;     (* clear lookahead char and try again *)
+    End;
+
+shift:
+
+  (* go to new state, clear lookahead character: *)
+
+  yystate := yyn; yychar := -1; yyval := yylval;
+  if yyerrflag>0 then dec(yyerrflag);
+
+  goto parse;
+
+reduce:
+
+  (* execute action, pop rule from stack, and go to next state: *)
+
+  {$IFDEF YYDEBUG}writeln('reduce ' + IntToString(-yyn) {$IFDEF YYEXTRADEBUG} + ' rule ' + yyr[-yyn].symname {$EndIF});{$EndIF}
+
+  yyflag := yyfnone; yyaction(-yyn);
+  dec(yysp, yyr[-yyn].len);
+  if yygoto(yys[yysp], yyr[-yyn].sym, yyn) then yystate := yyn;
+
+  (* handle action calls to yyaccept, yyabort and yyerror: *)
+
+  case yyflag of
+    yyfaccept : goto accept;
+    yyfabort  : goto abort;
+    yyferror  : goto errlab;
+  End;
+
+  goto parse;
+
+accept:
+
+  Result := 0; exit;
+
+abort:
+
+  Result := 1; exit;
+
+End(*yyparse*);
+
+// nodes implementation
+
+// nodes implementation
+
+
+{ MetaType }
+Constructor MetaType.Create(TypeClass: MetaTypeClass);
+Begin
+  Self.Value := TypeClass;
+End;
+
+{ Declaration }
+Constructor Declaration.Create(Name: StringObject; T: TypeNode);
+Begin
+  Self.Name := Name;
+  Self.DeclType := T;
+End;
+
+{ DeclarationList }
+Constructor DeclarationList.Create(Decl: Declaration);
+Begin
+  Self.Count := 0;
+  Self.Add(Decl);
+End;
+
+Procedure DeclarationList.Add(Decl: Declaration);
+Begin
+  If Decl = Nil Then
+    Exit;
+
+  Inc(Count);
+  SetLength(Declarations, Count);
+  Declarations[Pred(Count)] := Decl;
+End;
+
+Procedure DeclarationList.Add(DeclList: DeclarationList);
+Var
+  I:Integer;
+Begin
+  If DeclList = Nil Then
+    Exit;
+
+  For I:=0 To Pred(DeclList.Count) Do
+    Self.Add(DeclList.Declarations[I]);
+End;
+
+Procedure DeclarationList.InsertAt(Index:Integer; DeclList:DeclarationList);
+Var
+  I, Prev:Integer;
+Begin
+  If DeclList = Nil Then
+    Exit;
+
+  If (Index>=Count) Then
+  Begin
+    Self.Add(DeclList);
+    Exit;
+  End;
+
+  Prev := Count;
+  Inc(Count, DeclList.Count);
+  SetLength(Declarations, Count);
+
+  For I:=Index To Pred(Prev) Do
+    Declarations[I+DeclList.Count] := Declarations[I];
+
+  For I:=0 To Pred(DeclList.Count) Do
+    Declarations[I+Prev] := DeclList.Declarations[I];
+End;
+
+{ UnitItem }
+Constructor UnitItem.Create(Name, Location: StringObject);
+Begin
+  Self.Name := Name;
+  Self.Location := Location;
+  Self.DeclType := Nil;
+End;
+
+Constructor UnitItem.Create(Name: StringObject);
+Begin
+  Self.Create(Name, Nil);
+End;
+
+{ ProgramNode }
+Constructor ProgramNode.Create(Name:StringObject; UsesList:NodeList; Decls:DeclarationList; Body:BlockStatement);
+Begin
+  Self.Name := Name;
+  Self.Section := ProgramSection.Create(UsesList, Decls, Body);
+End;
+
+{ CompositeType }
+Function CompositeType.IsForward: Boolean;
+Begin
+  Result := (Section = Nil);
+End;
+
+{ Section }
+Constructor Section.Create(Decls: DeclarationList);
+Begin
+  Self.Decls := Decls;
+End;
+
+{ TopLevelDeclarationSection }
+Constructor TopLevelDeclarationSection.Create(UsesList:NodeList; Decls:DeclarationList);
+Begin
+  Self.Useslist := UsesList;
+  Self.Decls := Decls;
+End;
+
+{ StatementList }
+Constructor StatementList.Create(St: Statement);
+Begin
+  Self.Count := 0;
+  Self.Add(St);
+End;
+
+Procedure StatementList.Add(St: Statement);
+Begin
+  If St = Nil Then
+    Exit;
+
+  Inc(Count);
+  SetLength(Statements, Count);
+
+  Statements[Pred(Count)] := St;
+End;
+
+{ BlockStatement }
+
+Constructor BlockStatement.Create(List: StatementList);
+Begin
+  Self.List := List;
+End;
+
+{ ProgramSection }
+Constructor ProgramSection.Create(UsesList: NodeList; Decls: DeclarationList; Code: BlockStatement);
+Begin
+  Self.Block := Code;
+  Self.Useslist := UsesList;
+  Self.Decls := Decls;
+End;
+
+{ ExpressionList }
+Constructor ExpressionList.Create(Exp: Expression);
+Begin
+  Self.Count := 0;
+  Self.Add(Exp);
+End;
+
+Procedure ExpressionList.Add(Exp: Expression);
+Begin
+  If Exp = Nil Then
+    Exit;
+
+  Inc(Count);
+  SetLength(Expressions, Count);
+  Expressions[Pred(Count)] := Exp;
+End;
+
+Procedure ExpressionList.InsertAt(Index:Integer; Exp:Expression);
+Var
+  Prev, I:Integer;
+Begin
+  If (Exp = Nil) Then
+    Exit;
+
+  If (Index>=Count) Then
+  Begin
+    Self.Add(Exp);
+    Exit;
+  End;
+
+  Prev := Count;
+  Inc(Count);
+  For I:=Pred(Prev) DownTo Index Do
+    Expressions[I+1] := Expressions[I];
+
+  Expressions[Index] := Exp;
+End;
+
+{ ConstExpression }
+Function ConstExpression.ResolveToLiteral: Literal;
+Begin
+  Result := Nil; //TODO
+End;
+
+{ VarDeclaration }
+Constructor VarDeclaration.Create(Name:StringObject; VarType:TypeNode; Init:Expression; AbsoluteId:StringObject);
+Begin
+  Self.Name := Name;
+  Self.DeclType := VarType;
+  Self.Init := Init;
+  Self.AbsoluteID := AbsoluteID;
+End;
+
+Constructor VarDeclaration.Create(Name:StringObject; VarType:TypeNode; Init:Expression);
+Begin
+  Self.Create(Name, VarType, Init, Nil);
+End;
+
+{ ParamDeclaration }
+Constructor ParamDeclaration.Create(Name:StringObject; ParamType:TypeNode; Init:Expression; Kind:ParameterKind);
+Begin
+  Self.Name := Name;
+  Self.DeclType := ParamType;
+  Self.Init := Init;
+  Self.Kind := Kind;
+End;
+
+{ VarParamDeclaration }
+Constructor VarParamDeclaration.Create(Name:StringObject; VarType:TypeNode);
+Begin
+  Self.Name := Name;
+  Self.DeclType := VarType;
+End;
+
+{ ConstParamDeclaration }
+Constructor ConstParamDeclaration.Create(Name:StringObject; ConstType:TypeNode; Init:Expression);
+Begin
+  Self.Name := Name;
+  Self.DeclType := ConstType;
+  Self.Init := Init;
+End;
+
+{ OutParamDeclaration }
+Constructor OutParamDeclaration.Create(Name:StringObject; VarType:TypeNode);
+Begin
+  Self.Name := Name;
+  Self.DeclType := VarType;
+End;
+
+{ ParametersSection }
+Constructor ParametersSection.Create(Decls: DeclarationList);
+Begin
+  Self.Decls := Decls;
+End;
+
+{ FunctionDirectiveList }
+Constructor FunctionDirectiveList.Create(Dir:FunctionDirective);
+Begin
+  Self.Add(Dir);
+End;
+
+Procedure FunctionDirectiveList.Add(Dir:FunctionDirective);
+Begin
+  Inc(Count);
+  SetLength(Directives, Count);
+  Directives[Pred(Count)] := Count;
+End;
+
+Procedure FunctionDirectiveList.Add(Dirs: FunctionDirectiveList);
+Var
+  I:Integer;
+Begin
+  If Dirs = Nil Then
+    Exit;
+
+  For I:=0 To Pred(Dirs.Count) Do
+    Self.Add(Dirs.Directives[I]);
+End;
+
+
+Function FunctionDirectiveList.Contains(dir: FunctionDirective): Boolean;
+Var
+  I:Integer;
+Begin
+  Result := False;
+
+  For I:=0 To Pred(Count) Do
+  If (Directives[I] = Dir) Then
+  Begin
+    Result := True;
+    Exit;
+  End;
+End;
+
+
+Function FunctionDirectiveList.CheckDirectives: Boolean;
+Begin
+  // TODO
+End;
+
+{ CallableDeclaration }
+
+Constructor CallableDeclaration.Create(Name: StringObject;
+  Params: ParametersSection; RetType: TypeNode;
+  Dirs: FunctionDirectiveList);
+Begin
+  Self.Name := Name;
+  Self.DeclaringSection := Params;
+  Self.ResultType := RetType;
+  Self.Directives := Dirs;
+End;
+
+{ RoutineSection }
+
+Constructor RoutineSection.Create(Decls: DeclarationList; Block: Statement);
+Begin
+  Self.Decls := Decls;
+  Self.Block := Block;
+End;
+
+{ LibraryNode }
+Constructor LibraryNode.Create(Name:StringObject; UsesList:NodeList; Decls:DeclarationList; Body:BlockStatement);
+Begin
+  Self.Name := Name;
+  Self.Section := ProgramSection.Create(UsesList, Decls, Body);
+End;
+
+{ UnitNode }
+Constructor UnitNode.Create(Name: StringObject; Interfce:InterfaceSection; Impl:ImplementationSection; Init, Final: BlockStatement);
+Begin
+  Self.Name := Name;
+  Self.Interfaces := Interfce;
+  Self.Implements := Impl;
+  Self.Inits := Init;
+  Self.Final := Final;
+End;
+
+{ PackageNode }
+Constructor PackageNode.Create(Name: StringObject; Requires, Contains: NodeList);
+Begin
+  Self.Name := Name;
+  Self.Requires := Requires;
+  Self.Contains := Contains;
+End;
+
+{ StructuredConstant }
+
+Constructor StructuredConstant.Create(ExprList: ExpressionList);
+Begin
+  Self.ExprList := ExprList;
+End;
+
+{ ArrayConst }
+Constructor ArrayConst.Create(ExprList: ExpressionList);
+Begin
+  Self.ExprList := ExprList;
+End;
+
+Constructor ArrayConst.Create(ArrayElems: StringObject);
+Begin
+  RaiseError('TODO');
+End;
+
+{ FieldInit }
+Constructor FieldInit.Create(Name: StringObject; Expr: Expression);
+Begin
+  Self.FieldName := Name;
+  Self.Expr := Expr;
+End;
+
+{ FieldInitList }
+Constructor FieldInitList.Create(F: FieldInit);
+Begin
+  RaiseError('TODO');
+End;
+
+{ RecordConst }
+Constructor RecordConst.Create(ExprList: FieldInitList);
+Begin
+  Self.ExprList := ExprList;
+End;
+
+{ ConstIdentifier }
+
+Constructor ConstIdentifier.Create(Name: StringObject);
+Begin
+  Self.Name := Name;
+End;
+
+{ UnsignedInt8Type }
+
+function UnsignedInt8Type.GetMaxValue: Int64;
+Begin
+  Result := 255;
+End;
+
+function UnsignedInt8Type.GetMinValue: Int64;
+Begin
+  Result := 0;
+End;
+
+{ UnsignedInt16Type }
+
+function UnsignedInt16Type.GetMaxValue: Int64;
+Begin
+  Result := 65535;
+End;
+
+function UnsignedInt16Type.GetMinValue: Int64;
+Begin
+  Result := 0;
+End;
+
+{ UnsignedInt32Type }
+
+function UnsignedInt32Type.GetMaxValue: Int64;
+Begin
+  Result := 4294967295;
+End;
+
+function UnsignedInt32Type.GetMinValue: Int64;
+Begin
+  Result := 0;
+End;
+
+{ UnsignedInt64Type }
+function UnsignedInt64Type.GetMaxValue: Int64;
+Begin
+  Result := 9223372036854775807;
+End;
+
+function UnsignedInt64Type.GetMinValue: Int64;
+Begin
+  Result := -9223372036854775807;
+End;
+
+{ SignedInt8Type }
+
+function SignedInt8Type.GetMaxValue: Int64;
+Begin
+  Result := 127;
+End;
+
+function SignedInt8Type.GetMinValue: Int64;
+Begin
+  Result := -127;
+End;
+
+{ SignedInt16Type }
+
+function SignedInt16Type.GetMaxValue: Int64;
+Begin
+  Result := 32767;
+End;
+
+Function SignedInt16Type.GetMinValue: Int64;
+Begin
+  Result := -32768;
+End;
+
+{ SignedInt32Type }
+Function SignedInt32Type.GetMaxValue: Int64;
+Begin
+  Result := 2147483647;
+End;
+
+Function SignedInt32Type.GetMinValue: Int64;
+Begin
+  Result := 2147483647;
+End;
+
+{ SignedInt64Type }
+
+function SignedInt64Type.GetMaxValue: Int64;
+Begin
+  Result := 9223372036854775807;
+End;
+
+function SignedInt64Type.GetMinValue: Int64;
+Begin
+  Result := -9223372036854775807;
+End;
+
+{ StringType }
+
+Constructor StringType.Create(Len: Expression);
+Begin
+  Self.Length := Len;
+End;
+
+{ FixedStringType }
+
+Constructor FixedStringType.Create(Expr: Expression);
+Begin
+  Self.Expr := Expr;
+End;
+
+{ RangeType }
+
+Constructor RangeType.Create(Min, Max: Expression);
+Begin
+  Self.Min := Min;
+  Self.Max := Max;
+End;
+
+{ EnumValueList }
+Constructor EnumValueList.Create(Val: EnumValue);
+Begin
+  Count := 0;
+  Self.Add(Val);
+End;
+
+procedure EnumValueList.Add(Val: EnumValue);
+Begin
+  Inc(Count);
+  SetLength(Values, Count);
+  Values[Pred(Count)] := Val;
+End;
+
+
+{ EnumType }
+
+Constructor EnumType.Create(enumVals: EnumValueList);
+Begin
+  List := EnumVals;
+End;
+
+{ PointerType }
+
+Constructor PointerType.Create(PointedType: TypeNode);
+Begin
+  Self.PointedType := PointedType;
+End;
+
+{ FieldDeclaration }
+Constructor FieldDeclaration.FieldDeclaration(Id: StringObject; T: TypeNode; IsStatic: Boolean);
+Begin
+  Self.Name := Id;
+  Self.DeclType := T;
+  Self.isStatic := isStatic;
+End;
+
+{ PropertySpecifiers }
+
+Constructor PropertySpecifiers.Create(Read, Write: StringObject);
+Begin
+
+End;
+
+Constructor PropertySpecifiers.Create(Index: IntLiteral; Read,
+  Write: StringObject; Stored: ConstExpression; Default: Literal;
+  Impl: StringObject);
+Begin
+  Self.Index := Index;
+  Self.Read := Read;
+  Self.Write := Write;
+  Self.Stored := Stored;
+  Self.Default := Default;
+  Self.Impl := Impl; 
+End;
+
+{ PropertyDeclaration }
+
+Constructor PropertyDeclaration.Create(ID: StringObject; T: TypeNode;
+  Specs: PropertySpecifiers);
+Begin
+  Self.Name := ID;
+  Self.DeclType := T;
+  Self.Specifiers := Specs;
+End;
+
+{ ArrayProperty }
+
+Constructor ArrayProperty.Create(Id: StringObject; T: TypeNode;
+  Indexes: DeclarationList; Specs: PropertySpecifiers; Def: Boolean);
+Begin
+  Self.Name := ID;
+  Self.DeclType := T;
+  Self.Indexes := Indexes;
+  Self.Specifiers := Specs;
+  Self.IsDefault := Def;
+End;
+
+{ ObjectSection }
+Constructor ObjectSection.Create(Fields, Decls: DeclarationList; Scope: Integer);
+Begin
+  Self.Fields := Fields;
+  Self.Decls := Decls;
+  //SCOPE?
+End;
+
+procedure ObjectSection.Add(Sec: ObjectSection);
+Begin
+RaiseError('TODO');
+End;
+
+procedure ObjectSection.AddDecls(Decls: DeclarationList; Scope: Integer);
+Begin
+RaiseError('TODO');
+End;
+
+procedure ObjectSection.AddFields(Fields: DeclarationList; Scope: Integer);
+Begin
+RaiseError('TODO');
+End;
+
+procedure ObjectSection.AddMethods(Methods: DeclarationList;
+  Scope: Integer);
+Begin
+RaiseError('TODO');
+End;
+
+procedure ObjectSection.AddProperties(Properties: DeclarationList;
+  Scope: Integer);
+Begin
+RaiseError('TODO');
+End;
+
+function ObjectSection.GetField(id: AnsiString): FieldDeclaration;
+Begin
+RaiseError('TODO');
+End;
+
+function ObjectSection.GetMember(id: AnsiString): Declaration;
+Begin
+RaiseError('TODO');
+End;
+
+function ObjectSection.GetMethod(id: AnsiString): MethodDeclaration;
+Begin
+RaiseError('TODO');
+End;
+
+function ObjectSection.GetProperty(id: AnsiString): PropertyDeclaration;
+Begin
+RaiseError('TODO');
+End;
+
+{ ClassTypeNode }
+
+Constructor ClassTypeNode.Create(Heritage: NodeList; Sec: ObjectSection);
+Begin
+  RaiseError('TODO');
+End;
+
+{ ClassRefType }
+Constructor ClassRefType.Create(reftype: ClassTypeNode);
+Begin
+  Self.RefType := RefType;
+End;
+
+Constructor ClassRefType.Create(qualifid: StringObject;
+  reftype: ClassTypeNode);
+Begin
+  Self.RefType :=RefType;
+  Self.QualifID := Qualifid;
+End;
+
+{ MetaClassType }
+
+Constructor MetaClassType.Create(baseType: TypeNode);
+Begin
+  Self.BaseType := BaseType;
+End;
+
+{ IntLiteral }
+
+Constructor IntLiteral.Create(Value: Int64);
+Begin
+  Self.Value := Value;
+End;
+
+{ CharLiteral }
+
+Constructor CharLiteral.Create(Value: AnsiChar);
+Begin
+  Self.Value := Value;
+End;
+
+{ BoolLiteral }
+
+Constructor BoolLiteral.Create(Value: Boolean);
+Begin
+  Self.Value := Value;
+End;
+
+{ StringLiteral }
+
+Constructor StringLiteral.Create(Value: StringObject);
+Begin
+  Self.Value := Value;
+End;
+
+{ RealLiteral }
+
+Constructor RealLiteral.Create(Value: Double);
+Begin
+  Self.Value := Value;
+End;
+
+{ PointerLiteral }
+
+Constructor PointerLiteral.Create(val: Int64);
+Begin
+  Self.Value := Value;
+End;
+
+{ BinaryExpression }
+
+Constructor BinaryExpression.Create(A, B: Expression);
+Begin
+  Self.Left := A;
+  Self.Right := B;
+End;
+
+{ SetIn }
+
+Constructor SetIn.Create(A, B: Expression);
+Begin
+  Self.Expr := A;
+  Self._Set := B;
+End;
+
+{ SetRange }
+
+Constructor SetRange.Create(_type: RangeType);
+Begin
+  RaiseError('TODO');
+End;
+
+{ TypeBinaryExpression }
+
+Constructor TypeBinaryExpression.Create(Expr: Expression;
+  ExprType: TypeNode);
+Begin
+  Self.Expr := Expr;
+  Self.Types := ExprType;
+End;
+
+{ SimpleUnaryExpression }
+
+Constructor SimpleUnaryExpression.Create(Expr: Expression);
+Begin
+  Self.Expr := Expr;
+End;
+
+{ SetExpression }
+
+Constructor SetExpression.Create(Elements: ExpressionList);
+Begin
+  Self.Elements := Elements;
+End;
+
+{ LvalueAsExpr }
+
+Constructor LvalueAsExpr.Create(lval: LvalueExpression);
+Begin
+  Self.lval := LVal;
+End;
+
+{ ExprAsLvalue }
+
+Constructor ExprAsLvalue.Create(Expr: Expression);
+Begin
+  Self.Expr := Expr;
+End;
+
+{ StaticCast }
+Constructor StaticCast.Create(t: TypeNode; e: Expression);
+Begin
+  Self.CastType := T;
+  Self.Expr := E;
+End;
+
+Constructor StaticCast.Create(t: TypeClass; e: Expression);
+Begin
+  Self.CastPrimitive := T;
+  Self.Expr := Expr;
+End;
+
+{ ArrayAccess }
+Constructor ArrayAccess.Create(_array: ArrayConst;
+  acessors: ExpressionList);
+Begin
+  Self._Array := _Array;
+  Self.Acessors := Acessors;
+End;
+
+Constructor ArrayAccess.Create(lvalue: LvalueExpression;
+  acessors: ExpressionList);
+Begin
+  Self.LValue := LValue;
+  Self.Acessors := Acessors;
+End;
+
+{ PointerDereference }
+Constructor PointerDereference.Create(Expr: Expression);
+Begin
+  Self.Expr := Expr;
+End;
+
+{ RoutineCall }
+Constructor RoutineCall.Create(Func: LvalueExpression; RetType: TypeNode);
+Begin
+  Self.Func := Func;
+  Self.ForcedType := RetType;
+End;
+
+{ InheritedCall }
+Constructor InheritedCall.Create(FuncName: StringObject; Args: ExpressionList);
+Begin
+  Self.FuncName := FuncName;
+  Self.Args := Args;
+End;
+
+{ ObjectAccess }
+Constructor ObjectAccess.Create(Obj: LvalueExpression; Field: StringObject);
+Begin
+  Self.Obj := Obj;
+  Self.Field := Field;
+End;
+
+{ Identifier }
+Constructor Identifier.Create(Name: StringObject; T: TypeNode);
+Begin
+  Self.Name := Name;
+  Self.ForcedType := T;
+End;
+
+{ UnresolvedId }
+Constructor UnresolvedId.Create(ID: Identifier);
+Begin
+  Self.ID := ID;
+End;
+
+{ UnresolvedCall }
+Constructor UnresolvedCall.Create(lval: LvalueExpression;
+  Args: ExpressionList);
+Begin
+  Self.Func := LVal;
+  Self.Args := Args;
+End;
+
+{ ConstDeclaration }
+Constructor ConstDeclaration.Create(Name: StringObject; Init: Expression;  T: TypeNode);
+Begin
+  Self.Name := Name;
+  Self.Init := Init;
+  Self.DeclType := T;
+End;
+
+{ EnumValue }
+Constructor EnumValue.Create(Name: StringObject; Init: Expression);
+Begin
+  Self.Name := Name;
+  Self.Init := Init;
+End;
+
+{ ProceduralType }
+Constructor ProceduralType.Create(Params: ParametersSection; ret: TypeNode;  Dirs: FunctionDirectiveList);
+Begin
+  Self.Params := Params;
+  Self.FuncRet := Ret;
+  Self.Directives := Dirs;
+End;
+
+{ RoutineDeclaration }
+Constructor RoutineDeclaration.Create(Name: StringObject; Params: ParametersSection; Ret: TypeNode; Dirs: FunctionDirectiveList);
+Begin
+  Self.Name := Name;
+  Self.DeclaringSection := Params;
+  Self.ResultType := Ret;
+  Self.Directives := Dirs;
+End;
+
+{ MethodDeclaration }
+Constructor MethodDeclaration.Create(objname, name: StringObject;
+  params: ParametersSection; ret: TypeNode; dirs: FunctionDirectiveList;
+  kind: MethodKind);
+Begin
+  Self.Objname := ObjName;
+  Self.Name := Name;
+  Self.DeclaringSection := Params;
+  Self.ResultType := Ret;
+  Self.Directives := Dirs;
+  Self.Kind := Kind;
+End;
+
+{ RoutineDefinition }
+Constructor RoutineDefinition.Create(name: StringObject;
+  params: ParametersSection; ret: TypeNode; dirs: FunctionDirectiveList;
+  body: RoutineSection);
+Begin
+
+End;
+
+Constructor RoutineDefinition.Create(name: StringObject;
+  signatureType: ProceduralType; dirs: FunctionDirectiveList;
+  body: RoutineSection);
+Begin
+  Self.Name := Name;
+  Self.SignatureType := SignatureType;
+  Self.Directives := Dirs;
+  Self.Body := Body;
+End;
+
+{ MethodDefinition }
+Constructor MethodDefinition.Create(objname, name: StringObject;
+  params: ParametersSection; ret: TypeNode; dirs: FunctionDirectiveList;
+  kind: MethodKind; body: RoutineSection);
+Begin
+  Self.Objname := ObjName;
+  Self.Name := Name;
+  Self.DeclaringSection := Params;
+  Self.ResultType := Ret;
+  Self.Directives := Dirs;
+  Self.Kind := Kind;
+  Self.Body := Body;
+End;
+
+{ CompositeDeclaration }
+Constructor CompositeDeclaration.Create(Name: StringObject; ctype: CompositeType);
+Begin
+  Self.Name := Name;
+  Self.DeclType := Ctype;
+End;
+
+{ ExternalDirective }
+Constructor ExternalDirective.Create(_file, name: Expression);
+Begin
+  Self._File := _File;
+  Self.Name := Name;
+End;
+
+{ ImportDirectives }
+Constructor ImportDirectives.Create(ImportDir: FunctionDirective);
+Begin
+  RaiseError('TODO');
+  //Self.
+End;
+
+{ LabelStatement }
+Constructor LabelStatement.Create(Name: StringObject; stmt: Statement);
+Begin
+  Self.Name := Name;
+  Self.Stmt := stMT;
+End;
+
+{ GotoStatement }
+Constructor GotoStatement.Create(LabelName: StringObject);
+Begin
+  Self.GotoLabel := LabelName;
+End;
+
+{ Assignment }
+Constructor Assignment.Create(lvalue: LvalueExpression; expr: Expression);
+Begin
+  Self.lvalue := LValue;
+  Self.Expr := Expr;
+End;
+
+{ IfStatement }
+Constructor IfStatement.Create(condition: Expression; ifTrue, ifFalse: Statement);
+Begin
+  Self.Condition := Condition;
+  Self.ThenBlock := ifTrue;
+  Self.ElseBlock := ifFalse;
+End;
+
+{ ExpressionStatement }
+Constructor ExpressionStatement.Create(Expr: Expression);
+Begin
+  Self.Expr := Expr;
+End;
+
+{ CaseSelector }
+Constructor CaseSelector.Create(list: ExpressionList; stmt: Statement);
+Begin
+  Self.List := List;
+  Self.Stmt := Stmt;
+End;
+
+{ CaseStatement }
+Constructor CaseStatement.Create(condition: Expression;  selectors: StatementList; caseelse: Statement);
+Begin
+  Self.Condition := Condition;
+  Self.Selectors := Selectors;
+  Self.CaseElse := CaseElse;
+End;
+
+{ LoopStatement }
+
+Constructor LoopStatement.Create(Block: Statement; Condition: Expression);
+Begin
+  Self.Block := Block;
+  Self.Condition := Condition;
+End;
+
+{ ForLoop }
+
+Constructor ForLoop.Create(_var: Identifier; start, _End: Expression;  body: Statement; dir: Integer);
+Begin
+  Self._var := _Var;
+  Self.Start := Start;
+  Self._End := _End;
+  Self.Block := Body;
+  Self.Direction := Dir;
+End;
+
+{ WithStatement }
+Constructor WithStatement.Create(_with: ExpressionList; Body: Statement);
+Begin
+  Self._With := _With;
+  Self.Body := Body;
+End;
+
+{ TryFinallyStatement }
+Constructor TryFinallyStatement.Create(Body, Final: BlockStatement);
+Begin
+  Self.Body := Body;
+  Self.Final := Final;
+End;
+
+{ ExceptionBlock }
+Constructor ExceptionBlock.Create(onList: StatementList; default: BlockStatement);
+Begin
+  Self.onList := OnList;
+  Self.Default := Default;
+End;
+
+{ TryExceptStatement }
+Constructor TryExceptStatement.Create(Body: BlockStatement;  Final: ExceptionBlock);
+Begin
+  Self.Body := Body;
+  Self.Final := Final;
+End;
+
+{ RaiseStatement }
+Constructor RaiseStatement.Create(lvalue: LvalueExpression; Expr: Expression);
+Begin
+  Self.LValue := LValue;
+  Self.Expr := Expr;
+End;
+
+{ OnStatement }
+
+Constructor OnStatement.Create(Ident, _type: StringObject; Body: Statement);
+Begin
+  Self.Ident := Ident;
+  Self._type := _Type;
+  Self.Body := Body;
+End;
+
+{ AssemblerBlock }
+Constructor AssemblerBlock.AssemblerBlock(asmInstrs: StatementList);
+Begin
+  Self.List := asmInstrs;
+End;
+
+{ InterfaceType }
+Constructor InterfaceType.Create(Heritage: InterfaceList; Ssec: ObjectSection; guid: StringLiteral);
+Begin
+  Self.Heritage := Heritage;
+  Self.Ssec := Ssec;
+  Self.Guid := Guid;
+End;
+
+{ RecordType }
+Constructor RecordType.Create(compTypes: DeclarationList);
+Begin
+  Self.CompTypes := compTypes;
+End;
+
+{ ArrayType }
+Constructor ArrayType.Create(baseType: TypeNode; dims: List);
+Begin
+  Self.BaseType := BaseType;
+  RaiseError('TODO');
+  //Self.Dimensions := Dims;
+End;
+
+Constructor ArrayType.Create(sizeType: TypeNode);
+Begin
+  RaiseError('TODO');
+End;
+
+Constructor ArrayType.Create(baseType, sizeType: TypeNode);
+Begin
+  Self.BaseType := BaseType;
+  RaiseError('TODO');
+End;
+
+Procedure ArrayType.AddDimension(size: Integer);
+Begin
+  Inc(DimensionCount);
+  SetLength(Dimensions, DimensionCount);
+  Dimensions[Pred(DimensionCount)] := Size;
+End;
+
+{ SetType }
+Constructor SetType.Create(T: TypeNode);
+Begin
+  Self.BaseType := T;
+End;
+
+{ FileType }
+Constructor FileType.Create(T: TypeNode);
+Begin
+  Self.BaseType := T;
+End;
+
+{ VariantDeclaration }
+Constructor VariantDeclaration.Create(ID: StringObject; T: TypeNode; Fields: DeclarationList);
+Begin
+  Self.Name := Name;
+  Self.DeclType := T;
+  Self.Fields := Fields;
+End;
+
+{ VarEntryDeclaration }
+Constructor VarEntryDeclaration.Create(TagValue: Expression; Fields: DeclarationList);
+Begin
+  Self.TagValue := TagValue;
+  //Self.Fields := Fields;
+  RaiseError('TODO');
+End;
+
+{ ExportItem }
+Constructor ExportItem.Create(name: StringObject; pars: ParametersSection; exportname: StringObject);
+Begin
+  Self.Name := Name;
+  Self.FormalParams := Pars;
+  Self.ExportName := ExportName;
+End;
+
+Constructor ExportItem.Create(name: StringObject; pars: ParametersSection; Index: Integer);
+Begin
+  Self.Name := Name;
+  Self.FormalParams := Pars;
+  Self.Index := Index;
+End;
+
+{ UnresolvedType }
+
+Constructor UnresolvedType.Create(ID: StringObject);
+Begin
+  Self.ID := ID;
+End;
+
+{ UnresolvedVariableType }
+
+Constructor UnresolvedVariableType.Create(ID: StringObject);
+Begin
+  Self.ID := ID;
+End;
+
+{ UnresolvedIntegralType }
+
+Constructor UnresolvedIntegralType.Create(ID: StringObject);
+Begin
+  Self.ID := ID;
+End;
+
+{ UnresolvedOrdinalType }
+
+Constructor UnresolvedOrdinalType.Create(ID: StringObject);
+Begin
+  Self.ID := ID;
+End;
+
+End.

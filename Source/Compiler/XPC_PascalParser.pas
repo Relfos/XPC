@@ -1,3 +1,1247 @@
+// source: delphi_parser.cod line# 1
+Unit XPC_PascalParser;
+
+{$I terra.inc}
+
+Interface
+Uses XPC_Parser, XPC_PascalLexer, TERRA_Utils, TERRA_IO, TERRA_Error, TERRA_FileIO, TERRA_Collections;
+
+//    | LBRAC lvalue RBRAC                { $$ := $2; }
+
+Type
+  PascalParser = Class(CustomParser)
+    Protected
+      _Lexer:PascalLexer;
+      _lastObjName:StringObject;
+      
+      procedure yyaction ( yyruleno : Integer );
+
+      function yyact(state, sym : Integer; var act : Integer) : Boolean;
+
+      function yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
+
+      function yycharsym(i : Integer) : String;
+     
+    Public
+        Constructor Create(Source:Stream);
+        Destructor Destroy(); Override;
+
+      Function Parse: integer; Override;
+
+      Property Lexer:PascalLexer Read _Lexer;
+  End;
+
+
+Const
+  functionDirective_Assembler = 1;
+  functionDirective_Export    = 2;
+  functionDirective_Inline    = 3;
+  functionDirective_VarArgs   = 4;
+  functionDirective_Far       = 5;
+  functionDirective_Near      = 6;
+  functionDirective_Resident  = 7;
+  functionDirective_Overload  = 8;
+
+  methodDirective_Abstract  = 9;
+  methodDirective_Override = 10;
+  methodDirective_Virtual = 11;
+  methodDirective_Dynamic = 12;
+  methodDirective_Reintroduce = 13;
+
+  callConvention_Pascal = 0;
+  callConvention_SafeCall = 1;
+  callConvention_StdCall = 2;
+  callConvention_CDecl = 3;
+  callConvention_Register = 4;
+
+	importDirective_Default = 0;
+  importDirective_External = 1;
+  importDirective_Forward = 2;
+
+  scope_Public    = 0;
+  scope_Protected = 1;
+  scope_Private   = 2;
+  scope_Published = 3;
+
+Type
+  PascalNode = Class(ListObject)
+  End;
+
+	SourceNode = Class(PascalNode)
+    Name:StringObject;
+  End;
+
+  ProgramSection = Class;
+  NodeList = List;
+
+  TypeNode = Class(PascalNode)
+		// TODO each derive should set the typesize
+		typeSize:Integer;
+  End;
+
+  MetaTypeClass = Class Of TypeNode;
+
+  MetaType = Class(TypeNode)
+    Value:MetaTypeClass;
+
+    Constructor Create(TypeClass:MetaTypeClass);
+  End;
+
+  Declaration = Class(PascalNode)
+		Name:StringObject;
+		DeclType:TypeNode;
+
+		Constructor Create(Name:StringObject; T:TypeNode = Nil);
+  End;
+
+  DeclarationList = Class(PascalNode)
+    Declarations:Array Of Declaration;
+    Count:Integer;
+
+    Constructor Create(Decl:Declaration = Nil);
+    Procedure Add(Decl:Declaration); Overload;
+    Procedure Add(DeclList:DeclarationList); Overload;
+
+    Procedure InsertAt(Index:Integer; DeclList:DeclarationList);
+  End;
+
+  UnitItem = Class(Declaration)
+    Location:StringObject;
+
+    Constructor Create(Name:StringObject; Location:StringObject); Overload;
+    Constructor Create(Name:StringObject); Overload;
+  End;
+
+	Statement = Class(PascalNode)
+  End;
+
+  BlockStatement = Class;
+
+	ProgramNode = Class(SourceNode)
+    Section:ProgramSection;
+
+    Constructor Create(Name:StringObject; UsesList:NodeList; Decls:DeclarationList; Body:BlockStatement);
+  End;
+
+  ObjectSection = Class;
+  CompositeDeclaration = Class;
+  CompositeType = Class(TypeNode)
+		//heritage:StringList;
+
+		section:ObjectSection ;
+
+		decl:CompositeDeclaration;
+
+		IsPacked:Boolean;
+
+		// optional
+		Name:StringObject;
+
+
+    Ancestors:Array Of CompositeType;
+    AncestorCount:Integer;
+
+		//public List<CompositeType> ancestors;
+
+		Function IsForward:Boolean;  
+  End;
+
+	Section = Class(PascalNode)
+		Decls:DeclarationList;
+
+		Constructor Create(Decls:DeclarationList);
+  End;
+
+  TopLevelDeclarationSection = Class(Section)
+    Useslist:NodeList;
+
+		Constructor Create(UsesList:NodeList; Decls:DeclarationList);
+  End;
+
+
+	InterfaceSection = Class(TopLevelDeclarationSection)
+  End;
+
+	ImplementationSection = Class(TopLevelDeclarationSection)
+  End;
+
+  StatementList = Class(Statement)
+    Statements:Array Of Statement;
+    Count:Integer;
+
+    Constructor Create(St:Statement);
+    Procedure Add(St:Statement);
+  End;
+
+	BlockStatement = Class(Statement)
+		List:StatementList;
+
+		Constructor Create(List:StatementList);
+  End;
+
+	ProgramSection = Class(TopLevelDeclarationSection)
+    Block:BlockStatement;
+
+    Constructor Create(UsesList:NodeList; Decls:DeclarationList; Code:BlockStatement);
+  End;
+
+	ConstantValue = Class(PascalNode)
+  End;
+
+  Expression = Class(PascalNode)
+		ForcedType:TypeNode;
+    EnforceConst:Boolean;
+  End;
+
+  ExpressionList = Class(PascalNode)
+    Expressions:Array Of Expression;
+    Count:Integer;
+
+    Constructor Create(Exp:Expression = Nil);
+    Procedure Add(Exp:Expression);
+
+    Procedure InsertAt(Index:Integer; Exp:Expression);
+  End;
+
+  Literal = Class;
+  IntLiteral = Class;
+  
+  ConstExpression = Class(Expression)
+    Function ResolveToLiteral():Literal;
+  End;
+
+	LabelDeclaration = Class(Declaration)
+  End;
+
+	ValueDeclaration = Class(Declaration)
+  End;
+
+	VarDeclaration = Class(ValueDeclaration)
+		Init:Expression;
+		AbsoluteID:StringObject;
+		IsThrVar:Boolean;
+
+		Constructor Create(Name:StringObject; VarType:TypeNode; Init:Expression; AbsoluteId:StringObject);  Overload;
+		Constructor Create(Name:StringObject; VarType:TypeNode; Init:Expression = Nil);  Overload;
+  End;
+
+  ParameterKind = (param_Default, param_Var, param_Out, param_Const);
+
+	/// Routine parameters. May be value (default), variable, constant, or out.
+	/// Param types must be an id, string or open array (array of paramtype)
+	ParamDeclaration = Class(ValueDeclaration)
+		Init:Expression;
+    Kind:ParameterKind;
+
+		Constructor Create(Name:StringObject; ParamType:TypeNode; Init:Expression; Kind:ParameterKind);
+  End;
+
+	VarParamDeclaration = Class(ParamDeclaration)
+		Constructor Create(Name:StringObject; VarType:TypeNode);
+  End;
+
+	ConstParamDeclaration = Class(ParamDeclaration)
+		Constructor Create(Name:StringObject; ConstType:TypeNode; Init:Expression = Nil);
+  End;
+
+	OutParamDeclaration = Class(ParamDeclaration)
+		Constructor Create(Name:StringObject; VarType:TypeNode);
+  End;
+
+
+  ParametersSection = Class(Section)
+		  ReturnVar:ParamDeclaration; //TODO
+
+		  Constructor Create(Decls:DeclarationList=Nil);
+		//public override bool Equals(object obj)
+		{
+			ParametersSection sec = obj as ParametersSection;
+			return sec != null && returnVar.Equals(sec.returnVar) && decls.SequenceEqual(sec.decls);
+		}
+  End;
+
+
+	/// Directives constraints:
+	///		Override | Abstract
+	///		Abstract => virtual
+	///		varargs => cdecl
+  FunctionDirective = Integer;
+
+	FunctionDirectiveList  = Class(PascalNode)
+		CallConv:Integer;
+		Directives:Array Of FunctionDirective;
+    Count:Integer;
+
+    Constructor Create(Dir:FunctionDirective);
+		Procedure Add(Dir:FunctionDirective); Overload;
+		Procedure Add(Dirs:FunctionDirectiveList); Overload;
+
+		//public virtual void Add(int dir)
+		Function Contains(Dir:FunctionDirective ):Boolean;
+		/// Checks the immediate coherence between function directives.
+		/// Must be called after all directives are added
+		Function CheckDirectives():Boolean;
+  End;
+
+  ProceduralType = Class;
+
+	/// Declaration of a Callable unit, i.e. a global routine or method
+	CallableDeclaration = Class(Declaration)
+		/// Gets the fully qualified name of this callable
+		/// (obj+metname for methods, plus parameter types for overloads)
+		/// To be set by the Resolver
+		QualifiedName:StringObject;
+
+		/// Section that declares this callable.
+		/// To be set by resolver
+		DeclaringSection:Section;
+
+    SignatureType:ProceduralType;
+    ResultType:TypeNode;
+
+    Directives:FunctionDirectiveList;
+
+		Constructor Create(Name:StringObject; Params:ParametersSection; RetType:TypeNode = Nil; Dirs:FunctionDirectiveList = Nil);
+  End;
+
+
+	RoutineSection = Class(Section)
+    Block:Statement;
+
+		 // to be set by resolver
+		DeclaringCallable:CallableDeclaration;
+
+		Constructor Create(Decls:DeclarationList; Block:Statement);
+  End;
+
+	LibraryNode = Class(SourceNode)
+		Section:ProgramSection;
+
+		Constructor Create(Name:StringObject; UsesList:NodeList; Decls:DeclarationList; Body:BlockStatement);
+  End;
+
+	UnitNode = Class(SourceNode)
+		Interfaces:InterfaceSection;
+		Implements:ImplementationSection;
+		Inits:BlockStatement;
+		Final:BlockStatement;
+
+		Constructor Create(Name:StringObject; Interfce:InterfaceSection; Impl:ImplementationSection;  Init:BlockStatement = Nil; Final:BlockStatement = Nil);
+  End;
+
+  PackageNode = Class(SourceNode)
+		Requires:NodeList;
+		Contains:NodeList;
+
+		Constructor Create(Name:StringObject; requires, contains:NodeList);
+  End;
+
+  StructuredConstant = Class(ConstExpression)
+    ExprList:ExpressionList;
+
+		Constructor Create(ExprList:ExpressionList);
+  End;
+
+	ArrayConst = Class(StructuredConstant)
+    Constructor Create(ExprList:ExpressionList); Overload;
+		Constructor Create(ArrayElems:StringObject); Overload;
+			//: base(new ExpressionList(arrayElems.ToCharArray().Select(x => new CharLiteral(x)))){ }
+	End;
+
+  FieldInit = Class(ConstExpression)
+	  FieldName:StringObject;
+    Expr:Expression;
+
+    Constructor Create(Name:StringObject; Expr:Expression);
+  End;
+
+  FieldInitList = Class(ExpressionList)
+    Constructor Create(F:FieldInit = Nil);
+    //Procedure Add(F:FieldInit);
+  End;
+
+  RecordConst = Class(StructuredConstant)
+    Constructor Create(ExprList:FieldInitList);
+  End;
+
+  ConstIdentifier = Class(ConstExpression)
+    Name:StringObject;
+
+    Constructor Create(Name:StringObject);
+  End;
+
+  ScalarType = Class(TypeNode)
+  End;
+
+  TypeClass = Class Of ScalarType;
+
+  IntegralType = Class(ScalarType)
+    Function GetMinValue():Int64 ; Virtual; Abstract;
+    Function GetMaxValue():Int64 ; Virtual; Abstract;
+  End;
+
+	IntegerType = Class(IntegralType)
+  End;
+
+	SignedIntegerType = Class(IntegerType)
+  End;
+
+	UnsignedIntegerType = Class(IntegerType)
+  End;
+
+	UnsignedInt8Type = Class(UnsignedIntegerType)		// byte
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	UnsignedInt16Type = Class(UnsignedIntegerType)	// word
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	UnsignedInt32Type = Class(UnsignedIntegerType)	// cardinal
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	UnsignedInt64Type = Class(UnsignedIntegerType)	// uint64
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	SignedInt8Type = Class(SignedIntegerType)			// smallint
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	SignedInt16Type = Class(SignedIntegerType)		// smallint
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	SignedInt32Type = Class(SignedIntegerType)		// integer
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	SignedInt64Type = Class(IntegerType)				// int64
+    Function GetMinValue():Int64 ; Override;
+    Function GetMaxValue():Int64 ; Override;
+	End;
+
+	BoolType = Class(IntegralType)
+	End;
+
+	CharType = Class(IntegralType)
+	End;
+
+	RealType = Class(ScalarType)
+  End;
+
+	FloatType = Class(RealType)
+  End;
+
+	DoubleType = Class(RealType)
+  End;
+
+	ExtEndedType = Class(RealType)
+  End;
+
+	CurrencyType = Class(RealType)
+  End;
+
+	StringType = Class(ScalarType)
+    Length:Expression;
+
+    Constructor Create(Len:Expression = Nil);
+	End;
+
+	FixedStringType = Class(StringType)
+		Expr:Expression;
+		Len:Integer;
+
+		Constructor Create(Expr:Expression);
+  End;
+
+	RangeType = Class(TypeNode)
+		Min:Expression;
+		Max:Expression;
+
+		Constructor Create(Min, Max:Expression);
+  End;
+
+  EnumValue = Class;
+  EnumValueList = Class(PascalNode)
+		Values:Array Of EnumValue;
+    Count:Integer;
+
+    Constructor Create(Val:EnumValue);
+    Procedure Add(Val:EnumValue);
+  End;
+
+	EnumType = Class(TypeNode)
+    List:EnumValueList;
+
+		Constructor Create(enumVals:EnumValueList);
+  End;
+
+	/// Variants can hold values of any type except records, sets, static arrays, files, classes, class references, and pointers.
+	/// I.e. can hold anything but structured types and pointers.
+	/// They can hold interfaces, dynamic arrays, variant arrays
+	VariantType = Class(TypeNode)
+		actualtype:TypeNode ;
+  End;
+
+	/// PointedType may be any type.
+	/// It may be a not yet declared type (forward declaration)
+	PointerType = Class(ScalarType)
+		PointedType:TypeNode;
+
+		Constructor Create(PointedType:TypeNode);
+  End;
+
+
+	FieldDeclaration = Class(ValueDeclaration)
+		isStatic:Boolean;
+		Scope:Integer;
+		DeclaringObject:CompositeType;
+
+		Constructor FieldDeclaration(Id:StringObject; T:TypeNode = Nil; IsStatic:Boolean = False);
+  End;
+
+	PropertySpecifiers  = Class(PascalNode)
+		Public
+      Index:IntLiteral;
+		  Read:StringObject;
+		  Write:StringObject;
+      Stored:ConstExpression;
+		  Default:Literal;	// nodefault == Int32.MaxValue
+		  Impl:StringObject;
+
+		  Constructor Create(Read, Write:StringObject); Overload;
+		  Constructor Create(Index:IntLiteral; Read, Write:StringObject; Stored:ConstExpression; Default:Literal; Impl:StringObject = Nil); Overload;
+  End;
+
+	PropertyDeclaration = Class(FieldDeclaration)
+    Public
+  		Specifiers:PropertySpecifiers;
+
+		  IsStatic:Boolean;
+
+		  Constructor Create(ID:StringObject; T:TypeNode; Specs:PropertySpecifiers = Nil);
+  End;
+
+	ArrayProperty = Class(PropertyDeclaration)
+		Indexes:DeclarationList;
+		IsDefault:Boolean;
+
+		Constructor Create(Id:StringObject; T:TypeNode; Indexes:DeclarationList; Specs:PropertySpecifiers; Def:Boolean);
+	End;
+
+
+  MethodDeclaration = Class;
+
+	ObjectSection = Class(Section)
+		Fields:DeclarationList;
+		Properties:DeclarationList;
+    //Methods:DeclarationList;
+		DeclaringObject:CompositeType;
+
+		Constructor Create(Fields:DeclarationList = Nil; Decls:DeclarationList = Nil; Scope:Integer = Scope_Published);
+
+		Procedure Add(Sec:ObjectSection);
+
+		Procedure AddFields(Fields:DeclarationList; Scope:Integer);
+
+		Procedure AddMethods(Methods:DeclarationList; Scope:Integer);
+
+		Procedure AddProperties(Properties:DeclarationList; Scope:Integer);
+
+		/// Add unknown-type declarations
+		Procedure AddDecls(Decls:DeclarationList; Scope:Integer);
+
+		/// Fields, Methods and Properties
+		{
+		public IEnumerable<Declaration> Decls(Scope s = (Scope) 0xffffff)
+			foreach (var f in fields.Cast<FieldDeclaration>().Where(f => (f.scope & s) != 0))
+				yield return f;
+			foreach (var d in decls.Cast<MethodDeclaration>().Where(d => (d.scope & s) != 0))
+				yield return d;
+			foreach (var p in properties.Cast<PropertyDeclaration>().Where(p => (p.scope & s) != 0))
+				yield return p;
+		}
+
+
+		/// Returns a member with the given name
+		Function GetMember(id:AnsiString):Declaration;
+
+		/// Returns a method with the given name
+		Function GetMethod(id:AnsiString):MethodDeclaration;
+
+		/// Returns a field with the given name
+		Function GetField(id:AnsiString):FieldDeclaration;
+
+		/// Returns a property with the given name
+		Function GetProperty(id:AnsiString):PropertyDeclaration;
+  End;
+
+  ClassTypeNode = Class(CompositeType)
+		_self:FieldDeclaration;
+
+    Public
+		  Constructor Create(Heritage:NodeList; Sec:ObjectSection  = Nil);
+  End;
+
+	ClassRefType = Class(ClassTypeNode)
+		QualifID:StringObject;
+		RefType:ClassTypeNode;
+
+		Constructor Create(reftype:ClassTypeNode); Overload;
+		Constructor Create(qualifid:StringObject; reftype:ClassTypeNode = Nil); Overload;
+  End;
+
+	MetaClassType = Class(ScalarType)
+		BaseType:TypeNode;
+
+		Constructor Create(baseType:TypeNode);
+  End;
+
+  Literal = Class(ConstExpression)
+    //Constructor Create(Val:ConstantValue; T:TypeNode);
+  End;
+
+	OrdinalLiteral = Class(Literal)
+    //Constructor Create(V:Cardinal; T:IntegralType);
+  End;
+
+	IntLiteral = Class(OrdinalLiteral)
+    Value:Int64;
+
+    Constructor Create(Value:Int64);
+  End;
+
+	CharLiteral = Class(OrdinalLiteral)
+    Value:AnsiChar;
+
+    Constructor Create(Value:AnsiChar);
+  End;
+
+	BoolLiteral = Class(OrdinalLiteral)
+    Value:Boolean;
+
+    Constructor Create(Value:Boolean);
+  End;
+
+	StringLiteral = Class(Literal)
+    Value:StringObject;
+
+    Constructor Create(Value:StringObject);
+  End;
+
+	RealLiteral = Class(Literal)
+    Value:Double;
+
+    Constructor Create(Value:Double);
+  End;
+
+	PointerLiteral = Class(Literal)
+    Value:Int64;
+
+    Constructor Create(val:Int64);
+  End;
+
+	BinaryExpression = Class(Expression)
+		Left:Expression;
+		Right:Expression;
+
+    Constructor Create(A, B:Expression);
+  End;
+
+	SetIn = Class(BinaryExpression)
+		Expr:Expression;
+		_Set:Expression;		// enforce that 'set' is in fact a set
+
+		Constructor Create(A, B:Expression );
+  End;
+
+	SetRange = Class(BinaryExpression)
+    Range:RangeType;
+
+		Constructor Create(_type:RangeType);
+		{
+			this.ForcedType = this.Type = type;
+			this.EnforceConst = true;
+		}
+  End;
+
+  ArithmeticBinaryOp = (op_ADD, op_SUB, op_DIV, op_MUL, op_QUOT, op_MOD, op_SHR, op_SHL);
+
+	ArithmeticBinaryExpression  = Class(BinaryExpression)
+    Op:ArithmeticBinaryOp;
+  End;
+
+	Subtraction = Class(ArithmeticBinaryExpression)
+  End;
+
+	Addition = Class(ArithmeticBinaryExpression)
+	End;
+
+	Product = Class(ArithmeticBinaryExpression)
+  End;
+
+	Division = Class(ArithmeticBinaryExpression)
+  End;
+
+	// Integer division
+	Quotient = Class(ArithmeticBinaryExpression)
+  End;
+
+	Modulus = Class(ArithmeticBinaryExpression)
+  End;
+
+	ShiftRight = Class(ArithmeticBinaryExpression)
+  End;
+
+	ShiftLeft = Class(ArithmeticBinaryExpression)
+  End;
+
+
+	LogicalBinaryOp = (op_AND, op_OR, op_XOR);
+
+	LogicalBinaryExpression = Class(BinaryExpression)
+		  op:LogicalBinaryOp ;
+  End;
+
+	ComparisonBinaryOp = (op_EQ, op_NE, op_LT, op_LE, op_GT, op_GE, op_SGT, op_SGE,op_SLT,op_SLE);
+
+	ComparisonBinaryExpression = Class(BinaryExpression)
+		op:ComparisonBinaryOp;
+  End;
+
+  LogicalAnd = Class(LogicalBinaryExpression)
+  End;
+
+	LogicalOr = Class(LogicalBinaryExpression)
+  End;
+
+
+	LogicalXor = Class(LogicalBinaryExpression)
+  End;
+
+
+	Equal = Class(ComparisonBinaryExpression)
+  End;
+
+
+	NotEqual = Class(ComparisonBinaryExpression)
+  End;
+
+
+	LessThan = Class(ComparisonBinaryExpression)
+  End;
+
+
+	LessOrEqual = Class(ComparisonBinaryExpression)
+  End;
+
+
+	GreaterThan = Class(ComparisonBinaryExpression)
+  End;
+
+
+	GreaterOrEqual = Class(ComparisonBinaryExpression)
+  End;
+
+	TypeBinaryExpression = Class(BinaryExpression)
+		Expr:Expression;
+		Types:TypeNode;
+
+		Constructor Create(Expr:Expression; ExprType:TypeNode);
+  End;
+
+	TypeIs = Class(TypeBinaryExpression)
+  End;
+
+	RuntimeCast = Class(TypeBinaryExpression)
+  End;
+
+	UnaryExpression = Class(Expression)
+  End;
+
+	SimpleUnaryExpression = Class(Expression)
+		Expr:Expression;
+
+		Constructor Create(Expr:Expression);
+  End;
+
+	UnaryPlus = Class(SimpleUnaryExpression)
+  End;
+
+	UnaryMinus = Class(SimpleUnaryExpression)
+  End;
+
+	LogicalNot = Class(SimpleUnaryExpression)
+  End;
+
+	AddressLvalue = Class(SimpleUnaryExpression)
+  End;
+
+
+	SetExpression = Class(UnaryExpression)
+		Elements:ExpressionList;
+
+		Constructor Create(Elements:ExpressionList = Nil);
+  End;
+
+  LvalueExpression = Class;
+
+	/// Cast an lvalue to an rvalue (Expr)
+	LvalueAsExpr = Class(UnaryExpression)
+		lval:LvalueExpression;
+
+		Constructor Create(lval:LvalueExpression);
+  End;
+
+	LvalueExpression = Class(UnaryExpression)
+  End;
+
+	/// Cast an rvalue (Expr) to an lvalue
+	ExprAsLvalue = Class(LvalueExpression)
+		Expr:Expression;
+
+		Constructor Create(Expr:Expression);
+  End;
+
+	/// VarType(expr)
+	StaticCast = Class(LvalueExpression)
+		CastType:TypeNode;
+    CastPrimitive:TypeClass;
+		Expr:Expression;
+
+		Constructor Create(t:TypeNode; e:Expression); Overload;
+    Constructor Create(t:TypeClass; e:Expression); Overload;
+  End;
+
+	ArrayAccess = Class(LvalueExpression)
+		LValue:LvalueExpression;
+		Acessors:ExpressionList;
+		// object alternative to lvalue
+		_Array:ArrayConst;
+
+		Constructor Create(_array:ArrayConst; acessors:ExpressionList); Overload;
+		Constructor Create(lvalue:LvalueExpression; acessors:ExpressionList ); Overload;
+  End;
+
+	PointerDereference = Class(LvalueExpression)
+		Expr:Expression;
+
+		Constructor Create(Expr:Expression);
+  End;
+
+	RoutineCall = Class(LvalueExpression)
+		Func:LvalueExpression;
+		Args:ExpressionList;
+
+		Constructor Create(Func:LvalueExpression; RetType:TypeNode = Nil);
+	//RoutineCall(LvalueExpression func, ExpressionList args, TypeNode retType = null)
+  End;
+
+	InheritedCall = Class(RoutineCall)
+		FuncName:StringObject;
+		// to be set by resolver
+		DeclaringObject:CompositeType;
+
+		Constructor Create(FuncName:StringObject; Args:ExpressionList =Nil);
+  End;
+
+	/// An access to a member in an object (record, class or interface)
+	ObjectAccess = Class(LvalueExpression)
+		Obj:LvalueExpression;
+		Field:StringObject;
+
+		Constructor Create(Obj:LvalueExpression; Field:StringObject);
+  End;
+
+	/// Identifier that refers to a named declaration
+	Identifier = Class(LvalueExpression)
+    Name:StringObject;
+		Decl:Declaration;
+
+		Constructor Create(Name:StringObject; T:TypeNode = Nil);
+  End;
+
+	/// Identifier that refers to a named class. Static access
+	IdentifierStatic = Class(Identifier)
+  End;
+
+	UnresolvedLvalue = Class(LvalueExpression)
+	End;
+
+	UnresolvedId = Class(UnresolvedLvalue)
+		ID:Identifier;
+
+		Constructor Create(ID:Identifier);
+  End;
+
+	/// Call, to be resolver after parsing
+	UnresolvedCall = Class(UnresolvedLvalue)
+		Func:LvalueExpression;
+		Args:ExpressionList;
+
+		Constructor Create(lval:LvalueExpression; Args:ExpressionList = Nil);
+  End;
+
+
+	/// TODO!! Must Derive type
+	ConstDeclaration = Class(ValueDeclaration)
+		Init:Expression;
+
+		Constructor Create(Name:StringObject; Init:Expression; T:TypeNode = Nil);
+  End;
+
+	EnumValue = Class(ConstDeclaration)
+    Constructor Create(Name:StringObject; Init:Expression = Nil);
+  End;
+
+	/// Creates a custom, user-defined name for some Type
+	TypeDeclaration  = Class(Declaration)
+  End;
+
+	ProceduralType  = Class(TypeNode)
+		Params:ParametersSection;
+
+		/// Function's return type. Must be null for every non-function routine.
+		FuncRet:TypeNode ;
+
+		Directives:FunctionDirectiveList ;
+
+		Constructor Create(Params:ParametersSection; ret:TypeNode = Nil; Dirs:FunctionDirectiveList = Nil);
+  End;
+
+	MethodKind = (method_Default,	method_Constructor, method_Destructor);
+
+	MethodType = Class(ProceduralType)
+		Kind:MethodKind;
+  End;
+
+	/// Declaration of a global Routine
+	RoutineDeclaration = Class(CallableDeclaration)
+		Constructor Create(Name:StringObject; Params:ParametersSection; Ret:TypeNode = Nil; Dirs:FunctionDirectiveList = Nil);
+  End;
+
+	/// Declaration of a Method
+	MethodDeclaration = Class(CallableDeclaration)
+		isStatic:Boolean;
+		Objname:StringObject;
+		Name:StringObject;
+    Scope:Integer;
+		DeclaringObject:CompositeType;
+    Kind:MethodKind;
+
+		Constructor Create(objname:StringObject; name:StringObject; params:ParametersSection; ret:TypeNode = Nil; dirs:FunctionDirectiveList  = Nil; kind:MethodKind  = method_Default);
+	End;
+
+	/// Routine definition (implementation)
+	RoutineDefinition = Class(RoutineDeclaration)
+		Body:RoutineSection;
+
+		Constructor Create(name:StringObject; params:ParametersSection; ret:TypeNode  = Nil; dirs:FunctionDirectiveList  = nil; body:RoutineSection  = Nil); Overload;
+    Constructor Create(name:StringObject; signatureType:ProceduralType; dirs:FunctionDirectiveList  = nil; body:RoutineSection  = Nil); Overload;
+  End;
+
+	/// Method definition (implementation)
+	MethodDefinition = Class(MethodDeclaration)
+		Body:RoutineSection;
+
+		Constructor Create(objname:StringObject; name:StringObject; params:ParametersSection; ret:TypeNode  = Nil; dirs:FunctionDirectiveList = Nil; kind:MethodKind  = Method_Default; body:RoutineSection  = Nil);
+  End;
+
+	CompositeDeclaration = Class(TypeDeclaration)
+
+		Constructor Create(Name:StringObject; ctype:CompositeType);
+  End;
+
+	ClassDeclaration = Class(CompositeDeclaration)
+  End;
+
+  InterfaceType = Class;
+	InterfaceDeclaration = Class(CompositeDeclaration)
+  End;
+
+	/// Routine Directives
+
+ {	MethodDirectives = Class(FunctionDirectiveList)
+		methoddirs:Array Of FunctionDirective;
+
+		Procedure Add(dir:FunctionDirective);
+		Function Contains(dir:FunctionDirective):Boolean;
+		Function CheckDirectives():Boolean;
+  End;}
+
+	ExternalDirective = Class(PascalNode)
+		_File:Expression;
+		Name:Expression;
+
+		Constructor Create(_file:Expression; name:Expression = Nil);
+  End;
+
+	ImportDirectives = Class(FunctionDirectiveList)
+		Importdir:FunctionDirective;
+		_external:ExternalDirective;
+
+    Constructor Create(ImportDir:FunctionDirective);
+  End;
+
+
+	LabelStatement = Class(Statement)
+		Name:StringObject;
+		Stmt:Statement;
+
+		// to be set by the resolver
+		decl:LabelDeclaration;
+
+		Constructor Create(Name:StringObject; stmt:Statement);
+  End;
+
+	GotoStatement = Class(Statement)
+		GotoLabel:StringObject;
+
+		// to be set by the resolver
+		Decl:LabelDeclaration;
+
+		Constructor Create(LabelName:StringObject);
+  End;
+
+	EmptyStatement = Class(Statement)
+  End;
+
+	BreakStatement = Class(Statement)
+  End;
+
+	ContinueStatement = Class(Statement)
+  End;
+
+	Assignment = Class(Statement)
+		lvalue:LvalueExpression;
+		Expr:Expression;
+
+		Constructor Create(lvalue:LvalueExpression; expr:Expression);
+  End;
+
+	IfStatement = Class(Statement)
+		Condition:Expression;
+		ThenBlock:Statement;
+		ElseBlock:Statement;
+
+		Constructor Create(condition:Expression ; ifTrue:Statement; ifFalse:Statement=Nil);
+  End;
+
+	ExpressionStatement = Class(Statement)
+		Expr:Expression;
+
+		Constructor Create(Expr:Expression);
+  End;
+
+	CaseSelector = Class(Statement)
+		List:ExpressionList;
+		Stmt:Statement;
+
+		Constructor Create(list:ExpressionList; stmt:Statement);
+  End;
+
+	CaseStatement = Class(Statement)
+		Condition:Expression;
+		Selectors:StatementList;
+		CaseElse:Statement;
+
+		Constructor Create(condition:Expression ; selectors:StatementList ; caseelse:Statement );
+  End;
+
+	LoopStatement = Class(Statement)
+		Condition:Expression;
+		Block:Statement;
+
+		Constructor Create(Block:Statement; Condition:Expression);
+  End;
+
+	RepeatLoop = Class(LoopStatement)
+  End;
+
+	WhileLoop = Class(LoopStatement)
+  End;
+
+	ForLoop = Class(LoopStatement)
+		_var:Identifier;
+		Start:Expression;
+		_End:Expression;
+		Direction:Integer;
+
+		Constructor Create(_var:Identifier; start:Expression; _End:Expression; body:Statement; dir:Integer);
+  End;
+
+	WithStatement = Class(Statement)
+		_With:ExpressionList;
+		Body:Statement;
+
+		Constructor Create(_with:ExpressionList; Body:Statement);
+  End;
+
+	TryFinallyStatement = Class(Statement)
+		Body:BlockStatement;
+		Final:BlockStatement;
+
+		Constructor Create(Body, Final:BlockStatement);
+  End;
+
+	ExceptionBlock = Class(Statement)
+  	onList:StatementList;
+		Default:BlockStatement;	// else or default, same semantics
+
+		Constructor Create(onList:StatementList; default:BlockStatement = Nil);
+  End;
+
+	TryExceptStatement = Class(Statement)
+		Body:BlockStatement;
+		Final:ExceptionBlock;
+
+		Constructor Create(Body:BlockStatement; Final:ExceptionBlock);
+  End;
+
+
+	RaiseStatement = Class(Statement)
+		LValue:LvalueExpression;
+		Expr:Expression;
+
+		Constructor Create(lvalue:LvalueExpression; Expr:Expression);
+  End;
+
+	OnStatement = Class(Statement)
+		Ident:StringObject;
+		_type:StringObject;
+		Body:Statement;
+
+		Constructor Create(Ident, _type:StringObject; Body:Statement);
+  End;
+
+	AssemblerBlock = Class(BlockStatement)
+		Constructor AssemblerBlock(asmInstrs:StatementList );
+  End;
+
+  InterfaceList = List;
+
+	InterfaceType = Class(CompositeType)
+    Heritage:InterfaceList;
+    Ssec:ObjectSection;
+		Guid:StringLiteral;
+
+		Constructor Create(Heritage:InterfaceList; Ssec:ObjectSection = Nil; guid:StringLiteral  = Nil);
+  End;
+
+
+	///			StructuredType > Type
+	///				Array > Type
+	///				Set	  > OrdinalType 
+	///				File  > VariableType
+	///		 		Record > TypeNode ...
+
+	StructuredType = Class(TypeNode)
+		BaseType:TypeNode;
+		IsPacked:Boolean;
+		{
+		public override bool Equals(Object o)
+			if (!(o is StructuredType))
+				return false;
+
+			StructuredType otype = (StructuredType) o;
+			if (IsPacked != otype.IsPacked)
+				return false;
+
+			return basetype.Equals(otype.basetype);
+		}
+  End;
+
+	RecordType = Class(StructuredType)
+		CompTypes:DeclarationList;
+
+		Constructor Create(compTypes:DeclarationList);
+  End;
+
+	RecordFieldDeclaration = Class(ValueDeclaration)
+  End;
+
+  ArrayType = Class(StructuredType)
+  	Dimensions:Array Of Integer;
+    DimensionCount:Integer;
+
+  	Constructor Create(baseType:TypeNode; dims:List); Overload;
+	  Constructor Create(baseType, sizeType:TypeNode); Overload;
+    Constructor Create(sizeType:TypeNode); Overload;
+
+  	Procedure AddDimension(size:Integer);
+  End;
+
+  SetType = Class(StructuredType)
+    Constructor Create(T:TypeNode);
+  End;
+
+  FileType = Class(StructuredType)
+    Constructor Create(T:TypeNode);
+  End;
+
+	VariantDeclaration = Class(RecordFieldDeclaration)
+		Fields:DeclarationList;
+
+		Constructor Create(ID:StringObject; T:TypeNode; Fields:DeclarationList);
+  End;
+
+	/// Variant case entry declaration
+	VarEntryDeclaration = Class(RecordFieldDeclaration)
+		TagValue:Expression;
+		Fields:RecordType;
+
+		Constructor Create(TagValue:Expression; Fields:DeclarationList);	// type must be later set to the variant type
+	End;
+
+  ExportItem = Class(UnitItem)
+		FormalParams:ParametersSection;
+		ExportName:StringObject;
+		Index:Integer;
+
+		Constructor Create(name:StringObject; pars:ParametersSection; exportname:StringObject = Nil); Overload;
+    Constructor Create(name:StringObject; pars:ParametersSection; Index:Integer); Overload;
+  End;
+
+	UnresolvedType = Class(TypeNode)
+		ID:StringObject;
+
+		Constructor Create(ID:StringObject);
+  End;
+
+	UnresolvedVariableType = Class(TypeNode)
+		ID:StringObject;
+
+		Constructor Create(ID:StringObject);
+  End;
+
+	UnresolvedIntegralType = Class(IntegralType)
+		ID:StringObject;
+
+		Constructor Create(ID:StringObject);
+  End;
+
+
+	UnresolvedOrdinalType = Class(TypeNode)
+		ID:StringObject;
+
+		Constructor Create(ID:StringObject);
+  End;
+
+  StringList = List;
+  TypeList = List;
+
+  
+{$DEFINE YYDEBUG}
+{$DEFINE YYEXTRADEBUG}
 const KW_LIBRARY = 257;
 const KW_UNIT = 258;
 const KW_PROGRAM = 259;
@@ -172,7 +1416,7 @@ case byte of
                  2:  (yyBoolean : Boolean);
                  3:  (yyCallableDeclaration : CallableDeclaration);
                  4:  (yyCardinal : Cardinal);
-                 5:  (yyClassType : ClassType);
+                 5:  (yyClassTypeNode : ClassTypeNode);
                  6:  (yyConstDeclaration : ConstDeclaration);
                  7:  (yyConstExpression : ConstExpression);
                  8:  (yyDeclaration : Declaration);
@@ -220,23 +1464,217 @@ case byte of
                  50:  (yyTypeNode : TypeNode);
                  51:  (yyUnitItem : UnitItem);
                end(*YYSType*);
-// source: yyparse.cod line# 2
+// source: delphi_parser.cod line# 1243
 
-var yylval : YYSType;
+Var
+    yylval : YYSType;
+  
+Implementation
 
-function PascalParser.parse() : integer;
+Function MakeThreadVars(Src:DeclarationList):DeclarationList;
+Var
+  I:Integer;
+  VarDecl:VarDeclaration;
+Begin
+  For I:=0 To Pred(Src.Count) Do
+  Begin
+    VarDeclaration(Src.Declarations[I]).IsThrVar := True;
+  End;
 
-var 
-  yystate, yysp, yyn : Integer;
+  Result := Src;
+End;
+
+Function CreateDecls(Ids:StringList; VarTypes:TypeNode; Init:Expression; AbsoluteID:StringObject):DeclarationList;
+Var
+  It:Iterator;
+  S:StringObject;
+  V:VarDeclaration;
+Begin
+  Result := DeclarationList.Create();
+  It := Ids.CreateIterator();
+  While It.HasNext Do
+  Begin
+    S := StringObject(It.GetNext());
+    V := VarDeclaration.Create(S, VarTypes, Init, AbsoluteID);
+    Result.Add(V);
+  End;
+  It.Destroy;
+End;
+
+Function CreateLabelDecls(Ids:StringList):DeclarationList;
+Var
+  It:Iterator;
+  S:StringObject;
+  L:LabelDeclaration;
+Begin
+  Result := DeclarationList.Create();
+  It := Ids.CreateIterator();
+  While It.HasNext Do
+  Begin
+    S := StringObject(It.GetNext());
+    L := LabelDeclaration.Create(S, Nil);
+    Result.Add(L);
+  End;
+  It.Destroy;
+End;
+
+Function CreateParamDecls(Ids:StringList; ParamType:TypeNode; Init:Expression; Kind:ParameterKind):DeclarationList;
+Var
+  It:Iterator;
+  S:StringObject;
+  P:ParamDeclaration;
+Begin
+  Result := DeclarationList.Create();
+  It := Ids.CreateIterator();
+  While It.HasNext Do
+  Begin
+    S := StringObject(It.GetNext());
+    P := ParamDeclaration.Create(S, ParamType, Init, Kind);
+    Result.Add(P);
+  End;
+  It.Destroy;
+End;
+
+Function CreateVarParamDecls(Ids:StringList; ParamType:TypeNode):DeclarationList;
+Var
+  It:Iterator;
+  S:StringObject;
+  P:ParamDeclaration;
+Begin
+  Result := DeclarationList.Create();
+  It := Ids.CreateIterator();
+  While It.HasNext Do
+  Begin
+    S := StringObject(It.GetNext());
+    P := VarParamDeclaration.Create(S, ParamType);
+    Result.Add(P);
+  End;
+  It.Destroy;
+End;
+
+Function CreateConstParamDecls(Ids:StringList; ParamType:TypeNode; init:Expression = Nil):DeclarationList;
+Var
+  It:Iterator;
+  S:StringObject;
+  P:ParamDeclaration;
+Begin
+  Result := DeclarationList.Create();
+  It := Ids.CreateIterator();
+  While It.HasNext Do
+  Begin
+    S := StringObject(It.GetNext());
+    P := ConstParamDeclaration.Create(S, ParamType, Init);
+    Result.Add(P);
+  End;
+  It.Destroy;
+End;
+
+Function CreateFieldDecls(Ids:StringList; FieldsType:TypeNode):DeclarationList;
+Var
+  It:Iterator;
+  S:StringObject;
+  P:FieldDeclaration;
+Begin
+  Result := DeclarationList.Create();
+  It := Ids.CreateIterator();
+  While It.HasNext Do
+  Begin
+    S := StringObject(It.GetNext());
+    P := FieldDeclaration.Create(S, FieldsType);
+    Result.Add(P);
+  End;
+  It.Destroy;
+End;
+
+Function JoinImportDirectives(d1, d2:FunctionDirectiveList; i:FunctionDirective):ImportDirectives; Overload;
+Begin
+  Result := ImportDirectives.Create(i);
+  Result.Add(d1);
+	Result.Add(d2);
+End;
+
+Function JoinImportDirectives(d1, d2:FunctionDirectiveList; e:ExternalDirective):ImportDirectives; Overload;
+Begin
+  Result := JoinImportDirectives(d1, d2, importDirective_External);
+  Result._External := e;
+End;
+
+Function CreateRecordUnionField(Src:ExpressionList; Fields:DeclarationList):DeclarationList;
+Var
+  I:Integer;
+Begin
+  Result := DeclarationList.Create();
+  For I:=0 To Pred(Src.Count) Do
+  Begin
+    Result.Add(VarEntryDeclaration.Create(Src.Expressions[I], Fields));
+  End;
+End;
+
+Procedure MakeFieldDeclarationsStatic(DeclList:DeclarationList);
+Var
+  I:Integer;
+Begin
+  For I:=0 To Pred(DeclList.Count) Do
+    FieldDeclaration(DeclList.Declarations[I]).IsStatic := True;
+End;
+
+Function CheckDirectiveId(expected:AnsiString; idtoken:StringObject):Boolean;
+Begin
+  If (expected <> idtoken.Value) Then
+  Begin
+    RaiseError('Invalid directive ' + idtoken.Value + ', expected: ' + expected);
+    Result := False;
+  End Else
+    Result := True;
+End;
+
+Function CreateBinaryExpression(e1:Expression; token:Integer; e2:Expression):BinaryExpression;
+
+Begin
+  Case token Of
+				KW_MUL: Result := Product.Create(e1, e2);
+				KW_DIV: Result := Division.Create(e1, e2);
+				KW_QUOT:Result := Quotient.Create(e1, e2);
+				KW_MOD: Result := Modulus.Create(e1, e2);
+				KW_SHR: Result := ShiftRight.Create(e1, e2);
+				KW_SHL: Result := ShiftLeft.Create(e1, e2);
+				KW_AND: Result := LogicalAnd.Create(e1, e2);
+				KW_SUB: Result := Subtraction.Create(e1, e2);
+				KW_SUM: Result := Addition.Create(e1, e2);
+				KW_OR : Result := LogicalOr.Create(e1, e2);
+				KW_XOR: Result := LogicalXor.Create(e1, e2);
+				KW_EQ : Result := Equal.Create(e1, e2);
+				KW_NE : Result := NotEqual.Create(e1, e2);
+				KW_LT : Result := LessThan.Create(e1, e2);
+				KW_LE : Result := LessOrEqual.Create(e1, e2);
+				KW_GT : Result := GreaterThan.Create(e1, e2);
+				KW_GE : Result := GreaterOrEqual.Create(e1, e2);
+    Else
+      RaiseError('Invalid Binary Operation token: ' + IntToString(token));
+  End;
+End;
+
+
+Constructor PascalParser.Create(Source:Stream);
+Begin
+    _Lexer := PascalLexer.Create(Source);
+End;
+
+Destructor PascalParser.Destroy();
+Begin
+    _Lexer.Destroy();
+    _Lexer := Nil;
+End;
+  
+Var
+  yyval : YYSType;
   yys : array [1..yymaxdepth] of Integer;
   yyv : array [1..yymaxdepth] of YYSType;
-  yyval : YYSType;
-  lastObjName:StringObject;
-
-procedure yyaction ( yyruleno : Integer );
+  
+Procedure PascalParser.yyaction(yyruleno : Integer );
   (* local definitions: *)
-// source: yyparse.cod line# 17
-begin
+// source: delphi_parser.cod line# 1452
+Begin
   (* actions: *)
   case yyruleno of
 1 : begin
@@ -624,11 +2062,11 @@ begin
        end;
 96 : begin
          // source: delphi.y line#380
-         yyval.yyMethodDeclaration := MethodDeclaration.Create(lastObjName, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSection, yyv[yysp-1].yyTypeNode); 
+         yyval.yyMethodDeclaration := MethodDeclaration.Create(_lastObjName, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSection, yyv[yysp-1].yyTypeNode); 
        end;
 97 : begin
          // source: delphi.y line#381
-         yyval.yyMethodDeclaration := MethodDeclaration.Create(lastObjName, yyv[yysp-2].yyStringObject, yyv[yysp-1].yyParametersSection, Nil); 
+         yyval.yyMethodDeclaration := MethodDeclaration.Create(_lastObjName, yyv[yysp-2].yyStringObject, yyv[yysp-1].yyParametersSection, Nil); 
        end;
 98 : begin
          // source: delphi.y line#385
@@ -668,7 +2106,7 @@ begin
        end;
 107 : begin
          // source: delphi.y line#406
-         yyval.yyMethodDeclaration := MethodDeclaration.Create(lastObjName, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSection, Nil, yyv[yysp-0].yyFunctionDirectiveList, yyv[yysp-4].yyMethodKind); 
+         yyval.yyMethodDeclaration := MethodDeclaration.Create(_lastObjName, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSection, Nil, yyv[yysp-0].yyFunctionDirectiveList, yyv[yysp-4].yyMethodKind); 
        end;
 108 : begin
          // source: delphi.y line#410
@@ -1723,11 +3161,11 @@ begin
        end;
 371 : begin
          // source: delphi.y line#1010
-         yyval.yyClassType := xpc.ClassType.Create(yyv[yysp-2].yyStringList, yyv[yysp-1].yyObjectSection); 
+         yyval.yyClassTypeNode := ClassTypeNode.Create(yyv[yysp-2].yyStringList, yyv[yysp-1].yyObjectSection); 
        end;
 372 : begin
          // source: delphi.y line#1011
-         yyval.yyClassType := xpc.ClassType.Create(yyv[yysp-0].yyStringList); 
+         yyval.yyClassTypeNode := ClassTypeNode.Create(yyv[yysp-0].yyStringList); 
        end;
 373 : begin
          // source: delphi.y line#1015
@@ -1983,7 +3421,7 @@ begin
        end;
 436 : begin
          // source: delphi.y line#1175
-         yyval.yyTypeDeclaration := ClassDeclaration.Create(yyv[yysp-2].yyStringObject,yyv[yysp-1].yyClassType); yyv[yysp-1].yyClassType.Name := yyv[yysp-2].yyStringObject; 
+         yyval.yyTypeDeclaration := ClassDeclaration.Create(yyv[yysp-2].yyStringObject,yyv[yysp-1].yyClassTypeNode); yyv[yysp-1].yyClassTypeNode.Name := yyv[yysp-2].yyStringObject; 
        end;
 437 : begin
          // source: delphi.y line#1176
@@ -1991,7 +3429,7 @@ begin
        end;
 438 : begin
          // source: delphi.y line#1180
-         yyval.yyStringObject := yyv[yysp-2].yyStringObject; lastObjName := yyv[yysp-2].yyStringObject; 
+         yyval.yyStringObject := yyv[yysp-2].yyStringObject; _lastObjName := yyv[yysp-2].yyStringObject; 
        end;
 439 : begin
        end;
@@ -2068,11 +3506,11 @@ begin
        end;
 458 : begin
          // source: delphi.y line#1218
-         yyval.yyClassType := yyv[yysp-0].yyClassType; 
+         yyval.yyClassTypeNode := yyv[yysp-0].yyClassTypeNode; 
        end;
 459 : begin
          // source: delphi.y line#1219
-         yyval.yyClassType := yyv[yysp-0].yyClassType; yyv[yysp-0].yyClassType.IsPacked := true; 
+         yyval.yyClassTypeNode := yyv[yysp-0].yyClassTypeNode; yyv[yysp-0].yyClassTypeNode.IsPacked := true; 
        end;
 460 : begin
          // source: delphi.y line#1223
@@ -2174,9 +3612,9 @@ begin
          // source: delphi.y line#1275
          yyval.yyStringObject := StringObject.Create(yyv[yysp-2].yyStringObject.Value + '.' + yyv[yysp-0].yyStringObject.Value); 
        end;
-// source: yyparse.cod line# 21
-  end;
-end(*yyaction*);
+// source: delphi_parser.cod line# 1456
+  End;
+End(*yyaction*);
 
 (* parse table: *)
 
@@ -2185,6 +3623,10 @@ type YYARec = record
               end;
      YYRRec = record
                 len, sym : Integer;
+                symname : String;
+              end;
+     YYTokenRec = record
+                tokenname : String;
               end;
 
 const
@@ -14399,532 +15841,700 @@ yygh : array [0..yynstates-1] of Integer = (
 );
 
 yyr : array [1..yynrules] of YYRRec = (
-{ 1: } ( len: 2; sym: -2 ),
-{ 2: } ( len: 1; sym: -16 ),
-{ 3: } ( len: 3; sym: -16 ),
-{ 4: } ( len: 2; sym: -16 ),
-{ 5: } ( len: 3; sym: -16 ),
-{ 6: } ( len: 0; sym: -209 ),
-{ 7: } ( len: 1; sym: -209 ),
-{ 8: } ( len: 4; sym: -17 ),
-{ 9: } ( len: 3; sym: -17 ),
-{ 10: } ( len: 0; sym: -12 ),
-{ 11: } ( len: 3; sym: -12 ),
-{ 12: } ( len: 5; sym: -18 ),
-{ 13: } ( len: 4; sym: -18 ),
-{ 14: } ( len: 4; sym: -20 ),
-{ 15: } ( len: 0; sym: -26 ),
-{ 16: } ( len: 3; sym: -26 ),
-{ 17: } ( len: 1; sym: -27 ),
-{ 18: } ( len: 3; sym: -27 ),
-{ 19: } ( len: 3; sym: -29 ),
-{ 20: } ( len: 1; sym: -28 ),
-{ 21: } ( len: 3; sym: -28 ),
-{ 22: } ( len: 1; sym: -21 ),
-{ 23: } ( len: 3; sym: -21 ),
-{ 24: } ( len: 0; sym: -24 ),
-{ 25: } ( len: 3; sym: -24 ),
-{ 26: } ( len: 1; sym: -25 ),
-{ 27: } ( len: 3; sym: -25 ),
-{ 28: } ( len: 1; sym: -22 ),
-{ 29: } ( len: 3; sym: -22 ),
-{ 30: } ( len: 6; sym: -19 ),
-{ 31: } ( len: 5; sym: -19 ),
-{ 32: } ( len: 5; sym: -19 ),
-{ 33: } ( len: 4; sym: -19 ),
-{ 34: } ( len: 3; sym: -48 ),
-{ 35: } ( len: 2; sym: -48 ),
-{ 36: } ( len: 3; sym: -49 ),
-{ 37: } ( len: 0; sym: -30 ),
-{ 38: } ( len: 2; sym: -30 ),
-{ 39: } ( len: 2; sym: -50 ),
-{ 40: } ( len: 2; sym: -50 ),
-{ 41: } ( len: 2; sym: -51 ),
-{ 42: } ( len: 1; sym: -32 ),
-{ 43: } ( len: 2; sym: -32 ),
-{ 44: } ( len: 1; sym: -33 ),
-{ 45: } ( len: 2; sym: -33 ),
-{ 46: } ( len: 1; sym: -31 ),
-{ 47: } ( len: 1; sym: -31 ),
-{ 48: } ( len: 1; sym: -31 ),
-{ 49: } ( len: 1; sym: -31 ),
-{ 50: } ( len: 1; sym: -34 ),
-{ 51: } ( len: 1; sym: -34 ),
-{ 52: } ( len: 1; sym: -34 ),
-{ 53: } ( len: 1; sym: -34 ),
-{ 54: } ( len: 1; sym: -34 ),
-{ 55: } ( len: 1; sym: -35 ),
-{ 56: } ( len: 1; sym: -35 ),
-{ 57: } ( len: 1; sym: -35 ),
-{ 58: } ( len: 1; sym: -36 ),
-{ 59: } ( len: 1; sym: -36 ),
-{ 60: } ( len: 1; sym: -36 ),
-{ 61: } ( len: 2; sym: -43 ),
-{ 62: } ( len: 2; sym: -43 ),
-{ 63: } ( len: 2; sym: -44 ),
-{ 64: } ( len: 2; sym: -44 ),
-{ 65: } ( len: 2; sym: -38 ),
-{ 66: } ( len: 2; sym: -38 ),
-{ 67: } ( len: 3; sym: -46 ),
-{ 68: } ( len: 5; sym: -46 ),
-{ 69: } ( len: 5; sym: -46 ),
-{ 70: } ( len: 2; sym: -46 ),
-{ 71: } ( len: 6; sym: -46 ),
-{ 72: } ( len: 2; sym: -15 ),
-{ 73: } ( len: 2; sym: -39 ),
-{ 74: } ( len: 1; sym: -45 ),
-{ 75: } ( len: 2; sym: -45 ),
-{ 76: } ( len: 4; sym: -53 ),
-{ 77: } ( len: 3; sym: -41 ),
-{ 78: } ( len: 1; sym: -13 ),
-{ 79: } ( len: 3; sym: -13 ),
-{ 80: } ( len: 1; sym: -6 ),
-{ 81: } ( len: 1; sym: -6 ),
-{ 82: } ( len: 2; sym: -40 ),
-{ 83: } ( len: 1; sym: -37 ),
-{ 84: } ( len: 3; sym: -37 ),
-{ 85: } ( len: 2; sym: -23 ),
-{ 86: } ( len: 4; sym: -23 ),
-{ 87: } ( len: 4; sym: -23 ),
-{ 88: } ( len: 1; sym: -11 ),
-{ 89: } ( len: 3; sym: -11 ),
-{ 90: } ( len: 1; sym: -210 ),
-{ 91: } ( len: 1; sym: -210 ),
-{ 92: } ( len: 1; sym: -56 ),
-{ 93: } ( len: 2; sym: -56 ),
-{ 94: } ( len: 3; sym: -56 ),
-{ 95: } ( len: 4; sym: -64 ),
-{ 96: } ( len: 4; sym: -59 ),
-{ 97: } ( len: 3; sym: -59 ),
-{ 98: } ( len: 4; sym: -57 ),
-{ 99: } ( len: 3; sym: -57 ),
-{ 100: } ( len: 3; sym: -62 ),
-{ 101: } ( len: 4; sym: -62 ),
-{ 102: } ( len: 7; sym: -62 ),
-{ 103: } ( len: 5; sym: -63 ),
-{ 104: } ( len: 4; sym: -63 ),
-{ 105: } ( len: 1; sym: -58 ),
-{ 106: } ( len: 2; sym: -60 ),
-{ 107: } ( len: 5; sym: -60 ),
-{ 108: } ( len: 1; sym: -61 ),
-{ 109: } ( len: 2; sym: -85 ),
-{ 110: } ( len: 2; sym: -86 ),
-{ 111: } ( len: 1; sym: -80 ),
-{ 112: } ( len: 1; sym: -80 ),
-{ 113: } ( len: 3; sym: -207 ),
-{ 114: } ( len: 2; sym: -208 ),
-{ 115: } ( len: 3; sym: -208 ),
-{ 116: } ( len: 3; sym: -208 ),
-{ 117: } ( len: 4; sym: -208 ),
-{ 118: } ( len: 2; sym: -211 ),
-{ 119: } ( len: 2; sym: -200 ),
-{ 120: } ( len: 2; sym: -55 ),
-{ 121: } ( len: 1; sym: -55 ),
-{ 122: } ( len: 1; sym: -88 ),
-{ 123: } ( len: 1; sym: -88 ),
-{ 124: } ( len: 0; sym: -83 ),
-{ 125: } ( len: 2; sym: -83 ),
-{ 126: } ( len: 3; sym: -83 ),
-{ 127: } ( len: 1; sym: -81 ),
-{ 128: } ( len: 3; sym: -81 ),
-{ 129: } ( len: 3; sym: -82 ),
-{ 130: } ( len: 3; sym: -82 ),
-{ 131: } ( len: 3; sym: -82 ),
-{ 132: } ( len: 4; sym: -82 ),
-{ 133: } ( len: 0; sym: -190 ),
-{ 134: } ( len: 1; sym: -190 ),
-{ 135: } ( len: 2; sym: -191 ),
-{ 136: } ( len: 0; sym: -136 ),
-{ 137: } ( len: 2; sym: -136 ),
-{ 138: } ( len: 2; sym: -150 ),
-{ 139: } ( len: 2; sym: -150 ),
-{ 140: } ( len: 5; sym: -68 ),
-{ 141: } ( len: 4; sym: -68 ),
-{ 142: } ( len: 3; sym: -84 ),
-{ 143: } ( len: 1; sym: -84 ),
-{ 144: } ( len: 0; sym: -84 ),
-{ 145: } ( len: 0; sym: -66 ),
-{ 146: } ( len: 1; sym: -66 ),
-{ 147: } ( len: 0; sym: -67 ),
-{ 148: } ( len: 2; sym: -67 ),
-{ 149: } ( len: 0; sym: -69 ),
-{ 150: } ( len: 2; sym: -69 ),
-{ 151: } ( len: 0; sym: -71 ),
-{ 152: } ( len: 2; sym: -71 ),
-{ 153: } ( len: 1; sym: -65 ),
-{ 154: } ( len: 3; sym: -65 ),
-{ 155: } ( len: 1; sym: -70 ),
-{ 156: } ( len: 3; sym: -70 ),
-{ 157: } ( len: 1; sym: -72 ),
-{ 158: } ( len: 3; sym: -72 ),
-{ 159: } ( len: 1; sym: -74 ),
-{ 160: } ( len: 1; sym: -74 ),
-{ 161: } ( len: 1; sym: -75 ),
-{ 162: } ( len: 1; sym: -75 ),
-{ 163: } ( len: 1; sym: -73 ),
-{ 164: } ( len: 1; sym: -73 ),
-{ 165: } ( len: 1; sym: -73 ),
-{ 166: } ( len: 1; sym: -78 ),
-{ 167: } ( len: 1; sym: -78 ),
-{ 168: } ( len: 1; sym: -78 ),
-{ 169: } ( len: 1; sym: -76 ),
-{ 170: } ( len: 1; sym: -76 ),
-{ 171: } ( len: 1; sym: -76 ),
-{ 172: } ( len: 1; sym: -76 ),
-{ 173: } ( len: 1; sym: -76 ),
-{ 174: } ( len: 1; sym: -77 ),
-{ 175: } ( len: 1; sym: -77 ),
-{ 176: } ( len: 1; sym: -77 ),
-{ 177: } ( len: 1; sym: -77 ),
-{ 178: } ( len: 1; sym: -77 ),
-{ 179: } ( len: 1; sym: -79 ),
-{ 180: } ( len: 1; sym: -79 ),
-{ 181: } ( len: 1; sym: -79 ),
-{ 182: } ( len: 1; sym: -79 ),
-{ 183: } ( len: 1; sym: -79 ),
-{ 184: } ( len: 3; sym: -87 ),
-{ 185: } ( len: 1; sym: -90 ),
-{ 186: } ( len: 1; sym: -110 ),
-{ 187: } ( len: 3; sym: -110 ),
-{ 188: } ( len: 1; sym: -92 ),
-{ 189: } ( len: 3; sym: -92 ),
-{ 190: } ( len: 0; sym: -93 ),
-{ 191: } ( len: 1; sym: -93 ),
-{ 192: } ( len: 1; sym: -93 ),
-{ 193: } ( len: 1; sym: -93 ),
-{ 194: } ( len: 1; sym: -93 ),
-{ 195: } ( len: 1; sym: -93 ),
-{ 196: } ( len: 1; sym: -93 ),
-{ 197: } ( len: 1; sym: -93 ),
-{ 198: } ( len: 1; sym: -93 ),
-{ 199: } ( len: 1; sym: -93 ),
-{ 200: } ( len: 1; sym: -93 ),
-{ 201: } ( len: 1; sym: -93 ),
-{ 202: } ( len: 1; sym: -93 ),
-{ 203: } ( len: 1; sym: -93 ),
-{ 204: } ( len: 1; sym: -93 ),
-{ 205: } ( len: 1; sym: -93 ),
-{ 206: } ( len: 1; sym: -93 ),
-{ 207: } ( len: 3; sym: -94 ),
-{ 208: } ( len: 2; sym: -95 ),
-{ 209: } ( len: 6; sym: -96 ),
-{ 210: } ( len: 4; sym: -96 ),
-{ 211: } ( len: 6; sym: -97 ),
-{ 212: } ( len: 0; sym: -98 ),
-{ 213: } ( len: 2; sym: -98 ),
-{ 214: } ( len: 3; sym: -98 ),
-{ 215: } ( len: 1; sym: -108 ),
-{ 216: } ( len: 3; sym: -108 ),
-{ 217: } ( len: 0; sym: -99 ),
-{ 218: } ( len: 3; sym: -99 ),
-{ 219: } ( len: 1; sym: -138 ),
-{ 220: } ( len: 3; sym: -138 ),
-{ 221: } ( len: 4; sym: -104 ),
-{ 222: } ( len: 4; sym: -105 ),
-{ 223: } ( len: 8; sym: -106 ),
-{ 224: } ( len: 1; sym: -120 ),
-{ 225: } ( len: 1; sym: -120 ),
-{ 226: } ( len: 4; sym: -107 ),
-{ 227: } ( len: 5; sym: -100 ),
-{ 228: } ( len: 3; sym: -91 ),
-{ 229: } ( len: 1; sym: -91 ),
-{ 230: } ( len: 1; sym: -91 ),
-{ 231: } ( len: 1; sym: -109 ),
-{ 232: } ( len: 2; sym: -109 ),
-{ 233: } ( len: 7; sym: -103 ),
-{ 234: } ( len: 5; sym: -103 ),
-{ 235: } ( len: 5; sym: -101 ),
-{ 236: } ( len: 1; sym: -102 ),
-{ 237: } ( len: 2; sym: -102 ),
-{ 238: } ( len: 3; sym: -102 ),
-{ 239: } ( len: 4; sym: -102 ),
-{ 240: } ( len: 3; sym: -89 ),
-{ 241: } ( len: 0; sym: -111 ),
-{ 242: } ( len: 2; sym: -111 ),
-{ 243: } ( len: 1; sym: -128 ),
-{ 244: } ( len: 1; sym: -127 ),
-{ 245: } ( len: 4; sym: -127 ),
-{ 246: } ( len: 4; sym: -127 ),
-{ 247: } ( len: 3; sym: -127 ),
-{ 248: } ( len: 1; sym: -127 ),
-{ 249: } ( len: 3; sym: -127 ),
-{ 250: } ( len: 1; sym: -126 ),
-{ 251: } ( len: 4; sym: -126 ),
-{ 252: } ( len: 4; sym: -126 ),
-{ 253: } ( len: 3; sym: -126 ),
-{ 254: } ( len: 2; sym: -126 ),
-{ 255: } ( len: 4; sym: -126 ),
-{ 256: } ( len: 3; sym: -126 ),
-{ 257: } ( len: 1; sym: -137 ),
-{ 258: } ( len: 1; sym: -129 ),
-{ 259: } ( len: 1; sym: -129 ),
-{ 260: } ( len: 1; sym: -129 ),
-{ 261: } ( len: 2; sym: -129 ),
-{ 262: } ( len: 2; sym: -129 ),
-{ 263: } ( len: 2; sym: -129 ),
-{ 264: } ( len: 2; sym: -129 ),
-{ 265: } ( len: 1; sym: -129 ),
-{ 266: } ( len: 3; sym: -129 ),
-{ 267: } ( len: 4; sym: -129 ),
-{ 268: } ( len: 0; sym: -144 ),
-{ 269: } ( len: 3; sym: -144 ),
-{ 270: } ( len: 1; sym: -130 ),
-{ 271: } ( len: 3; sym: -130 ),
-{ 272: } ( len: 3; sym: -130 ),
-{ 273: } ( len: 3; sym: -130 ),
-{ 274: } ( len: 3; sym: -130 ),
-{ 275: } ( len: 3; sym: -130 ),
-{ 276: } ( len: 3; sym: -130 ),
-{ 277: } ( len: 1; sym: -117 ),
-{ 278: } ( len: 1; sym: -117 ),
-{ 279: } ( len: 1; sym: -117 ),
-{ 280: } ( len: 1; sym: -117 ),
-{ 281: } ( len: 1; sym: -117 ),
-{ 282: } ( len: 1; sym: -117 ),
-{ 283: } ( len: 1; sym: -117 ),
-{ 284: } ( len: 1; sym: -118 ),
-{ 285: } ( len: 1; sym: -118 ),
-{ 286: } ( len: 1; sym: -118 ),
-{ 287: } ( len: 1; sym: -118 ),
-{ 288: } ( len: 1; sym: -119 ),
-{ 289: } ( len: 1; sym: -119 ),
-{ 290: } ( len: 1; sym: -119 ),
-{ 291: } ( len: 1; sym: -119 ),
-{ 292: } ( len: 1; sym: -119 ),
-{ 293: } ( len: 1; sym: -119 ),
-{ 294: } ( len: 1; sym: -139 ),
-{ 295: } ( len: 3; sym: -139 ),
-{ 296: } ( len: 0; sym: -141 ),
-{ 297: } ( len: 1; sym: -141 ),
-{ 298: } ( len: 1; sym: -112 ),
-{ 299: } ( len: 1; sym: -112 ),
-{ 300: } ( len: 1; sym: -113 ),
-{ 301: } ( len: 1; sym: -113 ),
-{ 302: } ( len: 1; sym: -113 ),
-{ 303: } ( len: 1; sym: -113 ),
-{ 304: } ( len: 1; sym: -114 ),
-{ 305: } ( len: 1; sym: -114 ),
-{ 306: } ( len: 1; sym: -114 ),
-{ 307: } ( len: 1; sym: -115 ),
-{ 308: } ( len: 1; sym: -116 ),
-{ 309: } ( len: 1; sym: -8 ),
-{ 310: } ( len: 1; sym: -8 ),
-{ 311: } ( len: 2; sym: -8 ),
-{ 312: } ( len: 2; sym: -8 ),
-{ 313: } ( len: 1; sym: -7 ),
-{ 314: } ( len: 1; sym: -9 ),
-{ 315: } ( len: 1; sym: -14 ),
-{ 316: } ( len: 3; sym: -14 ),
-{ 317: } ( len: 1; sym: -3 ),
-{ 318: } ( len: 1; sym: -122 ),
-{ 319: } ( len: 1; sym: -121 ),
-{ 320: } ( len: 1; sym: -125 ),
-{ 321: } ( len: 1; sym: -124 ),
-{ 322: } ( len: 1; sym: -123 ),
-{ 323: } ( len: 1; sym: -10 ),
-{ 324: } ( len: 3; sym: -194 ),
-{ 325: } ( len: 1; sym: -131 ),
-{ 326: } ( len: 2; sym: -131 ),
-{ 327: } ( len: 2; sym: -131 ),
-{ 328: } ( len: 3; sym: -193 ),
-{ 329: } ( len: 1; sym: -148 ),
-{ 330: } ( len: 3; sym: -148 ),
-{ 331: } ( len: 1; sym: -149 ),
-{ 332: } ( len: 3; sym: -149 ),
-{ 333: } ( len: 2; sym: -132 ),
-{ 334: } ( len: 3; sym: -132 ),
-{ 335: } ( len: 1; sym: -142 ),
-{ 336: } ( len: 3; sym: -142 ),
-{ 337: } ( len: 1; sym: -133 ),
-{ 338: } ( len: 3; sym: -133 ),
-{ 339: } ( len: 2; sym: -42 ),
-{ 340: } ( len: 2; sym: -42 ),
-{ 341: } ( len: 4; sym: -52 ),
-{ 342: } ( len: 6; sym: -52 ),
-{ 343: } ( len: 6; sym: -52 ),
-{ 344: } ( len: 1; sym: -135 ),
-{ 345: } ( len: 1; sym: -135 ),
-{ 346: } ( len: 1; sym: -135 ),
-{ 347: } ( len: 1; sym: -134 ),
-{ 348: } ( len: 1; sym: -140 ),
-{ 349: } ( len: 3; sym: -140 ),
-{ 350: } ( len: 5; sym: -151 ),
-{ 351: } ( len: 1; sym: -143 ),
-{ 352: } ( len: 3; sym: -143 ),
-{ 353: } ( len: 4; sym: -152 ),
-{ 354: } ( len: 1; sym: -146 ),
-{ 355: } ( len: 3; sym: -146 ),
-{ 356: } ( len: 3; sym: -147 ),
-{ 357: } ( len: 2; sym: -203 ),
-{ 358: } ( len: 4; sym: -203 ),
-{ 359: } ( len: 6; sym: -203 ),
-{ 360: } ( len: 4; sym: -203 ),
-{ 361: } ( len: 6; sym: -153 ),
-{ 362: } ( len: 4; sym: -153 ),
-{ 363: } ( len: 1; sym: -156 ),
-{ 364: } ( len: 2; sym: -156 ),
-{ 365: } ( len: 3; sym: -156 ),
-{ 366: } ( len: 6; sym: -154 ),
-{ 367: } ( len: 1; sym: -158 ),
-{ 368: } ( len: 3; sym: -158 ),
-{ 369: } ( len: 1; sym: -155 ),
-{ 370: } ( len: 1; sym: -155 ),
-{ 371: } ( len: 4; sym: -171 ),
-{ 372: } ( len: 2; sym: -171 ),
-{ 373: } ( len: 0; sym: -165 ),
-{ 374: } ( len: 3; sym: -165 ),
-{ 375: } ( len: 2; sym: -177 ),
-{ 376: } ( len: 2; sym: -179 ),
-{ 377: } ( len: 1; sym: -179 ),
-{ 378: } ( len: 0; sym: -180 ),
-{ 379: } ( len: 3; sym: -180 ),
-{ 380: } ( len: 4; sym: -180 ),
-{ 381: } ( len: 1; sym: -174 ),
-{ 382: } ( len: 1; sym: -174 ),
-{ 383: } ( len: 1; sym: -174 ),
-{ 384: } ( len: 1; sym: -174 ),
-{ 385: } ( len: 2; sym: -161 ),
-{ 386: } ( len: 4; sym: -161 ),
-{ 387: } ( len: 1; sym: -160 ),
-{ 388: } ( len: 3; sym: -160 ),
-{ 389: } ( len: 3; sym: -47 ),
-{ 390: } ( len: 3; sym: -47 ),
-{ 391: } ( len: 5; sym: -47 ),
-{ 392: } ( len: 0; sym: -159 ),
-{ 393: } ( len: 1; sym: -159 ),
-{ 394: } ( len: 1; sym: -162 ),
-{ 395: } ( len: 2; sym: -162 ),
-{ 396: } ( len: 2; sym: -166 ),
-{ 397: } ( len: 1; sym: -166 ),
-{ 398: } ( len: 0; sym: -175 ),
-{ 399: } ( len: 1; sym: -175 ),
-{ 400: } ( len: 4; sym: -170 ),
-{ 401: } ( len: 2; sym: -170 ),
-{ 402: } ( len: 2; sym: -178 ),
-{ 403: } ( len: 1; sym: -163 ),
-{ 404: } ( len: 2; sym: -163 ),
-{ 405: } ( len: 1; sym: -168 ),
-{ 406: } ( len: 1; sym: -168 ),
-{ 407: } ( len: 0; sym: -173 ),
-{ 408: } ( len: 3; sym: -173 ),
-{ 409: } ( len: 6; sym: -167 ),
-{ 410: } ( len: 8; sym: -167 ),
-{ 411: } ( len: 4; sym: -167 ),
-{ 412: } ( len: 0; sym: -176 ),
-{ 413: } ( len: 1; sym: -176 ),
-{ 414: } ( len: 3; sym: -164 ),
-{ 415: } ( len: 3; sym: -157 ),
-{ 416: } ( len: 4; sym: -157 ),
-{ 417: } ( len: 5; sym: -187 ),
-{ 418: } ( len: 2; sym: -189 ),
-{ 419: } ( len: 6; sym: -188 ),
-{ 420: } ( len: 0; sym: -184 ),
-{ 421: } ( len: 2; sym: -184 ),
-{ 422: } ( len: 0; sym: -182 ),
-{ 423: } ( len: 2; sym: -182 ),
-{ 424: } ( len: 0; sym: -183 ),
-{ 425: } ( len: 2; sym: -183 ),
-{ 426: } ( len: 0; sym: -186 ),
-{ 427: } ( len: 2; sym: -186 ),
-{ 428: } ( len: 2; sym: -186 ),
-{ 429: } ( len: 0; sym: -185 ),
-{ 430: } ( len: 1; sym: -185 ),
-{ 431: } ( len: 2; sym: -185 ),
-{ 432: } ( len: 0; sym: -181 ),
-{ 433: } ( len: 2; sym: -181 ),
-{ 434: } ( len: 3; sym: -54 ),
-{ 435: } ( len: 2; sym: -54 ),
-{ 436: } ( len: 3; sym: -54 ),
-{ 437: } ( len: 3; sym: -54 ),
-{ 438: } ( len: 3; sym: -5 ),
-{ 439: } ( len: 0; sym: -212 ),
-{ 440: } ( len: 1; sym: -212 ),
-{ 441: } ( len: 1; sym: -198 ),
-{ 442: } ( len: 1; sym: -198 ),
-{ 443: } ( len: 2; sym: -198 ),
-{ 444: } ( len: 1; sym: -198 ),
-{ 445: } ( len: 3; sym: -198 ),
-{ 446: } ( len: 1; sym: -198 ),
-{ 447: } ( len: 1; sym: -198 ),
-{ 448: } ( len: 1; sym: -198 ),
-{ 449: } ( len: 1; sym: -195 ),
-{ 450: } ( len: 1; sym: -195 ),
-{ 451: } ( len: 1; sym: -192 ),
-{ 452: } ( len: 3; sym: -192 ),
-{ 453: } ( len: 1; sym: -192 ),
-{ 454: } ( len: 1; sym: -192 ),
-{ 455: } ( len: 1; sym: -199 ),
-{ 456: } ( len: 1; sym: -199 ),
-{ 457: } ( len: 1; sym: -199 ),
-{ 458: } ( len: 1; sym: -172 ),
-{ 459: } ( len: 2; sym: -172 ),
-{ 460: } ( len: 1; sym: -169 ),
-{ 461: } ( len: 2; sym: -169 ),
-{ 462: } ( len: 1; sym: -197 ),
-{ 463: } ( len: 4; sym: -197 ),
-{ 464: } ( len: 1; sym: -202 ),
-{ 465: } ( len: 2; sym: -202 ),
-{ 466: } ( len: 1; sym: -201 ),
-{ 467: } ( len: 1; sym: -201 ),
-{ 468: } ( len: 1; sym: -201 ),
-{ 469: } ( len: 1; sym: -201 ),
-{ 470: } ( len: 1; sym: -145 ),
-{ 471: } ( len: 3; sym: -145 ),
-{ 472: } ( len: 6; sym: -204 ),
-{ 473: } ( len: 6; sym: -204 ),
-{ 474: } ( len: 3; sym: -204 ),
-{ 475: } ( len: 3; sym: -205 ),
-{ 476: } ( len: 3; sym: -206 ),
-{ 477: } ( len: 1; sym: -206 ),
-{ 478: } ( len: 1; sym: -196 ),
-{ 479: } ( len: 4; sym: -196 ),
-{ 480: } ( len: 1; sym: -196 ),
-{ 481: } ( len: 1; sym: -196 ),
-{ 482: } ( len: 1; sym: -196 ),
-{ 483: } ( len: 1; sym: -4 ),
-{ 484: } ( len: 3; sym: -4 )
+{ 1: } ( len: 2; sym: -2; symname: 'goal' ),
+{ 2: } ( len: 1; sym: -16; symname: 'file' ),
+{ 3: } ( len: 3; sym: -16; symname: 'file' ),
+{ 4: } ( len: 2; sym: -16; symname: 'file' ),
+{ 5: } ( len: 3; sym: -16; symname: 'file' ),
+{ 6: } ( len: 0; sym: -209; symname: 'scolopt' ),
+{ 7: } ( len: 1; sym: -209; symname: 'scolopt' ),
+{ 8: } ( len: 4; sym: -17; symname: 'program' ),
+{ 9: } ( len: 3; sym: -17; symname: 'program' ),
+{ 10: } ( len: 0; sym: -12; symname: 'programid' ),
+{ 11: } ( len: 3; sym: -12; symname: 'programid' ),
+{ 12: } ( len: 5; sym: -18; symname: 'library' ),
+{ 13: } ( len: 4; sym: -18; symname: 'library' ),
+{ 14: } ( len: 4; sym: -20; symname: 'package' ),
+{ 15: } ( len: 0; sym: -26; symname: 'requires' ),
+{ 16: } ( len: 3; sym: -26; symname: 'requires' ),
+{ 17: } ( len: 1; sym: -27; symname: 'requireslst' ),
+{ 18: } ( len: 3; sym: -27; symname: 'requireslst' ),
+{ 19: } ( len: 3; sym: -29; symname: 'contains' ),
+{ 20: } ( len: 1; sym: -28; symname: 'containslst' ),
+{ 21: } ( len: 3; sym: -28; symname: 'containslst' ),
+{ 22: } ( len: 1; sym: -21; symname: 'containsitem' ),
+{ 23: } ( len: 3; sym: -21; symname: 'containsitem' ),
+{ 24: } ( len: 0; sym: -24; symname: 'usesopt' ),
+{ 25: } ( len: 3; sym: -24; symname: 'usesopt' ),
+{ 26: } ( len: 1; sym: -25; symname: 'useslst' ),
+{ 27: } ( len: 3; sym: -25; symname: 'useslst' ),
+{ 28: } ( len: 1; sym: -22; symname: 'usesitem' ),
+{ 29: } ( len: 3; sym: -22; symname: 'usesitem' ),
+{ 30: } ( len: 6; sym: -19; symname: 'unit' ),
+{ 31: } ( len: 5; sym: -19; symname: 'unit' ),
+{ 32: } ( len: 5; sym: -19; symname: 'unit' ),
+{ 33: } ( len: 4; sym: -19; symname: 'unit' ),
+{ 34: } ( len: 3; sym: -48; symname: 'implsec' ),
+{ 35: } ( len: 2; sym: -48; symname: 'implsec' ),
+{ 36: } ( len: 3; sym: -49; symname: 'interfsec' ),
+{ 37: } ( len: 0; sym: -30; symname: 'interfdecllst' ),
+{ 38: } ( len: 2; sym: -30; symname: 'interfdecllst' ),
+{ 39: } ( len: 2; sym: -50; symname: 'initsec' ),
+{ 40: } ( len: 2; sym: -50; symname: 'initsec' ),
+{ 41: } ( len: 2; sym: -51; symname: 'finalsec' ),
+{ 42: } ( len: 1; sym: -32; symname: 'maindecllst' ),
+{ 43: } ( len: 2; sym: -32; symname: 'maindecllst' ),
+{ 44: } ( len: 1; sym: -33; symname: 'declseclst' ),
+{ 45: } ( len: 2; sym: -33; symname: 'declseclst' ),
+{ 46: } ( len: 1; sym: -31; symname: 'interfdecl' ),
+{ 47: } ( len: 1; sym: -31; symname: 'interfdecl' ),
+{ 48: } ( len: 1; sym: -31; symname: 'interfdecl' ),
+{ 49: } ( len: 1; sym: -31; symname: 'interfdecl' ),
+{ 50: } ( len: 1; sym: -34; symname: 'maindeclsec' ),
+{ 51: } ( len: 1; sym: -34; symname: 'maindeclsec' ),
+{ 52: } ( len: 1; sym: -34; symname: 'maindeclsec' ),
+{ 53: } ( len: 1; sym: -34; symname: 'maindeclsec' ),
+{ 54: } ( len: 1; sym: -34; symname: 'maindeclsec' ),
+{ 55: } ( len: 1; sym: -35; symname: 'funcdeclsec' ),
+{ 56: } ( len: 1; sym: -35; symname: 'funcdeclsec' ),
+{ 57: } ( len: 1; sym: -35; symname: 'funcdeclsec' ),
+{ 58: } ( len: 1; sym: -36; symname: 'basicdeclsec' ),
+{ 59: } ( len: 1; sym: -36; symname: 'basicdeclsec' ),
+{ 60: } ( len: 1; sym: -36; symname: 'basicdeclsec' ),
+{ 61: } ( len: 2; sym: -43; symname: 'typesec' ),
+{ 62: } ( len: 2; sym: -43; symname: 'typesec' ),
+{ 63: } ( len: 2; sym: -44; symname: 'varsec' ),
+{ 64: } ( len: 2; sym: -44; symname: 'varsec' ),
+{ 65: } ( len: 2; sym: -38; symname: 'thrvarsec' ),
+{ 66: } ( len: 2; sym: -38; symname: 'thrvarsec' ),
+{ 67: } ( len: 3; sym: -46; symname: 'vardecl' ),
+{ 68: } ( len: 5; sym: -46; symname: 'vardecl' ),
+{ 69: } ( len: 5; sym: -46; symname: 'vardecl' ),
+{ 70: } ( len: 2; sym: -46; symname: 'vardecl' ),
+{ 71: } ( len: 6; sym: -46; symname: 'vardecl' ),
+{ 72: } ( len: 2; sym: -15; symname: 'varids' ),
+{ 73: } ( len: 2; sym: -39; symname: 'rscstringsec' ),
+{ 74: } ( len: 1; sym: -45; symname: 'rscstringlst' ),
+{ 75: } ( len: 2; sym: -45; symname: 'rscstringlst' ),
+{ 76: } ( len: 4; sym: -53; symname: 'rscstring' ),
+{ 77: } ( len: 3; sym: -41; symname: 'labeldeclsec' ),
+{ 78: } ( len: 1; sym: -13; symname: 'labelidlst' ),
+{ 79: } ( len: 3; sym: -13; symname: 'labelidlst' ),
+{ 80: } ( len: 1; sym: -6; symname: 'labelid' ),
+{ 81: } ( len: 1; sym: -6; symname: 'labelid' ),
+{ 82: } ( len: 2; sym: -40; symname: 'exportsec' ),
+{ 83: } ( len: 1; sym: -37; symname: 'expitemlst' ),
+{ 84: } ( len: 3; sym: -37; symname: 'expitemlst' ),
+{ 85: } ( len: 2; sym: -23; symname: 'expitem' ),
+{ 86: } ( len: 4; sym: -23; symname: 'expitem' ),
+{ 87: } ( len: 4; sym: -23; symname: 'expitem' ),
+{ 88: } ( len: 1; sym: -11; symname: 'expid' ),
+{ 89: } ( len: 3; sym: -11; symname: 'expid' ),
+{ 90: } ( len: 1; sym: -210; symname: 'kwclass' ),
+{ 91: } ( len: 1; sym: -210; symname: 'kwclass' ),
+{ 92: } ( len: 1; sym: -56; symname: 'routinedeclmain' ),
+{ 93: } ( len: 2; sym: -56; symname: 'routinedeclmain' ),
+{ 94: } ( len: 3; sym: -56; symname: 'routinedeclmain' ),
+{ 95: } ( len: 4; sym: -64; symname: 'routinedef' ),
+{ 96: } ( len: 4; sym: -59; symname: 'methoddecl' ),
+{ 97: } ( len: 3; sym: -59; symname: 'methoddecl' ),
+{ 98: } ( len: 4; sym: -57; symname: 'routineproto' ),
+{ 99: } ( len: 3; sym: -57; symname: 'routineproto' ),
+{ 100: } ( len: 3; sym: -62; symname: 'methoddef' ),
+{ 101: } ( len: 4; sym: -62; symname: 'methoddef' ),
+{ 102: } ( len: 7; sym: -62; symname: 'methoddef' ),
+{ 103: } ( len: 5; sym: -63; symname: 'metdefproto' ),
+{ 104: } ( len: 4; sym: -63; symname: 'metdefproto' ),
+{ 105: } ( len: 1; sym: -58; symname: 'routinedeclinterf' ),
+{ 106: } ( len: 2; sym: -60; symname: 'classmetdecl' ),
+{ 107: } ( len: 5; sym: -60; symname: 'classmetdecl' ),
+{ 108: } ( len: 1; sym: -61; symname: 'interfmetdecl' ),
+{ 109: } ( len: 2; sym: -85; symname: 'kwfunction' ),
+{ 110: } ( len: 2; sym: -86; symname: 'kwprocedure' ),
+{ 111: } ( len: 1; sym: -80; symname: 'kwmetspec' ),
+{ 112: } ( len: 1; sym: -80; symname: 'kwmetspec' ),
+{ 113: } ( len: 3; sym: -207; symname: 'proceduraltype' ),
+{ 114: } ( len: 2; sym: -208; symname: 'proceduralsign' ),
+{ 115: } ( len: 3; sym: -208; symname: 'proceduralsign' ),
+{ 116: } ( len: 3; sym: -208; symname: 'proceduralsign' ),
+{ 117: } ( len: 4; sym: -208; symname: 'proceduralsign' ),
+{ 118: } ( len: 2; sym: -211; symname: 'typeobj' ),
+{ 119: } ( len: 2; sym: -200; symname: 'funcret' ),
+{ 120: } ( len: 2; sym: -55; symname: 'funcdefine' ),
+{ 121: } ( len: 1; sym: -55; symname: 'funcdefine' ),
+{ 122: } ( len: 1; sym: -88; symname: 'funcblock' ),
+{ 123: } ( len: 1; sym: -88; symname: 'funcblock' ),
+{ 124: } ( len: 0; sym: -83; symname: 'formalparams' ),
+{ 125: } ( len: 2; sym: -83; symname: 'formalparams' ),
+{ 126: } ( len: 3; sym: -83; symname: 'formalparams' ),
+{ 127: } ( len: 1; sym: -81; symname: 'formalparamslst' ),
+{ 128: } ( len: 3; sym: -81; symname: 'formalparamslst' ),
+{ 129: } ( len: 3; sym: -82; symname: 'formalparm' ),
+{ 130: } ( len: 3; sym: -82; symname: 'formalparm' ),
+{ 131: } ( len: 3; sym: -82; symname: 'formalparm' ),
+{ 132: } ( len: 4; sym: -82; symname: 'formalparm' ),
+{ 133: } ( len: 0; sym: -190; symname: 'paramtypeopt' ),
+{ 134: } ( len: 1; sym: -190; symname: 'paramtypeopt' ),
+{ 135: } ( len: 2; sym: -191; symname: 'paramtypespec' ),
+{ 136: } ( len: 0; sym: -136; symname: 'paraminitopt' ),
+{ 137: } ( len: 2; sym: -136; symname: 'paraminitopt' ),
+{ 138: } ( len: 2; sym: -150; symname: 'functypeinit' ),
+{ 139: } ( len: 2; sym: -150; symname: 'functypeinit' ),
+{ 140: } ( len: 5; sym: -68; symname: 'importdirforced' ),
+{ 141: } ( len: 4; sym: -68; symname: 'importdirforced' ),
+{ 142: } ( len: 3; sym: -84; symname: 'externarg' ),
+{ 143: } ( len: 1; sym: -84; symname: 'externarg' ),
+{ 144: } ( len: 0; sym: -84; symname: 'externarg' ),
+{ 145: } ( len: 0; sym: -66; symname: 'funcdir_noterm_opt' ),
+{ 146: } ( len: 1; sym: -66; symname: 'funcdir_noterm_opt' ),
+{ 147: } ( len: 0; sym: -67; symname: 'funcdiropt' ),
+{ 148: } ( len: 2; sym: -67; symname: 'funcdiropt' ),
+{ 149: } ( len: 0; sym: -69; symname: 'metdirectopt' ),
+{ 150: } ( len: 2; sym: -69; symname: 'metdirectopt' ),
+{ 151: } ( len: 0; sym: -71; symname: 'smetdirs' ),
+{ 152: } ( len: 2; sym: -71; symname: 'smetdirs' ),
+{ 153: } ( len: 1; sym: -65; symname: 'funcdirectlst' ),
+{ 154: } ( len: 3; sym: -65; symname: 'funcdirectlst' ),
+{ 155: } ( len: 1; sym: -70; symname: 'smetdirslst' ),
+{ 156: } ( len: 3; sym: -70; symname: 'smetdirslst' ),
+{ 157: } ( len: 1; sym: -72; symname: 'metdirectlst' ),
+{ 158: } ( len: 3; sym: -72; symname: 'metdirectlst' ),
+{ 159: } ( len: 1; sym: -74; symname: 'smetqualif' ),
+{ 160: } ( len: 1; sym: -74; symname: 'smetqualif' ),
+{ 161: } ( len: 1; sym: -75; symname: 'metdirective' ),
+{ 162: } ( len: 1; sym: -75; symname: 'metdirective' ),
+{ 163: } ( len: 1; sym: -73; symname: 'funcdirective' ),
+{ 164: } ( len: 1; sym: -73; symname: 'funcdirective' ),
+{ 165: } ( len: 1; sym: -73; symname: 'funcdirective' ),
+{ 166: } ( len: 1; sym: -78; symname: 'funcdeprecated' ),
+{ 167: } ( len: 1; sym: -78; symname: 'funcdeprecated' ),
+{ 168: } ( len: 1; sym: -78; symname: 'funcdeprecated' ),
+{ 169: } ( len: 1; sym: -76; symname: 'metqualif' ),
+{ 170: } ( len: 1; sym: -76; symname: 'metqualif' ),
+{ 171: } ( len: 1; sym: -76; symname: 'metqualif' ),
+{ 172: } ( len: 1; sym: -76; symname: 'metqualif' ),
+{ 173: } ( len: 1; sym: -76; symname: 'metqualif' ),
+{ 174: } ( len: 1; sym: -77; symname: 'funcqualif' ),
+{ 175: } ( len: 1; sym: -77; symname: 'funcqualif' ),
+{ 176: } ( len: 1; sym: -77; symname: 'funcqualif' ),
+{ 177: } ( len: 1; sym: -77; symname: 'funcqualif' ),
+{ 178: } ( len: 1; sym: -77; symname: 'funcqualif' ),
+{ 179: } ( len: 1; sym: -79; symname: 'routinecallconv' ),
+{ 180: } ( len: 1; sym: -79; symname: 'routinecallconv' ),
+{ 181: } ( len: 1; sym: -79; symname: 'routinecallconv' ),
+{ 182: } ( len: 1; sym: -79; symname: 'routinecallconv' ),
+{ 183: } ( len: 1; sym: -79; symname: 'routinecallconv' ),
+{ 184: } ( len: 3; sym: -87; symname: 'block' ),
+{ 185: } ( len: 1; sym: -90; symname: 'blockstmt' ),
+{ 186: } ( len: 1; sym: -110; symname: 'stmtlist' ),
+{ 187: } ( len: 3; sym: -110; symname: 'stmtlist' ),
+{ 188: } ( len: 1; sym: -92; symname: 'stmt' ),
+{ 189: } ( len: 3; sym: -92; symname: 'stmt' ),
+{ 190: } ( len: 0; sym: -93; symname: 'nonlblstmt' ),
+{ 191: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 192: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 193: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 194: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 195: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 196: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 197: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 198: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 199: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 200: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 201: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 202: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 203: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 204: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 205: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 206: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
+{ 207: } ( len: 3; sym: -94; symname: 'assign' ),
+{ 208: } ( len: 2; sym: -95; symname: 'goto_stmt' ),
+{ 209: } ( len: 6; sym: -96; symname: 'ifstmt' ),
+{ 210: } ( len: 4; sym: -96; symname: 'ifstmt' ),
+{ 211: } ( len: 6; sym: -97; symname: 'casestmt' ),
+{ 212: } ( len: 0; sym: -98; symname: 'elsecase' ),
+{ 213: } ( len: 2; sym: -98; symname: 'elsecase' ),
+{ 214: } ( len: 3; sym: -98; symname: 'elsecase' ),
+{ 215: } ( len: 1; sym: -108; symname: 'casesellst' ),
+{ 216: } ( len: 3; sym: -108; symname: 'casesellst' ),
+{ 217: } ( len: 0; sym: -99; symname: 'caseselector' ),
+{ 218: } ( len: 3; sym: -99; symname: 'caseselector' ),
+{ 219: } ( len: 1; sym: -138; symname: 'caselabellst' ),
+{ 220: } ( len: 3; sym: -138; symname: 'caselabellst' ),
+{ 221: } ( len: 4; sym: -104; symname: 'repeatstmt' ),
+{ 222: } ( len: 4; sym: -105; symname: 'whilestmt' ),
+{ 223: } ( len: 8; sym: -106; symname: 'forstmt' ),
+{ 224: } ( len: 1; sym: -120; symname: 'fordir' ),
+{ 225: } ( len: 1; sym: -120; symname: 'fordir' ),
+{ 226: } ( len: 4; sym: -107; symname: 'withstmt' ),
+{ 227: } ( len: 5; sym: -100; symname: 'tryexceptstmt' ),
+{ 228: } ( len: 3; sym: -91; symname: 'exceptionblock' ),
+{ 229: } ( len: 1; sym: -91; symname: 'exceptionblock' ),
+{ 230: } ( len: 1; sym: -91; symname: 'exceptionblock' ),
+{ 231: } ( len: 1; sym: -109; symname: 'onlst' ),
+{ 232: } ( len: 2; sym: -109; symname: 'onlst' ),
+{ 233: } ( len: 7; sym: -103; symname: 'ondef' ),
+{ 234: } ( len: 5; sym: -103; symname: 'ondef' ),
+{ 235: } ( len: 5; sym: -101; symname: 'tryfinallystmt' ),
+{ 236: } ( len: 1; sym: -102; symname: 'raisestmt' ),
+{ 237: } ( len: 2; sym: -102; symname: 'raisestmt' ),
+{ 238: } ( len: 3; sym: -102; symname: 'raisestmt' ),
+{ 239: } ( len: 4; sym: -102; symname: 'raisestmt' ),
+{ 240: } ( len: 3; sym: -89; symname: 'assemblerstmt' ),
+{ 241: } ( len: 0; sym: -111; symname: 'asmcode' ),
+{ 242: } ( len: 2; sym: -111; symname: 'asmcode' ),
+{ 243: } ( len: 1; sym: -128; symname: 'identifier' ),
+{ 244: } ( len: 1; sym: -127; symname: 'lvalstmt' ),
+{ 245: } ( len: 4; sym: -127; symname: 'lvalstmt' ),
+{ 246: } ( len: 4; sym: -127; symname: 'lvalstmt' ),
+{ 247: } ( len: 3; sym: -127; symname: 'lvalstmt' ),
+{ 248: } ( len: 1; sym: -127; symname: 'lvalstmt' ),
+{ 249: } ( len: 3; sym: -127; symname: 'lvalstmt' ),
+{ 250: } ( len: 1; sym: -126; symname: 'lvalue' ),
+{ 251: } ( len: 4; sym: -126; symname: 'lvalue' ),
+{ 252: } ( len: 4; sym: -126; symname: 'lvalue' ),
+{ 253: } ( len: 3; sym: -126; symname: 'lvalue' ),
+{ 254: } ( len: 2; sym: -126; symname: 'lvalue' ),
+{ 255: } ( len: 4; sym: -126; symname: 'lvalue' ),
+{ 256: } ( len: 3; sym: -126; symname: 'lvalue' ),
+{ 257: } ( len: 1; sym: -137; symname: 'lvalasval' ),
+{ 258: } ( len: 1; sym: -129; symname: 'unaryexpr' ),
+{ 259: } ( len: 1; sym: -129; symname: 'unaryexpr' ),
+{ 260: } ( len: 1; sym: -129; symname: 'unaryexpr' ),
+{ 261: } ( len: 2; sym: -129; symname: 'unaryexpr' ),
+{ 262: } ( len: 2; sym: -129; symname: 'unaryexpr' ),
+{ 263: } ( len: 2; sym: -129; symname: 'unaryexpr' ),
+{ 264: } ( len: 2; sym: -129; symname: 'unaryexpr' ),
+{ 265: } ( len: 1; sym: -129; symname: 'unaryexpr' ),
+{ 266: } ( len: 3; sym: -129; symname: 'unaryexpr' ),
+{ 267: } ( len: 4; sym: -129; symname: 'unaryexpr' ),
+{ 268: } ( len: 0; sym: -144; symname: 'callparams' ),
+{ 269: } ( len: 3; sym: -144; symname: 'callparams' ),
+{ 270: } ( len: 1; sym: -130; symname: 'expr' ),
+{ 271: } ( len: 3; sym: -130; symname: 'expr' ),
+{ 272: } ( len: 3; sym: -130; symname: 'expr' ),
+{ 273: } ( len: 3; sym: -130; symname: 'expr' ),
+{ 274: } ( len: 3; sym: -130; symname: 'expr' ),
+{ 275: } ( len: 3; sym: -130; symname: 'expr' ),
+{ 276: } ( len: 3; sym: -130; symname: 'expr' ),
+{ 277: } ( len: 1; sym: -117; symname: 'mulop' ),
+{ 278: } ( len: 1; sym: -117; symname: 'mulop' ),
+{ 279: } ( len: 1; sym: -117; symname: 'mulop' ),
+{ 280: } ( len: 1; sym: -117; symname: 'mulop' ),
+{ 281: } ( len: 1; sym: -117; symname: 'mulop' ),
+{ 282: } ( len: 1; sym: -117; symname: 'mulop' ),
+{ 283: } ( len: 1; sym: -117; symname: 'mulop' ),
+{ 284: } ( len: 1; sym: -118; symname: 'addop' ),
+{ 285: } ( len: 1; sym: -118; symname: 'addop' ),
+{ 286: } ( len: 1; sym: -118; symname: 'addop' ),
+{ 287: } ( len: 1; sym: -118; symname: 'addop' ),
+{ 288: } ( len: 1; sym: -119; symname: 'relop' ),
+{ 289: } ( len: 1; sym: -119; symname: 'relop' ),
+{ 290: } ( len: 1; sym: -119; symname: 'relop' ),
+{ 291: } ( len: 1; sym: -119; symname: 'relop' ),
+{ 292: } ( len: 1; sym: -119; symname: 'relop' ),
+{ 293: } ( len: 1; sym: -119; symname: 'relop' ),
+{ 294: } ( len: 1; sym: -139; symname: 'exprlst' ),
+{ 295: } ( len: 3; sym: -139; symname: 'exprlst' ),
+{ 296: } ( len: 0; sym: -141; symname: 'exprlstopt' ),
+{ 297: } ( len: 1; sym: -141; symname: 'exprlstopt' ),
+{ 298: } ( len: 1; sym: -112; symname: 'literal' ),
+{ 299: } ( len: 1; sym: -112; symname: 'literal' ),
+{ 300: } ( len: 1; sym: -113; symname: 'basicliteral' ),
+{ 301: } ( len: 1; sym: -113; symname: 'basicliteral' ),
+{ 302: } ( len: 1; sym: -113; symname: 'basicliteral' ),
+{ 303: } ( len: 1; sym: -113; symname: 'basicliteral' ),
+{ 304: } ( len: 1; sym: -114; symname: 'discrete' ),
+{ 305: } ( len: 1; sym: -114; symname: 'discrete' ),
+{ 306: } ( len: 1; sym: -114; symname: 'discrete' ),
+{ 307: } ( len: 1; sym: -115; symname: 'strorcharlit' ),
+{ 308: } ( len: 1; sym: -116; symname: 'stringlit' ),
+{ 309: } ( len: 1; sym: -8; symname: 'stringorchar' ),
+{ 310: } ( len: 1; sym: -8; symname: 'stringorchar' ),
+{ 311: } ( len: 2; sym: -8; symname: 'stringorchar' ),
+{ 312: } ( len: 2; sym: -8; symname: 'stringorchar' ),
+{ 313: } ( len: 1; sym: -7; symname: 'stringconst' ),
+{ 314: } ( len: 1; sym: -9; symname: 'stringnonNil' ),
+{ 315: } ( len: 1; sym: -14; symname: 'idlst' ),
+{ 316: } ( len: 3; sym: -14; symname: 'idlst' ),
+{ 317: } ( len: 1; sym: -3; symname: 'id' ),
+{ 318: } ( len: 1; sym: -122; symname: 'constnil' ),
+{ 319: } ( len: 1; sym: -121; symname: 'constint' ),
+{ 320: } ( len: 1; sym: -125; symname: 'constchar' ),
+{ 321: } ( len: 1; sym: -124; symname: 'constreal' ),
+{ 322: } ( len: 1; sym: -123; symname: 'constbool' ),
+{ 323: } ( len: 1; sym: -10; symname: 'conststr' ),
+{ 324: } ( len: 3; sym: -194; symname: 'rangetype' ),
+{ 325: } ( len: 1; sym: -131; symname: 'rangestart' ),
+{ 326: } ( len: 2; sym: -131; symname: 'rangestart' ),
+{ 327: } ( len: 2; sym: -131; symname: 'rangestart' ),
+{ 328: } ( len: 3; sym: -193; symname: 'enumtype' ),
+{ 329: } ( len: 1; sym: -148; symname: 'enumelemlst' ),
+{ 330: } ( len: 3; sym: -148; symname: 'enumelemlst' ),
+{ 331: } ( len: 1; sym: -149; symname: 'enumelem' ),
+{ 332: } ( len: 3; sym: -149; symname: 'enumelem' ),
+{ 333: } ( len: 2; sym: -132; symname: 'set' ),
+{ 334: } ( len: 3; sym: -132; symname: 'set' ),
+{ 335: } ( len: 1; sym: -142; symname: 'setelemlst' ),
+{ 336: } ( len: 3; sym: -142; symname: 'setelemlst' ),
+{ 337: } ( len: 1; sym: -133; symname: 'setelem' ),
+{ 338: } ( len: 3; sym: -133; symname: 'setelem' ),
+{ 339: } ( len: 2; sym: -42; symname: 'constsec' ),
+{ 340: } ( len: 2; sym: -42; symname: 'constsec' ),
+{ 341: } ( len: 4; sym: -52; symname: 'constdecl' ),
+{ 342: } ( len: 6; sym: -52; symname: 'constdecl' ),
+{ 343: } ( len: 6; sym: -52; symname: 'constdecl' ),
+{ 344: } ( len: 1; sym: -135; symname: 'constinit' ),
+{ 345: } ( len: 1; sym: -135; symname: 'constinit' ),
+{ 346: } ( len: 1; sym: -135; symname: 'constinit' ),
+{ 347: } ( len: 1; sym: -134; symname: 'constexpr' ),
+{ 348: } ( len: 1; sym: -140; symname: 'constexprlst' ),
+{ 349: } ( len: 3; sym: -140; symname: 'constexprlst' ),
+{ 350: } ( len: 5; sym: -151; symname: 'arrayconst' ),
+{ 351: } ( len: 1; sym: -143; symname: 'arrexprlst' ),
+{ 352: } ( len: 3; sym: -143; symname: 'arrexprlst' ),
+{ 353: } ( len: 4; sym: -152; symname: 'recordconst' ),
+{ 354: } ( len: 1; sym: -146; symname: 'fieldconstlst' ),
+{ 355: } ( len: 3; sym: -146; symname: 'fieldconstlst' ),
+{ 356: } ( len: 3; sym: -147; symname: 'fieldconst' ),
+{ 357: } ( len: 2; sym: -203; symname: 'recordtype' ),
+{ 358: } ( len: 4; sym: -203; symname: 'recordtype' ),
+{ 359: } ( len: 6; sym: -203; symname: 'recordtype' ),
+{ 360: } ( len: 4; sym: -203; symname: 'recordtype' ),
+{ 361: } ( len: 6; sym: -153; symname: 'recvariant' ),
+{ 362: } ( len: 4; sym: -153; symname: 'recvariant' ),
+{ 363: } ( len: 1; sym: -156; symname: 'recfieldlst' ),
+{ 364: } ( len: 2; sym: -156; symname: 'recfieldlst' ),
+{ 365: } ( len: 3; sym: -156; symname: 'recfieldlst' ),
+{ 366: } ( len: 6; sym: -154; symname: 'recfield' ),
+{ 367: } ( len: 1; sym: -158; symname: 'recvarlst' ),
+{ 368: } ( len: 3; sym: -158; symname: 'recvarlst' ),
+{ 369: } ( len: 1; sym: -155; symname: 'recvarfield' ),
+{ 370: } ( len: 1; sym: -155; symname: 'recvarfield' ),
+{ 371: } ( len: 4; sym: -171; symname: 'classtype' ),
+{ 372: } ( len: 2; sym: -171; symname: 'classtype' ),
+{ 373: } ( len: 0; sym: -165; symname: 'heritage' ),
+{ 374: } ( len: 3; sym: -165; symname: 'heritage' ),
+{ 375: } ( len: 2; sym: -177; symname: 'classbody' ),
+{ 376: } ( len: 2; sym: -179; symname: 'class1stsec' ),
+{ 377: } ( len: 1; sym: -179; symname: 'class1stsec' ),
+{ 378: } ( len: 0; sym: -180; symname: 'scopeseclst' ),
+{ 379: } ( len: 3; sym: -180; symname: 'scopeseclst' ),
+{ 380: } ( len: 4; sym: -180; symname: 'scopeseclst' ),
+{ 381: } ( len: 1; sym: -174; symname: 'scope' ),
+{ 382: } ( len: 1; sym: -174; symname: 'scope' ),
+{ 383: } ( len: 1; sym: -174; symname: 'scope' ),
+{ 384: } ( len: 1; sym: -174; symname: 'scope' ),
+{ 385: } ( len: 2; sym: -161; symname: 'cfieldlst' ),
+{ 386: } ( len: 4; sym: -161; symname: 'cfieldlst' ),
+{ 387: } ( len: 1; sym: -160; symname: 'fieldlst' ),
+{ 388: } ( len: 3; sym: -160; symname: 'fieldlst' ),
+{ 389: } ( len: 3; sym: -47; symname: 'objfield' ),
+{ 390: } ( len: 3; sym: -47; symname: 'objfield' ),
+{ 391: } ( len: 5; sym: -47; symname: 'objfield' ),
+{ 392: } ( len: 0; sym: -159; symname: 'ccomplstopt' ),
+{ 393: } ( len: 1; sym: -159; symname: 'ccomplstopt' ),
+{ 394: } ( len: 1; sym: -162; symname: 'classcomplst' ),
+{ 395: } ( len: 2; sym: -162; symname: 'classcomplst' ),
+{ 396: } ( len: 2; sym: -166; symname: 'classcomp' ),
+{ 397: } ( len: 1; sym: -166; symname: 'classcomp' ),
+{ 398: } ( len: 0; sym: -175; symname: 'staticopt' ),
+{ 399: } ( len: 1; sym: -175; symname: 'staticopt' ),
+{ 400: } ( len: 4; sym: -170; symname: 'interftype' ),
+{ 401: } ( len: 2; sym: -170; symname: 'interftype' ),
+{ 402: } ( len: 2; sym: -178; symname: 'interfbody' ),
+{ 403: } ( len: 1; sym: -163; symname: 'interfcomplst' ),
+{ 404: } ( len: 2; sym: -163; symname: 'interfcomplst' ),
+{ 405: } ( len: 1; sym: -168; symname: 'interfcomp' ),
+{ 406: } ( len: 1; sym: -168; symname: 'interfcomp' ),
+{ 407: } ( len: 0; sym: -173; symname: 'guid' ),
+{ 408: } ( len: 3; sym: -173; symname: 'guid' ),
+{ 409: } ( len: 6; sym: -167; symname: 'property' ),
+{ 410: } ( len: 8; sym: -167; symname: 'property' ),
+{ 411: } ( len: 4; sym: -167; symname: 'property' ),
+{ 412: } ( len: 0; sym: -176; symname: 'defaultdiropt' ),
+{ 413: } ( len: 1; sym: -176; symname: 'defaultdiropt' ),
+{ 414: } ( len: 3; sym: -164; symname: 'arrayprops' ),
+{ 415: } ( len: 3; sym: -157; symname: 'propfield' ),
+{ 416: } ( len: 4; sym: -157; symname: 'propfield' ),
+{ 417: } ( len: 5; sym: -187; symname: 'spropspecsnormal' ),
+{ 418: } ( len: 2; sym: -189; symname: 'spropspecsarray' ),
+{ 419: } ( len: 6; sym: -188; symname: 'spropspecsoverride' ),
+{ 420: } ( len: 0; sym: -184; symname: 'indexopt' ),
+{ 421: } ( len: 2; sym: -184; symname: 'indexopt' ),
+{ 422: } ( len: 0; sym: -182; symname: 'readopt' ),
+{ 423: } ( len: 2; sym: -182; symname: 'readopt' ),
+{ 424: } ( len: 0; sym: -183; symname: 'writeopt' ),
+{ 425: } ( len: 2; sym: -183; symname: 'writeopt' ),
+{ 426: } ( len: 0; sym: -186; symname: 'storeopt' ),
+{ 427: } ( len: 2; sym: -186; symname: 'storeopt' ),
+{ 428: } ( len: 2; sym: -186; symname: 'storeopt' ),
+{ 429: } ( len: 0; sym: -185; symname: 'defaultopt' ),
+{ 430: } ( len: 1; sym: -185; symname: 'defaultopt' ),
+{ 431: } ( len: 2; sym: -185; symname: 'defaultopt' ),
+{ 432: } ( len: 0; sym: -181; symname: 'implopt' ),
+{ 433: } ( len: 2; sym: -181; symname: 'implopt' ),
+{ 434: } ( len: 3; sym: -54; symname: 'typedecl' ),
+{ 435: } ( len: 2; sym: -54; symname: 'typedecl' ),
+{ 436: } ( len: 3; sym: -54; symname: 'typedecl' ),
+{ 437: } ( len: 3; sym: -54; symname: 'typedecl' ),
+{ 438: } ( len: 3; sym: -5; symname: 'idtypeopt' ),
+{ 439: } ( len: 0; sym: -212; symname: 'typeopt' ),
+{ 440: } ( len: 1; sym: -212; symname: 'typeopt' ),
+{ 441: } ( len: 1; sym: -198; symname: 'vartype' ),
+{ 442: } ( len: 1; sym: -198; symname: 'vartype' ),
+{ 443: } ( len: 2; sym: -198; symname: 'vartype' ),
+{ 444: } ( len: 1; sym: -198; symname: 'vartype' ),
+{ 445: } ( len: 3; sym: -198; symname: 'vartype' ),
+{ 446: } ( len: 1; sym: -198; symname: 'vartype' ),
+{ 447: } ( len: 1; sym: -198; symname: 'vartype' ),
+{ 448: } ( len: 1; sym: -198; symname: 'vartype' ),
+{ 449: } ( len: 1; sym: -195; symname: 'ordinaltype' ),
+{ 450: } ( len: 1; sym: -195; symname: 'ordinaltype' ),
+{ 451: } ( len: 1; sym: -192; symname: 'funcpartype' ),
+{ 452: } ( len: 3; sym: -192; symname: 'funcpartype' ),
+{ 453: } ( len: 1; sym: -192; symname: 'funcpartype' ),
+{ 454: } ( len: 1; sym: -192; symname: 'funcpartype' ),
+{ 455: } ( len: 1; sym: -199; symname: 'funcrettype' ),
+{ 456: } ( len: 1; sym: -199; symname: 'funcrettype' ),
+{ 457: } ( len: 1; sym: -199; symname: 'funcrettype' ),
+{ 458: } ( len: 1; sym: -172; symname: 'packclasstype' ),
+{ 459: } ( len: 2; sym: -172; symname: 'packclasstype' ),
+{ 460: } ( len: 1; sym: -169; symname: 'packinterftype' ),
+{ 461: } ( len: 2; sym: -169; symname: 'packinterftype' ),
+{ 462: } ( len: 1; sym: -197; symname: 'stringtype' ),
+{ 463: } ( len: 4; sym: -197; symname: 'stringtype' ),
+{ 464: } ( len: 1; sym: -202; symname: 'packstructtype' ),
+{ 465: } ( len: 2; sym: -202; symname: 'packstructtype' ),
+{ 466: } ( len: 1; sym: -201; symname: 'structuredtype' ),
+{ 467: } ( len: 1; sym: -201; symname: 'structuredtype' ),
+{ 468: } ( len: 1; sym: -201; symname: 'structuredtype' ),
+{ 469: } ( len: 1; sym: -201; symname: 'structuredtype' ),
+{ 470: } ( len: 1; sym: -145; symname: 'arrayszlst' ),
+{ 471: } ( len: 3; sym: -145; symname: 'arrayszlst' ),
+{ 472: } ( len: 6; sym: -204; symname: 'arraytype' ),
+{ 473: } ( len: 6; sym: -204; symname: 'arraytype' ),
+{ 474: } ( len: 3; sym: -204; symname: 'arraytype' ),
+{ 475: } ( len: 3; sym: -205; symname: 'settype' ),
+{ 476: } ( len: 3; sym: -206; symname: 'filetype' ),
+{ 477: } ( len: 1; sym: -206; symname: 'filetype' ),
+{ 478: } ( len: 1; sym: -196; symname: 'fixedtype' ),
+{ 479: } ( len: 4; sym: -196; symname: 'fixedtype' ),
+{ 480: } ( len: 1; sym: -196; symname: 'fixedtype' ),
+{ 481: } ( len: 1; sym: -196; symname: 'fixedtype' ),
+{ 482: } ( len: 1; sym: -196; symname: 'fixedtype' ),
+{ 483: } ( len: 1; sym: -4; symname: 'qualifid' ),
+{ 484: } ( len: 3; sym: -4; symname: 'qualifid' )
 );
 
-// source: yyparse.cod line# 26
+yytokens : array [256..yymaxtoken] of YYTokenRec = (
+{ 256: } ( tokenname: 'error' ),
+{ 257: } ( tokenname: 'KW_LIBRARY' ),
+{ 258: } ( tokenname: 'KW_UNIT' ),
+{ 259: } ( tokenname: 'KW_PROGRAM' ),
+{ 260: } ( tokenname: 'KW_PACKAGE' ),
+{ 261: } ( tokenname: 'KW_REQUIRES' ),
+{ 262: } ( tokenname: 'KW_CONTAINS' ),
+{ 263: } ( tokenname: 'KW_USES' ),
+{ 264: } ( tokenname: 'KW_EXPORTS' ),
+{ 265: } ( tokenname: 'KW_PLATFORM' ),
+{ 266: } ( tokenname: 'KW_DEPRECATED' ),
+{ 267: } ( tokenname: 'KW_INTERF' ),
+{ 268: } ( tokenname: 'KW_IMPL' ),
+{ 269: } ( tokenname: 'KW_FINALIZ' ),
+{ 270: } ( tokenname: 'KW_INIT' ),
+{ 271: } ( tokenname: 'KW_OBJECT' ),
+{ 272: } ( tokenname: 'KW_RECORD' ),
+{ 273: } ( tokenname: 'KW_CLASS' ),
+{ 274: } ( tokenname: 'KW_FUNCTION' ),
+{ 275: } ( tokenname: 'KW_PROCEDURE' ),
+{ 276: } ( tokenname: 'KW_PROPERTY' ),
+{ 277: } ( tokenname: 'KW_OF' ),
+{ 278: } ( tokenname: 'KW_OUT' ),
+{ 279: } ( tokenname: 'KW_PACKED' ),
+{ 280: } ( tokenname: 'KW_INHERITED' ),
+{ 281: } ( tokenname: 'KW_PROTECTED' ),
+{ 282: } ( tokenname: 'KW_PUBLIC' ),
+{ 283: } ( tokenname: 'KW_PUBLISHED' ),
+{ 284: } ( tokenname: 'KW_PRIVATE' ),
+{ 285: } ( tokenname: 'KW_CONST' ),
+{ 286: } ( tokenname: 'KW_VAR' ),
+{ 287: } ( tokenname: 'KW_THRVAR' ),
+{ 288: } ( tokenname: 'KW_TYPE' ),
+{ 289: } ( tokenname: 'KW_CONSTRUCTOR' ),
+{ 290: } ( tokenname: 'KW_DESTRUCTOR' ),
+{ 291: } ( tokenname: 'KW_ASM' ),
+{ 292: } ( tokenname: 'KW_BEGIN' ),
+{ 293: } ( tokenname: 'KW_END' ),
+{ 294: } ( tokenname: 'KW_WITH' ),
+{ 295: } ( tokenname: 'KW_DO' ),
+{ 296: } ( tokenname: 'KW_FOR' ),
+{ 297: } ( tokenname: 'KW_TO' ),
+{ 298: } ( tokenname: 'KW_DOWNTO' ),
+{ 299: } ( tokenname: 'KW_REPEAT' ),
+{ 300: } ( tokenname: 'KW_UNTIL' ),
+{ 301: } ( tokenname: 'KW_WHILE' ),
+{ 302: } ( tokenname: 'KW_IF' ),
+{ 303: } ( tokenname: 'KW_THEN' ),
+{ 304: } ( tokenname: 'KW_ELSE' ),
+{ 305: } ( tokenname: 'KW_CASE' ),
+{ 306: } ( tokenname: 'KW_GOTO' ),
+{ 307: } ( tokenname: 'KW_LABEL' ),
+{ 308: } ( tokenname: 'KW_BREAK' ),
+{ 309: } ( tokenname: 'KW_CONTINUE' ),
+{ 310: } ( tokenname: 'KW_RAISE' ),
+{ 311: } ( tokenname: 'KW_AT' ),
+{ 312: } ( tokenname: 'KW_TRY' ),
+{ 313: } ( tokenname: 'KW_EXCEPT' ),
+{ 314: } ( tokenname: 'KW_FINALLY' ),
+{ 315: } ( tokenname: 'KW_ON' ),
+{ 316: } ( tokenname: 'KW_ABSOLUTE' ),
+{ 317: } ( tokenname: 'KW_ABSTRACT' ),
+{ 318: } ( tokenname: 'KW_ASSEMBLER' ),
+{ 319: } ( tokenname: 'KW_DYNAMIC' ),
+{ 320: } ( tokenname: 'KW_EXPORT' ),
+{ 321: } ( tokenname: 'KW_EXTERNAL' ),
+{ 322: } ( tokenname: 'KW_FORWARD' ),
+{ 323: } ( tokenname: 'KW_INLINE' ),
+{ 324: } ( tokenname: 'KW_OVERRIDE' ),
+{ 325: } ( tokenname: 'KW_OVERLOAD' ),
+{ 326: } ( tokenname: 'KW_REINTRODUCE' ),
+{ 327: } ( tokenname: 'KW_VIRTUAL' ),
+{ 328: } ( tokenname: 'KW_VARARGS' ),
+{ 329: } ( tokenname: 'KW_PASCAL' ),
+{ 330: } ( tokenname: 'KW_SAFECALL' ),
+{ 331: } ( tokenname: 'KW_STDCALL' ),
+{ 332: } ( tokenname: 'KW_CDECL' ),
+{ 333: } ( tokenname: 'KW_REGISTER' ),
+{ 334: } ( tokenname: 'TYPE_WIDESTR' ),
+{ 335: } ( tokenname: 'TYPE_STR' ),
+{ 336: } ( tokenname: 'TYPE_RSCSTR' ),
+{ 337: } ( tokenname: 'TYPE_SHORTSTR' ),
+{ 338: } ( tokenname: 'TYPE_ARRAY' ),
+{ 339: } ( tokenname: 'TYPE_FILE' ),
+{ 340: } ( tokenname: 'TYPE_PTR' ),
+{ 341: } ( tokenname: 'TYPE_SET' ),
+{ 342: } ( tokenname: 'KW_NAME' ),
+{ 343: } ( tokenname: 'KW_READ' ),
+{ 344: } ( tokenname: 'KW_WRITE' ),
+{ 345: } ( tokenname: 'KW_INDEX' ),
+{ 346: } ( tokenname: 'KW_STORED' ),
+{ 347: } ( tokenname: 'KW_DEFAULT' ),
+{ 348: } ( tokenname: 'KW_NODEFAULT' ),
+{ 349: } ( tokenname: 'KW_IMPLEMENTS' ),
+{ 350: } ( tokenname: 'ASM_OP' ),
+{ 351: } ( tokenname: 'WINDOWS_GUID' ),
+{ 352: } ( tokenname: 'KW_FAR' ),
+{ 353: } ( tokenname: 'KW_NEAR' ),
+{ 354: } ( tokenname: 'KW_RESIDENT' ),
+{ 355: } ( tokenname: 'TYPE_INT64' ),
+{ 356: } ( tokenname: 'TYPE_INT' ),
+{ 357: } ( tokenname: 'TYPE_LONGINT' ),
+{ 358: } ( tokenname: 'TYPE_LONGWORD' ),
+{ 359: } ( tokenname: 'TYPE_SMALLINT' ),
+{ 360: } ( tokenname: 'TYPE_SHORTINT' ),
+{ 361: } ( tokenname: 'TYPE_WORD' ),
+{ 362: } ( tokenname: 'TYPE_BYTE' ),
+{ 363: } ( tokenname: 'TYPE_CARDINAL' ),
+{ 364: } ( tokenname: 'TYPE_UINT64' ),
+{ 365: } ( tokenname: 'TYPE_CHAR' ),
+{ 366: } ( tokenname: 'TYPE_PCHAR' ),
+{ 367: } ( tokenname: 'TYPE_WIDECHAR' ),
+{ 368: } ( tokenname: 'TYPE_FLOAT' ),
+{ 369: } ( tokenname: 'TYPE_REAL48' ),
+{ 370: } ( tokenname: 'TYPE_DOUBLE' ),
+{ 371: } ( tokenname: 'TYPE_EXTENDED' ),
+{ 372: } ( tokenname: 'TYPE_BOOL' ),
+{ 373: } ( tokenname: 'TYPE_COMP' ),
+{ 374: } ( tokenname: 'TYPE_CURRENCY' ),
+{ 375: } ( tokenname: 'TYPE_OLEVAR' ),
+{ 376: } ( tokenname: 'TYPE_VAR' ),
+{ 377: } ( tokenname: 'TYPE_CURR' ),
+{ 378: } ( tokenname: 'LOWESTPREC' ),
+{ 379: } ( tokenname: 'PASCAL_IDENTIFIER' ),
+{ 380: } ( tokenname: 'CONST_STR' ),
+{ 381: } ( tokenname: 'CONST_INT' ),
+{ 382: } ( tokenname: 'CONST_NIL' ),
+{ 383: } ( tokenname: 'CONST_REAL' ),
+{ 384: } ( tokenname: 'CONST_CHAR' ),
+{ 385: } ( tokenname: 'CONST_BOOL' ),
+{ 386: } ( tokenname: 'KW_RANGE' ),
+{ 387: } ( tokenname: 'COMMA' ),
+{ 388: } ( tokenname: 'COLON' ),
+{ 389: } ( tokenname: 'SCOL' ),
+{ 390: } ( tokenname: 'KW_ASSIGN' ),
+{ 391: } ( tokenname: 'KW_EQ' ),
+{ 392: } ( tokenname: 'KW_GT' ),
+{ 393: } ( tokenname: 'KW_LT' ),
+{ 394: } ( tokenname: 'KW_LE' ),
+{ 395: } ( tokenname: 'KW_GE' ),
+{ 396: } ( tokenname: 'KW_NE' ),
+{ 397: } ( tokenname: 'KW_IN' ),
+{ 398: } ( tokenname: 'KW_IS' ),
+{ 399: } ( tokenname: 'KW_SUM' ),
+{ 400: } ( tokenname: 'KW_SUB' ),
+{ 401: } ( tokenname: 'KW_OR' ),
+{ 402: } ( tokenname: 'KW_XOR' ),
+{ 403: } ( tokenname: 'KW_MUL' ),
+{ 404: } ( tokenname: 'KW_DIV' ),
+{ 405: } ( tokenname: 'KW_QUOT' ),
+{ 406: } ( tokenname: 'KW_MOD' ),
+{ 407: } ( tokenname: 'KW_SHL' ),
+{ 408: } ( tokenname: 'KW_SHR' ),
+{ 409: } ( tokenname: 'KW_AS' ),
+{ 410: } ( tokenname: 'KW_AND' ),
+{ 411: } ( tokenname: 'KW_DEREF' ),
+{ 412: } ( tokenname: 'KW_DOT' ),
+{ 413: } ( tokenname: 'UNARY' ),
+{ 414: } ( tokenname: 'KW_NOT' ),
+{ 415: } ( tokenname: 'KW_ADDR' ),
+{ 416: } ( tokenname: 'LBRAC' ),
+{ 417: } ( tokenname: 'RBRAC' ),
+{ 418: } ( tokenname: 'LPAR' ),
+{ 419: } ( tokenname: 'RPAR' ),
+{ 420: } ( tokenname: 'MAXPREC' )
+);
+
+// source: delphi_parser.cod line# 1461
 
 const _error = 256; (* error token *)
 
-function yyact(state, sym : Integer; var act : Integer) : Boolean;
+function PascalParser.yyact(state, sym : Integer; var act : Integer) : Boolean;
   (* search action table *)
   var k : Integer;
-  begin
+  Begin
     k := yyal[state];
     while (k<=yyah[state]) and (yya[k].sym<>sym) do inc(k);
     if k>yyah[state] then
       yyact := false
     else
-      begin
+      Begin
         act := yya[k].act;
         yyact := true;
-      end;
-  end(*yyact*);
+      End;
+  End(*yyact*);
 
-function yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
+function PascalParser.yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
   (* search goto table *)
   var k : Integer;
-  begin
+  Begin
     k := yygl[state];
     while (k<=yygh[state]) and (yyg[k].sym<>sym) do inc(k);
     if k>yygh[state] then
       yygoto := false
     else
-      begin
+      Begin
         nstate := yyg[k].act;
         yygoto := true;
-      end;
-  end(*yygoto*);
+      End;
+  End(*yygoto*);
 
-function yycharsym(i : Integer) : String;
-begin
+function PascalParser.yycharsym(i : Integer) : String;
+Begin
   if (i >= 1) and (i <= 255) then
-    begin
+    Begin
       if i < 32 then
-        begin
+        Begin
           if i = 9 then
             Result := #39'\t'#39
           else if i = 10 then
@@ -14933,13 +16543,13 @@ begin
             Result := #39'\n'#39
           else
             Result := #39'\0x' + HexStr(Byte(i)) + #39;
-        end
+        End
       else
         Result := #39 + Char(i) + #39;
       Result := ' literal ' + Result;
-    end
+    End
   else
-    begin
+    Begin
       if i < -1 then
         Result := ' unknown'
       else if i = -1 then
@@ -14956,14 +16566,15 @@ begin
 {$else}
       else
         Result := ' token';
-{$endif}
-    end;
+{$Endif}
+    End;
   Result := Result + ' ' + IntToString(yychar);
-end;
+End;
 
+Function PascalParser.parse():Integer;
 label parse, next, error, errlab, shift, reduce, accept, abort;
 
-begin(*yyparse*)
+Begin(*yyparse*)
 
   (* initialize: *)
 
@@ -14975,70 +16586,79 @@ parse:
 
   inc(yysp);
   if yysp>yymaxdepth then
-    begin
+    Begin
       yyerror('yyparse stack overflow');
       goto abort;
-    end;
+    End;
   yys[yysp] := yystate; yyv[yysp] := yyval;
 
 next:
 
-  if (yyd[yystate]=0) and (yychar=-1) then
-    (* get next symbol *)
-    begin
-      yychar := lexer.parse(); if yychar<0 then yychar := 0;
-    end;
+  If (yyd[yystate]=0) and (yychar=-1) Then // get next symbol
+    Begin
+      yychar := lexer.parse(); 
+      If yychar<0 Then 
+        yychar := 0;
+    End;
 
-  {$IFDEF YYDEBUG}writeln('state ', yystate, yycharsym(yychar));{$ENDIF}
+  {$IFDEF YYDEBUG}writeln('state ', yystate, yycharsym(yychar));{$EndIF}
 
-  (* determine parse action: *)
+  // determine parse action: 
 
   yyn := yyd[yystate];
-  if yyn<>0 then goto reduce; (* simple state *)
+  If yyn<>0 Then 
+    goto reduce; // simple state 
 
-  (* no default action; search parse table *)
+  // no default action; search parse table 
 
-  if not yyact(yystate, yychar, yyn) then goto error
-  else if yyn>0 then                      goto shift
-  else if yyn<0 then                      goto reduce
-  else                                    goto accept;
+  If Not yyact(yystate, yychar, yyn) Then 
+    goto error
+  Else If yyn>0 Then                      
+    goto shift
+  Else If yyn<0 Then                      
+    goto reduce
+  Else                                    
+    goto accept;
 
 error:
 
   (* error; start error recovery: *)
 
-  if yyerrflag=0 then yyerror('syntax error');
-
+  if yyerrflag=0 then 
+  Begin
+    yyerror('syntax error at line '+ IntToString(Lexer.CurrentLine) + ', row '+ IntToString(Lexer.CurrentRow));
+  End;
+    
 errlab:
 
   if yyerrflag=0 then inc(yynerrs);     (* new error *)
 
   if yyerrflag<=2 then                  (* incomplete recovery; try again *)
-    begin
+    Begin
       yyerrflag := 3;
       (* uncover a state with shift action on error token *)
       while (yysp>0) and not ( yyact(yys[yysp], _error, yyn) and
                                (yyn>0) ) do
-        begin
+        Begin
           {$IFDEF YYDEBUG}
             if yysp>1 then
               writeln('error recovery pops state ', yys[yysp], ', uncovers ',
                       yys[yysp-1])
             else
               writeln('error recovery fails ... abort');
-          {$ENDIF}
+          {$EndIF}
           dec(yysp);
-        end;
+        End;
       if yysp=0 then goto abort; (* parser has fallen from stack; abort *)
       yystate := yyn;            (* simulate shift on error *)
       goto parse;
-    end
+    End
   else                                  (* no shift yet; discard symbol *)
-    begin
-      {$IFDEF YYDEBUG}writeln('error recovery discards ' + yycharsym(yychar));{$ENDIF}
-      if yychar=0 then goto abort; (* end of input; abort *)
+    Begin
+      {$IFDEF YYDEBUG}writeln('error recovery discards ' + yycharsym(yychar));{$EndIF}
+      if yychar=0 then goto abort; (* End of input; abort *)
       yychar := -1; goto next;     (* clear lookahead char and try again *)
-    end;
+    End;
 
 shift:
 
@@ -15053,7 +16673,7 @@ reduce:
 
   (* execute action, pop rule from stack, and go to next state: *)
 
-  {$IFDEF YYDEBUG}writeln('reduce ' + IntToString(-yyn) {$IFDEF YYEXTRADEBUG} + ' rule ' + yyr[-yyn].symname {$ENDIF});{$ENDIF}
+  {$IFDEF YYDEBUG}writeln('reduce ' + IntToString(-yyn) {$IFDEF YYEXTRADEBUG} + ' rule ' + yyr[-yyn].symname {$EndIF});{$EndIF}
 
   yyflag := yyfnone; yyaction(-yyn);
   dec(yysp, yyr[-yyn].len);
@@ -15065,7 +16685,7 @@ reduce:
     yyfaccept : goto accept;
     yyfabort  : goto abort;
     yyferror  : goto errlab;
-  end;
+  End;
 
   goto parse;
 
@@ -15077,5 +16697,1159 @@ abort:
 
   Result := 1; exit;
 
-end(*yyparse*);
+End(*yyparse*);
+
+// nodes implementation
+
+// nodes implementation
+
+
+{ MetaType }
+Constructor MetaType.Create(TypeClass: MetaTypeClass);
+Begin
+  Self.Value := TypeClass;
+End;
+
+{ Declaration }
+Constructor Declaration.Create(Name: StringObject; T: TypeNode);
+Begin
+  Self.Name := Name;
+  Self.DeclType := T;
+End;
+
+{ DeclarationList }
+Constructor DeclarationList.Create(Decl: Declaration);
+Begin
+  Self.Count := 0;
+  Self.Add(Decl);
+End;
+
+Procedure DeclarationList.Add(Decl: Declaration);
+Begin
+  If Decl = Nil Then
+    Exit;
+
+  Inc(Count);
+  SetLength(Declarations, Count);
+  Declarations[Pred(Count)] := Decl;
+End;
+
+Procedure DeclarationList.Add(DeclList: DeclarationList);
+Var
+  I:Integer;
+Begin
+  If DeclList = Nil Then
+    Exit;
+
+  For I:=0 To Pred(DeclList.Count) Do
+    Self.Add(DeclList.Declarations[I]);
+End;
+
+Procedure DeclarationList.InsertAt(Index:Integer; DeclList:DeclarationList);
+Var
+  I, Prev:Integer;
+Begin
+  If DeclList = Nil Then
+    Exit;
+
+  If (Index>=Count) Then
+  Begin
+    Self.Add(DeclList);
+    Exit;
+  End;
+
+  Prev := Count;
+  Inc(Count, DeclList.Count);
+  SetLength(Declarations, Count);
+
+  For I:=Index To Pred(Prev) Do
+    Declarations[I+DeclList.Count] := Declarations[I];
+
+  For I:=0 To Pred(DeclList.Count) Do
+    Declarations[I+Prev] := DeclList.Declarations[I];
+End;
+
+{ UnitItem }
+Constructor UnitItem.Create(Name, Location: StringObject);
+Begin
+  Self.Name := Name;
+  Self.Location := Location;
+  Self.DeclType := Nil;
+End;
+
+Constructor UnitItem.Create(Name: StringObject);
+Begin
+  Self.Create(Name, Nil);
+End;
+
+{ ProgramNode }
+Constructor ProgramNode.Create(Name:StringObject; UsesList:NodeList; Decls:DeclarationList; Body:BlockStatement);
+Begin
+  Self.Name := Name;
+  Self.Section := ProgramSection.Create(UsesList, Decls, Body);
+End;
+
+{ CompositeType }
+Function CompositeType.IsForward: Boolean;
+Begin
+  Result := (Section = Nil);
+End;
+
+{ Section }
+Constructor Section.Create(Decls: DeclarationList);
+Begin
+  Self.Decls := Decls;
+End;
+
+{ TopLevelDeclarationSection }
+Constructor TopLevelDeclarationSection.Create(UsesList:NodeList; Decls:DeclarationList);
+Begin
+  Self.Useslist := UsesList;
+  Self.Decls := Decls;
+End;
+
+{ StatementList }
+Constructor StatementList.Create(St: Statement);
+Begin
+  Self.Count := 0;
+  Self.Add(St);
+End;
+
+Procedure StatementList.Add(St: Statement);
+Begin
+  If St = Nil Then
+    Exit;
+
+  Inc(Count);
+  SetLength(Statements, Count);
+
+  Statements[Pred(Count)] := St;
+End;
+
+{ BlockStatement }
+
+Constructor BlockStatement.Create(List: StatementList);
+Begin
+  Self.List := List;
+End;
+
+{ ProgramSection }
+Constructor ProgramSection.Create(UsesList: NodeList; Decls: DeclarationList; Code: BlockStatement);
+Begin
+  Self.Block := Code;
+  Self.Useslist := UsesList;
+  Self.Decls := Decls;
+End;
+
+{ ExpressionList }
+Constructor ExpressionList.Create(Exp: Expression);
+Begin
+  Self.Count := 0;
+  Self.Add(Exp);
+End;
+
+Procedure ExpressionList.Add(Exp: Expression);
+Begin
+  If Exp = Nil Then
+    Exit;
+
+  Inc(Count);
+  SetLength(Expressions, Count);
+  Expressions[Pred(Count)] := Exp;
+End;
+
+Procedure ExpressionList.InsertAt(Index:Integer; Exp:Expression);
+Var
+  Prev, I:Integer;
+Begin
+  If (Exp = Nil) Then
+    Exit;
+
+  If (Index>=Count) Then
+  Begin
+    Self.Add(Exp);
+    Exit;
+  End;
+
+  Prev := Count;
+  Inc(Count);
+  For I:=Pred(Prev) DownTo Index Do
+    Expressions[I+1] := Expressions[I];
+
+  Expressions[Index] := Exp;
+End;
+
+{ ConstExpression }
+Function ConstExpression.ResolveToLiteral: Literal;
+Begin
+  Result := Nil; //TODO
+End;
+
+{ VarDeclaration }
+Constructor VarDeclaration.Create(Name:StringObject; VarType:TypeNode; Init:Expression; AbsoluteId:StringObject);
+Begin
+  Self.Name := Name;
+  Self.DeclType := VarType;
+  Self.Init := Init;
+  Self.AbsoluteID := AbsoluteID;
+End;
+
+Constructor VarDeclaration.Create(Name:StringObject; VarType:TypeNode; Init:Expression);
+Begin
+  Self.Create(Name, VarType, Init, Nil);
+End;
+
+{ ParamDeclaration }
+Constructor ParamDeclaration.Create(Name:StringObject; ParamType:TypeNode; Init:Expression; Kind:ParameterKind);
+Begin
+  Self.Name := Name;
+  Self.DeclType := ParamType;
+  Self.Init := Init;
+  Self.Kind := Kind;
+End;
+
+{ VarParamDeclaration }
+Constructor VarParamDeclaration.Create(Name:StringObject; VarType:TypeNode);
+Begin
+  Self.Name := Name;
+  Self.DeclType := VarType;
+End;
+
+{ ConstParamDeclaration }
+Constructor ConstParamDeclaration.Create(Name:StringObject; ConstType:TypeNode; Init:Expression);
+Begin
+  Self.Name := Name;
+  Self.DeclType := ConstType;
+  Self.Init := Init;
+End;
+
+{ OutParamDeclaration }
+Constructor OutParamDeclaration.Create(Name:StringObject; VarType:TypeNode);
+Begin
+  Self.Name := Name;
+  Self.DeclType := VarType;
+End;
+
+{ ParametersSection }
+Constructor ParametersSection.Create(Decls: DeclarationList);
+Begin
+  Self.Decls := Decls;
+End;
+
+{ FunctionDirectiveList }
+Constructor FunctionDirectiveList.Create(Dir:FunctionDirective);
+Begin
+  Self.Add(Dir);
+End;
+
+Procedure FunctionDirectiveList.Add(Dir:FunctionDirective);
+Begin
+  Inc(Count);
+  SetLength(Directives, Count);
+  Directives[Pred(Count)] := Count;
+End;
+
+Procedure FunctionDirectiveList.Add(Dirs: FunctionDirectiveList);
+Var
+  I:Integer;
+Begin
+  If Dirs = Nil Then
+    Exit;
+
+  For I:=0 To Pred(Dirs.Count) Do
+    Self.Add(Dirs.Directives[I]);
+End;
+
+
+Function FunctionDirectiveList.Contains(dir: FunctionDirective): Boolean;
+Var
+  I:Integer;
+Begin
+  Result := False;
+
+  For I:=0 To Pred(Count) Do
+  If (Directives[I] = Dir) Then
+  Begin
+    Result := True;
+    Exit;
+  End;
+End;
+
+
+Function FunctionDirectiveList.CheckDirectives: Boolean;
+Begin
+  // TODO
+End;
+
+{ CallableDeclaration }
+
+Constructor CallableDeclaration.Create(Name: StringObject;
+  Params: ParametersSection; RetType: TypeNode;
+  Dirs: FunctionDirectiveList);
+Begin
+  Self.Name := Name;
+  Self.DeclaringSection := Params;
+  Self.ResultType := RetType;
+  Self.Directives := Dirs;
+End;
+
+{ RoutineSection }
+
+Constructor RoutineSection.Create(Decls: DeclarationList; Block: Statement);
+Begin
+  Self.Decls := Decls;
+  Self.Block := Block;
+End;
+
+{ LibraryNode }
+Constructor LibraryNode.Create(Name:StringObject; UsesList:NodeList; Decls:DeclarationList; Body:BlockStatement);
+Begin
+  Self.Name := Name;
+  Self.Section := ProgramSection.Create(UsesList, Decls, Body);
+End;
+
+{ UnitNode }
+Constructor UnitNode.Create(Name: StringObject; Interfce:InterfaceSection; Impl:ImplementationSection; Init, Final: BlockStatement);
+Begin
+  Self.Name := Name;
+  Self.Interfaces := Interfce;
+  Self.Implements := Impl;
+  Self.Inits := Init;
+  Self.Final := Final;
+End;
+
+{ PackageNode }
+Constructor PackageNode.Create(Name: StringObject; Requires, Contains: NodeList);
+Begin
+  Self.Name := Name;
+  Self.Requires := Requires;
+  Self.Contains := Contains;
+End;
+
+{ StructuredConstant }
+
+Constructor StructuredConstant.Create(ExprList: ExpressionList);
+Begin
+  Self.ExprList := ExprList;
+End;
+
+{ ArrayConst }
+Constructor ArrayConst.Create(ExprList: ExpressionList);
+Begin
+  Self.ExprList := ExprList;
+End;
+
+Constructor ArrayConst.Create(ArrayElems: StringObject);
+Begin
+  RaiseError('TODO');
+End;
+
+{ FieldInit }
+Constructor FieldInit.Create(Name: StringObject; Expr: Expression);
+Begin
+  Self.FieldName := Name;
+  Self.Expr := Expr;
+End;
+
+{ FieldInitList }
+Constructor FieldInitList.Create(F: FieldInit);
+Begin
+  RaiseError('TODO');
+End;
+
+{ RecordConst }
+Constructor RecordConst.Create(ExprList: FieldInitList);
+Begin
+  Self.ExprList := ExprList;
+End;
+
+{ ConstIdentifier }
+
+Constructor ConstIdentifier.Create(Name: StringObject);
+Begin
+  Self.Name := Name;
+End;
+
+{ UnsignedInt8Type }
+
+function UnsignedInt8Type.GetMaxValue: Int64;
+Begin
+  Result := 255;
+End;
+
+function UnsignedInt8Type.GetMinValue: Int64;
+Begin
+  Result := 0;
+End;
+
+{ UnsignedInt16Type }
+
+function UnsignedInt16Type.GetMaxValue: Int64;
+Begin
+  Result := 65535;
+End;
+
+function UnsignedInt16Type.GetMinValue: Int64;
+Begin
+  Result := 0;
+End;
+
+{ UnsignedInt32Type }
+
+function UnsignedInt32Type.GetMaxValue: Int64;
+Begin
+  Result := 4294967295;
+End;
+
+function UnsignedInt32Type.GetMinValue: Int64;
+Begin
+  Result := 0;
+End;
+
+{ UnsignedInt64Type }
+function UnsignedInt64Type.GetMaxValue: Int64;
+Begin
+  Result := 9223372036854775807;
+End;
+
+function UnsignedInt64Type.GetMinValue: Int64;
+Begin
+  Result := -9223372036854775807;
+End;
+
+{ SignedInt8Type }
+
+function SignedInt8Type.GetMaxValue: Int64;
+Begin
+  Result := 127;
+End;
+
+function SignedInt8Type.GetMinValue: Int64;
+Begin
+  Result := -127;
+End;
+
+{ SignedInt16Type }
+
+function SignedInt16Type.GetMaxValue: Int64;
+Begin
+  Result := 32767;
+End;
+
+Function SignedInt16Type.GetMinValue: Int64;
+Begin
+  Result := -32768;
+End;
+
+{ SignedInt32Type }
+Function SignedInt32Type.GetMaxValue: Int64;
+Begin
+  Result := 2147483647;
+End;
+
+Function SignedInt32Type.GetMinValue: Int64;
+Begin
+  Result := 2147483647;
+End;
+
+{ SignedInt64Type }
+
+function SignedInt64Type.GetMaxValue: Int64;
+Begin
+  Result := 9223372036854775807;
+End;
+
+function SignedInt64Type.GetMinValue: Int64;
+Begin
+  Result := -9223372036854775807;
+End;
+
+{ StringType }
+
+Constructor StringType.Create(Len: Expression);
+Begin
+  Self.Length := Len;
+End;
+
+{ FixedStringType }
+
+Constructor FixedStringType.Create(Expr: Expression);
+Begin
+  Self.Expr := Expr;
+End;
+
+{ RangeType }
+
+Constructor RangeType.Create(Min, Max: Expression);
+Begin
+  Self.Min := Min;
+  Self.Max := Max;
+End;
+
+{ EnumValueList }
+Constructor EnumValueList.Create(Val: EnumValue);
+Begin
+  Count := 0;
+  Self.Add(Val);
+End;
+
+procedure EnumValueList.Add(Val: EnumValue);
+Begin
+  Inc(Count);
+  SetLength(Values, Count);
+  Values[Pred(Count)] := Val;
+End;
+
+
+{ EnumType }
+
+Constructor EnumType.Create(enumVals: EnumValueList);
+Begin
+  List := EnumVals;
+End;
+
+{ PointerType }
+
+Constructor PointerType.Create(PointedType: TypeNode);
+Begin
+  Self.PointedType := PointedType;
+End;
+
+{ FieldDeclaration }
+Constructor FieldDeclaration.FieldDeclaration(Id: StringObject; T: TypeNode; IsStatic: Boolean);
+Begin
+  Self.Name := Id;
+  Self.DeclType := T;
+  Self.isStatic := isStatic;
+End;
+
+{ PropertySpecifiers }
+
+Constructor PropertySpecifiers.Create(Read, Write: StringObject);
+Begin
+
+End;
+
+Constructor PropertySpecifiers.Create(Index: IntLiteral; Read,
+  Write: StringObject; Stored: ConstExpression; Default: Literal;
+  Impl: StringObject);
+Begin
+  Self.Index := Index;
+  Self.Read := Read;
+  Self.Write := Write;
+  Self.Stored := Stored;
+  Self.Default := Default;
+  Self.Impl := Impl; 
+End;
+
+{ PropertyDeclaration }
+
+Constructor PropertyDeclaration.Create(ID: StringObject; T: TypeNode;
+  Specs: PropertySpecifiers);
+Begin
+  Self.Name := ID;
+  Self.DeclType := T;
+  Self.Specifiers := Specs;
+End;
+
+{ ArrayProperty }
+
+Constructor ArrayProperty.Create(Id: StringObject; T: TypeNode;
+  Indexes: DeclarationList; Specs: PropertySpecifiers; Def: Boolean);
+Begin
+  Self.Name := ID;
+  Self.DeclType := T;
+  Self.Indexes := Indexes;
+  Self.Specifiers := Specs;
+  Self.IsDefault := Def;
+End;
+
+{ ObjectSection }
+Constructor ObjectSection.Create(Fields, Decls: DeclarationList; Scope: Integer);
+Begin
+  Self.Fields := Fields;
+  Self.Decls := Decls;
+  //SCOPE?
+End;
+
+procedure ObjectSection.Add(Sec: ObjectSection);
+Begin
+RaiseError('TODO');
+End;
+
+procedure ObjectSection.AddDecls(Decls: DeclarationList; Scope: Integer);
+Begin
+RaiseError('TODO');
+End;
+
+procedure ObjectSection.AddFields(Fields: DeclarationList; Scope: Integer);
+Begin
+RaiseError('TODO');
+End;
+
+procedure ObjectSection.AddMethods(Methods: DeclarationList;
+  Scope: Integer);
+Begin
+RaiseError('TODO');
+End;
+
+procedure ObjectSection.AddProperties(Properties: DeclarationList;
+  Scope: Integer);
+Begin
+RaiseError('TODO');
+End;
+
+function ObjectSection.GetField(id: AnsiString): FieldDeclaration;
+Begin
+RaiseError('TODO');
+End;
+
+function ObjectSection.GetMember(id: AnsiString): Declaration;
+Begin
+RaiseError('TODO');
+End;
+
+function ObjectSection.GetMethod(id: AnsiString): MethodDeclaration;
+Begin
+RaiseError('TODO');
+End;
+
+function ObjectSection.GetProperty(id: AnsiString): PropertyDeclaration;
+Begin
+RaiseError('TODO');
+End;
+
+{ ClassTypeNode }
+
+Constructor ClassTypeNode.Create(Heritage: NodeList; Sec: ObjectSection);
+Begin
+  RaiseError('TODO');
+End;
+
+{ ClassRefType }
+Constructor ClassRefType.Create(reftype: ClassTypeNode);
+Begin
+  Self.RefType := RefType;
+End;
+
+Constructor ClassRefType.Create(qualifid: StringObject;
+  reftype: ClassTypeNode);
+Begin
+  Self.RefType :=RefType;
+  Self.QualifID := Qualifid;
+End;
+
+{ MetaClassType }
+
+Constructor MetaClassType.Create(baseType: TypeNode);
+Begin
+  Self.BaseType := BaseType;
+End;
+
+{ IntLiteral }
+
+Constructor IntLiteral.Create(Value: Int64);
+Begin
+  Self.Value := Value;
+End;
+
+{ CharLiteral }
+
+Constructor CharLiteral.Create(Value: AnsiChar);
+Begin
+  Self.Value := Value;
+End;
+
+{ BoolLiteral }
+
+Constructor BoolLiteral.Create(Value: Boolean);
+Begin
+  Self.Value := Value;
+End;
+
+{ StringLiteral }
+
+Constructor StringLiteral.Create(Value: StringObject);
+Begin
+  Self.Value := Value;
+End;
+
+{ RealLiteral }
+
+Constructor RealLiteral.Create(Value: Double);
+Begin
+  Self.Value := Value;
+End;
+
+{ PointerLiteral }
+
+Constructor PointerLiteral.Create(val: Int64);
+Begin
+  Self.Value := Value;
+End;
+
+{ BinaryExpression }
+
+Constructor BinaryExpression.Create(A, B: Expression);
+Begin
+  Self.Left := A;
+  Self.Right := B;
+End;
+
+{ SetIn }
+
+Constructor SetIn.Create(A, B: Expression);
+Begin
+  Self.Expr := A;
+  Self._Set := B;
+End;
+
+{ SetRange }
+
+Constructor SetRange.Create(_type: RangeType);
+Begin
+  RaiseError('TODO');
+End;
+
+{ TypeBinaryExpression }
+
+Constructor TypeBinaryExpression.Create(Expr: Expression;
+  ExprType: TypeNode);
+Begin
+  Self.Expr := Expr;
+  Self.Types := ExprType;
+End;
+
+{ SimpleUnaryExpression }
+
+Constructor SimpleUnaryExpression.Create(Expr: Expression);
+Begin
+  Self.Expr := Expr;
+End;
+
+{ SetExpression }
+
+Constructor SetExpression.Create(Elements: ExpressionList);
+Begin
+  Self.Elements := Elements;
+End;
+
+{ LvalueAsExpr }
+
+Constructor LvalueAsExpr.Create(lval: LvalueExpression);
+Begin
+  Self.lval := LVal;
+End;
+
+{ ExprAsLvalue }
+
+Constructor ExprAsLvalue.Create(Expr: Expression);
+Begin
+  Self.Expr := Expr;
+End;
+
+{ StaticCast }
+Constructor StaticCast.Create(t: TypeNode; e: Expression);
+Begin
+  Self.CastType := T;
+  Self.Expr := E;
+End;
+
+Constructor StaticCast.Create(t: TypeClass; e: Expression);
+Begin
+  Self.CastPrimitive := T;
+  Self.Expr := Expr;
+End;
+
+{ ArrayAccess }
+Constructor ArrayAccess.Create(_array: ArrayConst;
+  acessors: ExpressionList);
+Begin
+  Self._Array := _Array;
+  Self.Acessors := Acessors;
+End;
+
+Constructor ArrayAccess.Create(lvalue: LvalueExpression;
+  acessors: ExpressionList);
+Begin
+  Self.LValue := LValue;
+  Self.Acessors := Acessors;
+End;
+
+{ PointerDereference }
+Constructor PointerDereference.Create(Expr: Expression);
+Begin
+  Self.Expr := Expr;
+End;
+
+{ RoutineCall }
+Constructor RoutineCall.Create(Func: LvalueExpression; RetType: TypeNode);
+Begin
+  Self.Func := Func;
+  Self.ForcedType := RetType;
+End;
+
+{ InheritedCall }
+Constructor InheritedCall.Create(FuncName: StringObject; Args: ExpressionList);
+Begin
+  Self.FuncName := FuncName;
+  Self.Args := Args;
+End;
+
+{ ObjectAccess }
+Constructor ObjectAccess.Create(Obj: LvalueExpression; Field: StringObject);
+Begin
+  Self.Obj := Obj;
+  Self.Field := Field;
+End;
+
+{ Identifier }
+Constructor Identifier.Create(Name: StringObject; T: TypeNode);
+Begin
+  Self.Name := Name;
+  Self.ForcedType := T;
+End;
+
+{ UnresolvedId }
+Constructor UnresolvedId.Create(ID: Identifier);
+Begin
+  Self.ID := ID;
+End;
+
+{ UnresolvedCall }
+Constructor UnresolvedCall.Create(lval: LvalueExpression;
+  Args: ExpressionList);
+Begin
+  Self.Func := LVal;
+  Self.Args := Args;
+End;
+
+{ ConstDeclaration }
+Constructor ConstDeclaration.Create(Name: StringObject; Init: Expression;  T: TypeNode);
+Begin
+  Self.Name := Name;
+  Self.Init := Init;
+  Self.DeclType := T;
+End;
+
+{ EnumValue }
+Constructor EnumValue.Create(Name: StringObject; Init: Expression);
+Begin
+  Self.Name := Name;
+  Self.Init := Init;
+End;
+
+{ ProceduralType }
+Constructor ProceduralType.Create(Params: ParametersSection; ret: TypeNode;  Dirs: FunctionDirectiveList);
+Begin
+  Self.Params := Params;
+  Self.FuncRet := Ret;
+  Self.Directives := Dirs;
+End;
+
+{ RoutineDeclaration }
+Constructor RoutineDeclaration.Create(Name: StringObject; Params: ParametersSection; Ret: TypeNode; Dirs: FunctionDirectiveList);
+Begin
+  Self.Name := Name;
+  Self.DeclaringSection := Params;
+  Self.ResultType := Ret;
+  Self.Directives := Dirs;
+End;
+
+{ MethodDeclaration }
+Constructor MethodDeclaration.Create(objname, name: StringObject;
+  params: ParametersSection; ret: TypeNode; dirs: FunctionDirectiveList;
+  kind: MethodKind);
+Begin
+  Self.Objname := ObjName;
+  Self.Name := Name;
+  Self.DeclaringSection := Params;
+  Self.ResultType := Ret;
+  Self.Directives := Dirs;
+  Self.Kind := Kind;
+End;
+
+{ RoutineDefinition }
+Constructor RoutineDefinition.Create(name: StringObject;
+  params: ParametersSection; ret: TypeNode; dirs: FunctionDirectiveList;
+  body: RoutineSection);
+Begin
+
+End;
+
+Constructor RoutineDefinition.Create(name: StringObject;
+  signatureType: ProceduralType; dirs: FunctionDirectiveList;
+  body: RoutineSection);
+Begin
+  Self.Name := Name;
+  Self.SignatureType := SignatureType;
+  Self.Directives := Dirs;
+  Self.Body := Body;
+End;
+
+{ MethodDefinition }
+Constructor MethodDefinition.Create(objname, name: StringObject;
+  params: ParametersSection; ret: TypeNode; dirs: FunctionDirectiveList;
+  kind: MethodKind; body: RoutineSection);
+Begin
+  Self.Objname := ObjName;
+  Self.Name := Name;
+  Self.DeclaringSection := Params;
+  Self.ResultType := Ret;
+  Self.Directives := Dirs;
+  Self.Kind := Kind;
+  Self.Body := Body;
+End;
+
+{ CompositeDeclaration }
+Constructor CompositeDeclaration.Create(Name: StringObject; ctype: CompositeType);
+Begin
+  Self.Name := Name;
+  Self.DeclType := Ctype;
+End;
+
+{ ExternalDirective }
+Constructor ExternalDirective.Create(_file, name: Expression);
+Begin
+  Self._File := _File;
+  Self.Name := Name;
+End;
+
+{ ImportDirectives }
+Constructor ImportDirectives.Create(ImportDir: FunctionDirective);
+Begin
+  RaiseError('TODO');
+  //Self.
+End;
+
+{ LabelStatement }
+Constructor LabelStatement.Create(Name: StringObject; stmt: Statement);
+Begin
+  Self.Name := Name;
+  Self.Stmt := stMT;
+End;
+
+{ GotoStatement }
+Constructor GotoStatement.Create(LabelName: StringObject);
+Begin
+  Self.GotoLabel := LabelName;
+End;
+
+{ Assignment }
+Constructor Assignment.Create(lvalue: LvalueExpression; expr: Expression);
+Begin
+  Self.lvalue := LValue;
+  Self.Expr := Expr;
+End;
+
+{ IfStatement }
+Constructor IfStatement.Create(condition: Expression; ifTrue, ifFalse: Statement);
+Begin
+  Self.Condition := Condition;
+  Self.ThenBlock := ifTrue;
+  Self.ElseBlock := ifFalse;
+End;
+
+{ ExpressionStatement }
+Constructor ExpressionStatement.Create(Expr: Expression);
+Begin
+  Self.Expr := Expr;
+End;
+
+{ CaseSelector }
+Constructor CaseSelector.Create(list: ExpressionList; stmt: Statement);
+Begin
+  Self.List := List;
+  Self.Stmt := Stmt;
+End;
+
+{ CaseStatement }
+Constructor CaseStatement.Create(condition: Expression;  selectors: StatementList; caseelse: Statement);
+Begin
+  Self.Condition := Condition;
+  Self.Selectors := Selectors;
+  Self.CaseElse := CaseElse;
+End;
+
+{ LoopStatement }
+
+Constructor LoopStatement.Create(Block: Statement; Condition: Expression);
+Begin
+  Self.Block := Block;
+  Self.Condition := Condition;
+End;
+
+{ ForLoop }
+
+Constructor ForLoop.Create(_var: Identifier; start, _End: Expression;  body: Statement; dir: Integer);
+Begin
+  Self._var := _Var;
+  Self.Start := Start;
+  Self._End := _End;
+  Self.Block := Body;
+  Self.Direction := Dir;
+End;
+
+{ WithStatement }
+Constructor WithStatement.Create(_with: ExpressionList; Body: Statement);
+Begin
+  Self._With := _With;
+  Self.Body := Body;
+End;
+
+{ TryFinallyStatement }
+Constructor TryFinallyStatement.Create(Body, Final: BlockStatement);
+Begin
+  Self.Body := Body;
+  Self.Final := Final;
+End;
+
+{ ExceptionBlock }
+Constructor ExceptionBlock.Create(onList: StatementList; default: BlockStatement);
+Begin
+  Self.onList := OnList;
+  Self.Default := Default;
+End;
+
+{ TryExceptStatement }
+Constructor TryExceptStatement.Create(Body: BlockStatement;  Final: ExceptionBlock);
+Begin
+  Self.Body := Body;
+  Self.Final := Final;
+End;
+
+{ RaiseStatement }
+Constructor RaiseStatement.Create(lvalue: LvalueExpression; Expr: Expression);
+Begin
+  Self.LValue := LValue;
+  Self.Expr := Expr;
+End;
+
+{ OnStatement }
+
+Constructor OnStatement.Create(Ident, _type: StringObject; Body: Statement);
+Begin
+  Self.Ident := Ident;
+  Self._type := _Type;
+  Self.Body := Body;
+End;
+
+{ AssemblerBlock }
+Constructor AssemblerBlock.AssemblerBlock(asmInstrs: StatementList);
+Begin
+  Self.List := asmInstrs;
+End;
+
+{ InterfaceType }
+Constructor InterfaceType.Create(Heritage: InterfaceList; Ssec: ObjectSection; guid: StringLiteral);
+Begin
+  Self.Heritage := Heritage;
+  Self.Ssec := Ssec;
+  Self.Guid := Guid;
+End;
+
+{ RecordType }
+Constructor RecordType.Create(compTypes: DeclarationList);
+Begin
+  Self.CompTypes := compTypes;
+End;
+
+{ ArrayType }
+Constructor ArrayType.Create(baseType: TypeNode; dims: List);
+Begin
+  Self.BaseType := BaseType;
+  RaiseError('TODO');
+  //Self.Dimensions := Dims;
+End;
+
+Constructor ArrayType.Create(sizeType: TypeNode);
+Begin
+  RaiseError('TODO');
+End;
+
+Constructor ArrayType.Create(baseType, sizeType: TypeNode);
+Begin
+  Self.BaseType := BaseType;
+  RaiseError('TODO');
+End;
+
+Procedure ArrayType.AddDimension(size: Integer);
+Begin
+  Inc(DimensionCount);
+  SetLength(Dimensions, DimensionCount);
+  Dimensions[Pred(DimensionCount)] := Size;
+End;
+
+{ SetType }
+Constructor SetType.Create(T: TypeNode);
+Begin
+  Self.BaseType := T;
+End;
+
+{ FileType }
+Constructor FileType.Create(T: TypeNode);
+Begin
+  Self.BaseType := T;
+End;
+
+{ VariantDeclaration }
+Constructor VariantDeclaration.Create(ID: StringObject; T: TypeNode; Fields: DeclarationList);
+Begin
+  Self.Name := Name;
+  Self.DeclType := T;
+  Self.Fields := Fields;
+End;
+
+{ VarEntryDeclaration }
+Constructor VarEntryDeclaration.Create(TagValue: Expression; Fields: DeclarationList);
+Begin
+  Self.TagValue := TagValue;
+  //Self.Fields := Fields;
+  RaiseError('TODO');
+End;
+
+{ ExportItem }
+Constructor ExportItem.Create(name: StringObject; pars: ParametersSection; exportname: StringObject);
+Begin
+  Self.Name := Name;
+  Self.FormalParams := Pars;
+  Self.ExportName := ExportName;
+End;
+
+Constructor ExportItem.Create(name: StringObject; pars: ParametersSection; Index: Integer);
+Begin
+  Self.Name := Name;
+  Self.FormalParams := Pars;
+  Self.Index := Index;
+End;
+
+{ UnresolvedType }
+
+Constructor UnresolvedType.Create(ID: StringObject);
+Begin
+  Self.ID := ID;
+End;
+
+{ UnresolvedVariableType }
+
+Constructor UnresolvedVariableType.Create(ID: StringObject);
+Begin
+  Self.ID := ID;
+End;
+
+{ UnresolvedIntegralType }
+
+Constructor UnresolvedIntegralType.Create(ID: StringObject);
+Begin
+  Self.ID := ID;
+End;
+
+{ UnresolvedOrdinalType }
+
+Constructor UnresolvedOrdinalType.Create(ID: StringObject);
+Begin
+  Self.ID := ID;
+End;
+
+End.
    

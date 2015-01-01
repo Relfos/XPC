@@ -107,7 +107,7 @@
 %type <StringList> heritage 
 %type <Declaration> classcomp property interfcomp
 %type <InterfaceType> packinterftype interftype
-%type <ClassType> classtype packclasstype
+%type <ClassTypeNode> classtype packclasstype
 %type <StringLiteral> guid
 %type <Integer> scope
 %type <Boolean> staticopt defaultdiropt
@@ -377,8 +377,8 @@ routinedef
     ;
 
 methoddecl
-    : kwfunction  formalparams funcret SCOL     { $$ := MethodDeclaration.Create(lastObjName, $1, $2, $3); }
-    | kwprocedure formalparams         SCOL     { $$ := MethodDeclaration.Create(lastObjName, $1, $2, Nil); }
+    : kwfunction  formalparams funcret SCOL     { $$ := MethodDeclaration.Create(_lastObjName, $1, $2, $3); }
+    | kwprocedure formalparams         SCOL     { $$ := MethodDeclaration.Create(_lastObjName, $1, $2, Nil); }
     ;
     
 routineproto
@@ -403,7 +403,7 @@ routinedeclinterf
 
 classmetdecl
     : methoddecl metdirectopt                   { $$ := $1; $1.Directives := $2; }
-    | kwmetspec id formalparams SCOL smetdirs   { $$ := MethodDeclaration.Create(lastObjName, $2, $3, Nil, $5, $1); }
+    | kwmetspec id formalparams SCOL smetdirs   { $$ := MethodDeclaration.Create(_lastObjName, $2, $3, Nil, $5, $1); }
     ;
 
 interfmetdecl
@@ -1007,8 +1007,8 @@ recvarfield
     ;
     
 classtype
-    : kwclass heritage classbody KW_END { $$ := xpc.ClassType.Create($2, $3); }
-    | kwclass heritage                  { $$ := xpc.ClassType.Create($2); } 
+    : kwclass heritage classbody KW_END { $$ := ClassTypeNode.Create($2, $3); }
+    | kwclass heritage                  { $$ := ClassTypeNode.Create($2); } 
     ;
 
 heritage
@@ -1177,7 +1177,7 @@ typedecl
     ;
 
 idtypeopt
-    : id KW_EQ  typeopt             { $$ := $1; lastObjName := $1; }
+    : id KW_EQ  typeopt             { $$ := $1; _lastObjName := $1; }
     ;
 
 typeopt    
