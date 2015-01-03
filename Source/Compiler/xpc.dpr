@@ -30,7 +30,7 @@ Var
   Src:Stream;
   Parser:PascalParser;
   Result:ASTNode;
-begin
+Begin
   WriteLn('Compiling ', SrcName);
   Src := MemoryStream.Create(SrcName);
   Parser := PascalParser.Create(Src);
@@ -44,4 +44,4 @@ begin
   If Assigned(Result) Then
     WriteLn('Compile sucess!');
   ReadLn;
-end.
+End.
