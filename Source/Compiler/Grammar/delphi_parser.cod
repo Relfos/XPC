@@ -8,14 +8,11 @@ Uses TERRA_Utils, TERRA_IO, TERRA_Collections, TERRA_Error,
 
 //    | LBRAC lvalue RBRAC                { $$ := $2; }
 
-Type
-    YYSType = Class;
-    
+Type   
     PascalParser = Class(CustomParser)
         Protected
             _Lexer:PascalLexer;
-            _lastObjName:StringObject;
-            _CurrentValue:YYSType;
+            _lastObjName:ASTString;
               
             Procedure yyaction ( yyruleno : Integer ); Override;
              
@@ -31,10 +28,12 @@ Type
 
             Property Lexer:PascalLexer Read _Lexer;
     End;
-
   
 %%
- 
+
+Var
+    yylval : YYSType;
+
 Implementation
 
 Function CreateBinaryExpression(e1:ExpressionNode; token:Integer; e2:ExpressionNode):BinaryExpressionNode;
@@ -93,42 +92,37 @@ End(*yyaction*);
 
 const _error = 256; (* error token *)
 
-
-Function PascalParser.yyact(state, sym : Integer; var act : Integer) : Boolean;
-// search action table
-Var
-  K:Integer;
-Begin
-  k := yyal[state];
-  While (k<=yyah[state]) and (yya[k].sym<>sym) do inc(k);
-  If k>yyah[state] then
-      yyact := false
-  Else
-    Begin
-      act := yya[k].act;
-      yyact := true;
-    End;
-End;
-
-Function PascalParser.yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
-//  search goto table
-Var
-  k:Integer;
-Begin
-  k := yygl[state];
-  While (k<=yygh[state]) and (yyg[k].sym<>sym) Do
-    Inc(k);
-
-  If k>yygh[state] Then
-    Result := false
-  Else
+function PascalParser.yyact(state, sym : Integer; var act : Integer) : Boolean;
+  (* search action table *)
+  var k : Integer;
   Begin
-    nstate := yyg[k].act;
-    Result := true;
-  End;
-End;
+    k := yyal[state];
+    while (k<=yyah[state]) and (yya[k].sym<>sym) do inc(k);
+    if k>yyah[state] then
+      yyact := false
+    else
+      Begin
+        act := yya[k].act;
+        yyact := true;
+      End;
+  End(*yyact*);
 
-Function PascalParser.yycharsym(i : Integer) : String;
+function PascalParser.yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
+  (* search goto table *)
+  var k : Integer;
+  Begin
+    k := yygl[state];
+    while (k<=yygh[state]) and (yyg[k].sym<>sym) do inc(k);
+    if k>yygh[state] then
+      yygoto := false
+    else
+      Begin
+        nstate := yyg[k].act;
+        yygoto := true;
+      End;
+  End(*yygoto*);
+
+function PascalParser.yycharsym(i : Integer) : String;
 Begin
   if (i >= 1) and (i <= 255) then
     Begin
@@ -173,16 +167,15 @@ End;
 Function PascalParser.Parse():ASTNode;
 label parse, next, error, errlab, shift, reduce, accept, abort;
 
-Begin(*yyparse*)
+Begin
 
-  (* initialize: *)
+  //initialize
 
   yystate := 0; yychar := -1; yynerrs := 0; yyerrflag := 0; yysp := 0;
-  _Root := Nil;
 
 parse:
 
-  (* push state and value: *)
+  // push state and value: 
 
   inc(yysp);
   if yysp>yymaxdepth then
@@ -194,13 +187,9 @@ parse:
 
 next:
 
-    If (yyd[yystate]=0) and (yychar=-1) Then // get next symbol
+  If (yyd[yystate]=0) and (yychar=-1) Then // get next symbol
     Begin
-      If _CurrentValue = Nil Then
-        _CurrentValue := YYSType.Create();
-
-      yychar := lexer.parse(_CurrentValue); 
-    
+      yychar := lexer.parse(); 
       If yychar<0 Then 
         yychar := 0;
     End;
@@ -268,7 +257,7 @@ shift:
 
   (* go to new state, clear lookahead character: *)
 
-  yystate := yyn; yychar := -1; yyval := YYSType.Create();
+  yystate := yyn; yychar := -1; yyval := yylval;
   if yyerrflag>0 then dec(yyerrflag);
 
   goto parse;
@@ -295,12 +284,12 @@ reduce:
 
 accept:
 
-  Result := _Root; Exit;
+  Result := _Root; exit;
 
 abort:
 
   Result := Nil; exit;
 
-End(*yyparse*);
+End;
 
 End.

@@ -26,14 +26,11 @@ Uses TERRA_Utils, TERRA_IO, TERRA_Collections, TERRA_Error,
 
 //    | LBRAC lvalue RBRAC                { $$ := $2; }
 
-Type
-    YYSType = Class;
-    
+Type   
     PascalParser = Class(CustomParser)
         Protected
             _Lexer:PascalLexer;
-            _lastObjName:StringObject;
-            _CurrentValue:YYSType;
+            _lastObjName:ASTString;
               
             Procedure yyaction ( yyruleno : Integer ); Override;
              
@@ -49,12 +46,12 @@ Type
 
             Property Lexer:PascalLexer Read _Lexer;
     End;
-
   
 {$DEFINE YYDEBUG}
 {$DEFINE YYEXTRADEBUG}
 
-	YYSType = Class
+	YYSType = Record
+		yyASTString : ASTString;
 		yyAnsiChar : AnsiChar;
 		yyBlockStatementNode : BlockStatementNode;
 		yyBoolean : Boolean;
@@ -101,7 +98,6 @@ Type
 		yyStatementListNode : StatementListNode;
 		yyStatementNode : StatementNode;
 		yyStringLiteralNode : StringLiteralNode;
-		yyStringObject : StringObject;
 		yyStructuredTypeNode : StructuredTypeNode;
 		yyTypeDeclarationNode : TypeDeclarationNode;
 		yyTypeListNode : TypeListNode;
@@ -275,7 +271,11 @@ Const
 	LPAR = 418;
 	RPAR = 419;
 	MAXPREC = 420;
- 
+
+
+Var
+    yylval : YYSType;
+
 Implementation
 
 Function CreateBinaryExpression(e1:ExpressionNode; token:Integer; e2:ExpressionNode):BinaryExpressionNode;
@@ -326,316 +326,316 @@ Begin
   case yyruleno of
 1 :		Begin
          // source: delphi.y line#131
-         _CurrentValue.yySourceNode := yyv[yysp-1].yySourceNode; yyflag := yyfaccept; 
+         yyval.yySourceNode := yyv[yysp-1].yySourceNode; yyflag := yyfaccept; 
 			End;
 2 :		Begin
          // source: delphi.y line#135
-         _CurrentValue.yySourceNode := yyv[yysp-0].yySourceNode; 
+         yyval.yySourceNode := yyv[yysp-0].yySourceNode; 
 			End;
 3 :		Begin
          // source: delphi.y line#136
-         _CurrentValue.yySourceNode := yyv[yysp-1].yySourceNode; 
+         yyval.yySourceNode := yyv[yysp-1].yySourceNode; 
 			End;
 4 :		Begin
          // source: delphi.y line#137
-         _CurrentValue.yySourceNode := yyv[yysp-0].yySourceNode; 
+         yyval.yySourceNode := yyv[yysp-0].yySourceNode; 
 			End;
 5 :		Begin
          // source: delphi.y line#138
-         _CurrentValue.yySourceNode := yyv[yysp-1].yySourceNode; 
+         yyval.yySourceNode := yyv[yysp-1].yySourceNode; 
 			End;
 6 :		Begin
 			End;
 7 :		Begin
-         _CurrentValue := yyv[yysp-0];
+         yyval := yyv[yysp-0];
 			End;
 8 :		Begin
          // source: delphi.y line#149
-         _CurrentValue.yySourceNode := ProgramNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-2].yyUnitListNode,   yyv[yysp-1].yyDeclarationListNode, yyv[yysp-0].yyBlockStatementNode); Self._Root := _CurrentValue.yySourceNode; 
+         yyval.yySourceNode := ProgramNode.Create(yyv[yysp-3].yyASTString, yyv[yysp-2].yyUnitListNode,   yyv[yysp-1].yyDeclarationListNode, yyv[yysp-0].yyBlockStatementNode); Self._Root := yyval.yySourceNode; 
 			End;
 9 :		Begin
          // source: delphi.y line#150
-         _CurrentValue.yySourceNode := ProgramNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-1].yyUnitListNode, Nil, yyv[yysp-0].yyBlockStatementNode); Self._Root := _CurrentValue.yySourceNode; 
+         yyval.yySourceNode := ProgramNode.Create(yyv[yysp-2].yyASTString, yyv[yysp-1].yyUnitListNode, Nil, yyv[yysp-0].yyBlockStatementNode); Self._Root := yyval.yySourceNode; 
 			End;
 10 :		Begin
          // source: delphi.y line#154
-         _CurrentValue.yyStringObject := Nil; 
+         yyval.yyASTString := ''; 
 			End;
 11 :		Begin
          // source: delphi.y line#155
-         _CurrentValue.yyStringObject := yyv[yysp-1].yyStringObject;   
+         yyval.yyASTString := yyv[yysp-1].yyASTString;   
 			End;
 12 :		Begin
          // source: delphi.y line#159
-         _CurrentValue.yySourceNode := LibraryNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyUnitListNode, yyv[yysp-1].yyDeclarationListNode  , yyv[yysp-0].yyBlockStatementNode); Self._Root := _CurrentValue.yySourceNode; 
+         yyval.yySourceNode := LibraryNode.Create(yyv[yysp-4].yyASTString, yyv[yysp-2].yyUnitListNode, yyv[yysp-1].yyDeclarationListNode  , yyv[yysp-0].yyBlockStatementNode); Self._Root := yyval.yySourceNode; 
 			End;
 13 :		Begin
          // source: delphi.y line#160
-         _CurrentValue.yySourceNode := LibraryNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyUnitListNode, Nil, yyv[yysp-0].yyBlockStatementNode); Self._Root := _CurrentValue.yySourceNode; 
+         yyval.yySourceNode := LibraryNode.Create(yyv[yysp-3].yyASTString, yyv[yysp-1].yyUnitListNode, Nil, yyv[yysp-0].yyBlockStatementNode); Self._Root := yyval.yySourceNode; 
 			End;
 14 :		Begin
          // source: delphi.y line#164
-         _CurrentValue.yySourceNode := PackageNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyUnitListNode, yyv[yysp-0].yyUnitListNode);Self ._Root := _CurrentValue.yySourceNode; 
+         yyval.yySourceNode := PackageNode.Create(yyv[yysp-3].yyASTString, yyv[yysp-1].yyUnitListNode, yyv[yysp-0].yyUnitListNode);Self ._Root := yyval.yySourceNode; 
 			End;
 15 :		Begin
          // source: delphi.y line#168
-         _CurrentValue.yyUnitListNode := UnitListNode.Create(); 
+         yyval.yyUnitListNode := UnitListNode.Create(); 
 			End;
 16 :		Begin
          // source: delphi.y line#169
-         _CurrentValue.yyUnitListNode := yyv[yysp-1].yyUnitListNode; 
+         yyval.yyUnitListNode := yyv[yysp-1].yyUnitListNode; 
 			End;
 17 :		Begin
          // source: delphi.y line#173
-         _CurrentValue.yyUnitListNode := UnitListNode.Create(); _CurrentValue.yyUnitListNode.Add(UnitItemNode.Create(yyv[yysp-0].yyStringObject)); 
+         yyval.yyUnitListNode := UnitListNode.Create(); yyval.yyUnitListNode.Add(UnitItemNode.Create(yyv[yysp-0].yyASTString)); 
 			End;
 18 :		Begin
          // source: delphi.y line#174
-         yyv[yysp-2].yyUnitListNode.Add(UnitItemNode.Create(yyv[yysp-0].yyStringObject)); _CurrentValue.yyUnitListNode := yyv[yysp-2].yyUnitListNode; 
+         yyv[yysp-2].yyUnitListNode.Add(UnitItemNode.Create(yyv[yysp-0].yyASTString)); yyval.yyUnitListNode := yyv[yysp-2].yyUnitListNode; 
 			End;
 19 :		Begin
          // source: delphi.y line#178
-         _CurrentValue.yyUnitListNode := yyv[yysp-1].yyUnitListNode; 
+         yyval.yyUnitListNode := yyv[yysp-1].yyUnitListNode; 
 			End;
 20 :		Begin
          // source: delphi.y line#182
-         _CurrentValue.yyUnitListNode := UnitListNode.Create(); _CurrentValue.yyUnitListNode.Add(yyv[yysp-0].yyUnitItemNode); 
+         yyval.yyUnitListNode := UnitListNode.Create(); yyval.yyUnitListNode.Add(yyv[yysp-0].yyUnitItemNode); 
 			End;
 21 :		Begin
          // source: delphi.y line#183
-         yyv[yysp-2].yyUnitListNode.Add(yyv[yysp-0].yyUnitItemNode); _CurrentValue.yyUnitListNode := yyv[yysp-2].yyUnitListNode; 
+         yyv[yysp-2].yyUnitListNode.Add(yyv[yysp-0].yyUnitItemNode); yyval.yyUnitListNode := yyv[yysp-2].yyUnitListNode; 
 			End;
 22 :		Begin
          // source: delphi.y line#187
-         _CurrentValue.yyUnitItemNode := UnitItemNode.Create(yyv[yysp-0].yyStringObject); 
+         yyval.yyUnitItemNode := UnitItemNode.Create(yyv[yysp-0].yyASTString); 
 			End;
 23 :		Begin
          // source: delphi.y line#188
-         _CurrentValue.yyUnitItemNode := UnitItemNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyStringObject); 
+         yyval.yyUnitItemNode := UnitItemNode.Create(yyv[yysp-2].yyASTString, yyv[yysp-0].yyASTString); 
 			End;
 24 :		Begin
          // source: delphi.y line#192
-         _CurrentValue.yyUnitListNode := UnitListNode.Create(); 
+         yyval.yyUnitListNode := UnitListNode.Create(); 
 			End;
 25 :		Begin
          // source: delphi.y line#193
-         _CurrentValue.yyUnitListNode := yyv[yysp-1].yyUnitListNode; 
+         yyval.yyUnitListNode := yyv[yysp-1].yyUnitListNode; 
 			End;
 26 :		Begin
          // source: delphi.y line#197
-         _CurrentValue.yyUnitListNode := UnitListNode.Create(); _CurrentValue.yyUnitListNode.Add(yyv[yysp-0].yyUnitItemNode); 
+         yyval.yyUnitListNode := UnitListNode.Create(); yyval.yyUnitListNode.Add(yyv[yysp-0].yyUnitItemNode); 
 			End;
 27 :		Begin
          // source: delphi.y line#198
-         yyv[yysp-2].yyUnitListNode.Add(yyv[yysp-0].yyUnitItemNode); _CurrentValue.yyUnitListNode := yyv[yysp-2].yyUnitListNode; 
+         yyv[yysp-2].yyUnitListNode.Add(yyv[yysp-0].yyUnitItemNode); yyval.yyUnitListNode := yyv[yysp-2].yyUnitListNode; 
 			End;
 28 :		Begin
          // source: delphi.y line#202
-         _CurrentValue.yyUnitItemNode := UnitItemNode.Create(yyv[yysp-0].yyStringObject); 
+         yyval.yyUnitItemNode := UnitItemNode.Create(yyv[yysp-0].yyASTString); 
 			End;
 29 :		Begin
          // source: delphi.y line#203
-         _CurrentValue.yyUnitItemNode := UnitItemNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyStringObject);
+         yyval.yyUnitItemNode := UnitItemNode.Create(yyv[yysp-2].yyASTString, yyv[yysp-0].yyASTString);
 			End;
 30 :		Begin
          // source: delphi.y line#207
-         _CurrentValue.yySourceNode := UnitNode.Create(yyv[yysp-5].yyStringObject, yyv[yysp-3].yyInterfaceSectionNode, yyv[yysp-2].yyImplementationSectionNode, yyv[yysp-1].yyBlockStatementNode, yyv[yysp-0].yyBlockStatementNode); Self._Root := _CurrentValue.yySourceNode; 
+         yyval.yySourceNode := UnitNode.Create(yyv[yysp-5].yyASTString, yyv[yysp-3].yyInterfaceSectionNode, yyv[yysp-2].yyImplementationSectionNode, yyv[yysp-1].yyBlockStatementNode, yyv[yysp-0].yyBlockStatementNode); Self._Root := yyval.yySourceNode; 
 			End;
 31 :		Begin
          // source: delphi.y line#208
-         _CurrentValue.yySourceNode := UnitNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyInterfaceSectionNode, yyv[yysp-1].yyImplementationSectionNode, yyv[yysp-0].yyBlockStatementNode, Nil); Self._Root := _CurrentValue.yySourceNode; 
+         yyval.yySourceNode := UnitNode.Create(yyv[yysp-4].yyASTString, yyv[yysp-2].yyInterfaceSectionNode, yyv[yysp-1].yyImplementationSectionNode, yyv[yysp-0].yyBlockStatementNode, Nil); Self._Root := yyval.yySourceNode; 
 			End;
 32 :		Begin
          // source: delphi.y line#209
-         _CurrentValue.yySourceNode := UnitNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyInterfaceSectionNode, yyv[yysp-1].yyImplementationSectionNode, Nil, yyv[yysp-0].yyBlockStatementNode); Self._Root := _CurrentValue.yySourceNode; 
+         yyval.yySourceNode := UnitNode.Create(yyv[yysp-4].yyASTString, yyv[yysp-2].yyInterfaceSectionNode, yyv[yysp-1].yyImplementationSectionNode, Nil, yyv[yysp-0].yyBlockStatementNode); Self._Root := yyval.yySourceNode; 
 			End;
 33 :		Begin
          // source: delphi.y line#210
-         _CurrentValue.yySourceNode := UnitNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyInterfaceSectionNode, yyv[yysp-0].yyImplementationSectionNode); Self._Root := _CurrentValue.yySourceNode; 
+         yyval.yySourceNode := UnitNode.Create(yyv[yysp-3].yyASTString, yyv[yysp-1].yyInterfaceSectionNode, yyv[yysp-0].yyImplementationSectionNode); Self._Root := yyval.yySourceNode; 
 			End;
 34 :		Begin
          // source: delphi.y line#214
-         _CurrentValue.yyImplementationSectionNode := ImplementationSectionNode.Create(yyv[yysp-1].yyUnitListNode, yyv[yysp-0].yyDeclarationListNode);
+         yyval.yyImplementationSectionNode := ImplementationSectionNode.Create(yyv[yysp-1].yyUnitListNode, yyv[yysp-0].yyDeclarationListNode);
 			End;
 35 :		Begin
          // source: delphi.y line#215
-         _CurrentValue.yyImplementationSectionNode := ImplementationSectionNode.Create(yyv[yysp-0].yyUnitListNode, Nil);
+         yyval.yyImplementationSectionNode := ImplementationSectionNode.Create(yyv[yysp-0].yyUnitListNode, Nil);
 			End;
 36 :		Begin
          // source: delphi.y line#219
-         _CurrentValue.yyInterfaceSectionNode := InterfaceSectionNode.Create(yyv[yysp-1].yyUnitListNode, yyv[yysp-0].yyDeclarationListNode); 
+         yyval.yyInterfaceSectionNode := InterfaceSectionNode.Create(yyv[yysp-1].yyUnitListNode, yyv[yysp-0].yyDeclarationListNode); 
 			End;
 37 :		Begin
          // source: delphi.y line#223
-         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create();
+         yyval.yyDeclarationListNode := DeclarationListNode.Create();
 			End;
 38 :		Begin
          // source: delphi.y line#224
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
+         yyval.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
 			End;
 39 :		Begin
          // source: delphi.y line#228
-         _CurrentValue.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode;
+         yyval.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode;
 			End;
 40 :		Begin
          // source: delphi.y line#229
-         _CurrentValue.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode;
+         yyval.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode;
 			End;
 41 :		Begin
          // source: delphi.y line#233
-         _CurrentValue.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode;
+         yyval.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode;
 			End;
 42 :		Begin
          // source: delphi.y line#237
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
 			End;
 43 :		Begin
          // source: delphi.y line#238
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
+         yyval.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
 			End;
 44 :		Begin
          // source: delphi.y line#242
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
 			End;
 45 :		Begin
          // source: delphi.y line#243
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
+         yyval.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
 			End;
 46 :		Begin
          // source: delphi.y line#250
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
 			End;
 47 :		Begin
          // source: delphi.y line#251
-         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); _CurrentValue.yyDeclarationListNode.Add(yyv[yysp-0].yyRoutineDeclarationNode);
+         yyval.yyDeclarationListNode := DeclarationListNode.Create(); yyval.yyDeclarationListNode.Add(yyv[yysp-0].yyRoutineDeclarationNode);
 			End;
 48 :		Begin
          // source: delphi.y line#252
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
 			End;
 49 :		Begin
          // source: delphi.y line#253
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
 			End;
 50 :		Begin
          // source: delphi.y line#257
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
 			End;
 51 :		Begin
          // source: delphi.y line#258
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
 			End;
 52 :		Begin
          // source: delphi.y line#259
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
 			End;
 53 :		Begin
          // source: delphi.y line#260
-         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); _CurrentValue.yyDeclarationListNode.Add(yyv[yysp-0].yyCallableDeclarationNode);
+         yyval.yyDeclarationListNode := DeclarationListNode.Create(); yyval.yyDeclarationListNode.Add(yyv[yysp-0].yyCallableDeclarationNode);
 			End;
 54 :		Begin
          // source: delphi.y line#261
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
 			End;
 55 :		Begin
          // source: delphi.y line#265
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
 			End;
 56 :		Begin
          // source: delphi.y line#266
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
 			End;
 57 :		Begin
          // source: delphi.y line#267
-         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); _CurrentValue.yyDeclarationListNode.Add(yyv[yysp-0].yyRoutineDefinitionNode);
+         yyval.yyDeclarationListNode := DeclarationListNode.Create(); yyval.yyDeclarationListNode.Add(yyv[yysp-0].yyRoutineDefinitionNode);
 			End;
 58 :		Begin
          // source: delphi.y line#271
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
 			End;
 59 :		Begin
          // source: delphi.y line#272
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
 			End;
 60 :		Begin
          // source: delphi.y line#273
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
 			End;
 61 :		Begin
          // source: delphi.y line#277
-         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); _CurrentValue.yyDeclarationListNode.Add(yyv[yysp-0].yyTypeDeclarationNode); 
+         yyval.yyDeclarationListNode := DeclarationListNode.Create(); yyval.yyDeclarationListNode.Add(yyv[yysp-0].yyTypeDeclarationNode); 
 			End;
 62 :		Begin
          // source: delphi.y line#278
-         yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyTypeDeclarationNode);  _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
+         yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyTypeDeclarationNode);  yyval.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
 			End;
 63 :		Begin
          // source: delphi.y line#283
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
 			End;
 64 :		Begin
          // source: delphi.y line#284
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
+         yyval.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
 			End;
 65 :		Begin
          // source: delphi.y line#288
-         _CurrentValue.yyDeclarationListNode := MakeThreadVars(yyv[yysp-0].yyDeclarationListNode); 
+         yyval.yyDeclarationListNode := MakeThreadVars(yyv[yysp-0].yyDeclarationListNode); 
 			End;
 66 :		Begin
          // source: delphi.y line#289
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); MakeThreadVars(_CurrentValue.yyDeclarationListNode); 
+         yyval.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); MakeThreadVars(yyval.yyDeclarationListNode); 
 			End;
 67 :		Begin
          // source: delphi.y line#293
-         _CurrentValue.yyDeclarationListNode := CreateDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-1].yyTypeNode, Nil, Nil); 
+         yyval.yyDeclarationListNode := CreateDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-1].yyTypeNode, Nil); 
 			End;
 68 :		Begin
          // source: delphi.y line#294
-         _CurrentValue.yyDeclarationListNode := CreateDecls(yyv[yysp-4].yyIdentifierListNode, yyv[yysp-3].yyTypeNode, yyv[yysp-1].yyExpressionNode, Nil); 
+         yyval.yyDeclarationListNode := CreateDecls(yyv[yysp-4].yyIdentifierListNode, yyv[yysp-3].yyTypeNode, yyv[yysp-1].yyExpressionNode); 
 			End;
 69 :		Begin
          // source: delphi.y line#295
-         _CurrentValue.yyDeclarationListNode := CreateDecls(yyv[yysp-4].yyIdentifierListNode, yyv[yysp-3].yyTypeNode, Nil, yyv[yysp-1].yyStringObject); 
+         yyval.yyDeclarationListNode := CreateDecls(yyv[yysp-4].yyIdentifierListNode, yyv[yysp-3].yyTypeNode, Nil, yyv[yysp-1].yyASTString); 
 			End;
 70 :		Begin
          // source: delphi.y line#296
-         _CurrentValue.yyDeclarationListNode := CreateDecls(yyv[yysp-1].yyIdentifierListNode, yyv[yysp-0].yyProceduralTypeNode, Nil, Nil); 
+         yyval.yyDeclarationListNode := CreateDecls(yyv[yysp-1].yyIdentifierListNode, yyv[yysp-0].yyProceduralTypeNode, Nil); 
 			End;
 71 :		Begin
          // source: delphi.y line#297
-         RaiseError('TODO'); (*_CurrentValue.yyDeclarationListNode := CreateDecls(yyv[yysp-5].yyIdentifierListNode, yyv[yysp-4].yyProceduralTypeNode, yyv[yysp-1].yyConstExpressionNode))); yyv[yysp-4].yyProceduralTypeNode.Directives := yyv[yysp-2].yyFunctionDirectiveListNode;*) 
+         RaiseError('TODO'); (*yyval.yyDeclarationListNode := CreateDecls(yyv[yysp-5].yyIdentifierListNode, yyv[yysp-4].yyProceduralTypeNode, yyv[yysp-1].yyConstExpressionNode))); yyv[yysp-4].yyProceduralTypeNode.Directives := yyv[yysp-2].yyFunctionDirectiveListNode;*) 
 			End;
 72 :		Begin
          // source: delphi.y line#301
-         _CurrentValue.yyIdentifierListNode := yyv[yysp-1].yyIdentifierListNode; 
+         yyval.yyIdentifierListNode := yyv[yysp-1].yyIdentifierListNode; 
 			End;
 73 :		Begin
          // source: delphi.y line#305
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
 			End;
 74 :		Begin
          // source: delphi.y line#309
-         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); _CurrentValue.yyDeclarationListNode.Add(yyv[yysp-0].yyConstDeclarationNode); 
+         yyval.yyDeclarationListNode := DeclarationListNode.Create(); yyval.yyDeclarationListNode.Add(yyv[yysp-0].yyConstDeclarationNode); 
 			End;
 75 :		Begin
          // source: delphi.y line#310
-         yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyConstDeclarationNode); _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
+         yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyConstDeclarationNode); yyval.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
 			End;
 76 :		Begin
          // source: delphi.y line#314
-         _CurrentValue.yyConstDeclarationNode := ConstDeclarationNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyStringLiteralNode); 
+         yyval.yyConstDeclarationNode := ConstDeclarationNode.Create(yyv[yysp-3].yyASTString, yyv[yysp-1].yyStringLiteralNode); 
 			End;
 77 :		Begin
          // source: delphi.y line#319
-         _CurrentValue.yyDeclarationListNode := CreateLabelDecls(yyv[yysp-1].yyIdentifierListNode); 
+         yyval.yyDeclarationListNode := CreateLabelDecls(yyv[yysp-1].yyIdentifierListNode); 
 			End;
 78 :		Begin
          // source: delphi.y line#323
-         _CurrentValue.yyIdentifierListNode := IdentifierListNode.Create(IdentifierNode.Create(yyv[yysp-0].yyStringObject)); 
+         yyval.yyIdentifierListNode := IdentifierListNode.Create(IdentifierNode.Create(yyv[yysp-0].yyASTString)); 
 			End;
 79 :		Begin
          // source: delphi.y line#324
-         _CurrentValue.yyIdentifierListNode := yyv[yysp-2].yyIdentifierListNode; yyv[yysp-2].yyIdentifierListNode.Add(IdentifierNode.Create(yyv[yysp-0].yyStringObject)); 
+         yyval.yyIdentifierListNode := yyv[yysp-2].yyIdentifierListNode; yyv[yysp-2].yyIdentifierListNode.Add(IdentifierNode.Create(yyv[yysp-0].yyASTString)); 
 			End;
 80 :		Begin
          // source: delphi.y line#328
@@ -644,44 +644,44 @@ Begin
          Begin
          yyerror('Label number must be between 0 and 9999');
          End;
-         _CurrentValue.yyStringObject := StringObject.Create(CardinalToString(yyv[yysp-0].yyCardinal));
+         yyval.yyASTString := CardinalToString(yyv[yysp-0].yyCardinal);
          
 			End;
 81 :		Begin
          // source: delphi.y line#335
-         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+         yyval.yyASTString := yyv[yysp-0].yyASTString; 
 			End;
 82 :		Begin
          // source: delphi.y line#340
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
 			End;
 83 :		Begin
          // source: delphi.y line#344
-         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(yyv[yysp-0].yyUnitItemNode); 
+         yyval.yyDeclarationListNode := DeclarationListNode.Create(yyv[yysp-0].yyUnitItemNode); 
 			End;
 84 :		Begin
          // source: delphi.y line#345
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.Add(yyv[yysp-0].yyUnitItemNode); 
+         yyval.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.Add(yyv[yysp-0].yyUnitItemNode); 
 			End;
 85 :		Begin
          // source: delphi.y line#349
-         _CurrentValue.yyUnitItemNode := ExportItemNode.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyParametersSectionNode); 
+         yyval.yyUnitItemNode := ExportItemNode.Create(yyv[yysp-1].yyASTString, yyv[yysp-0].yyParametersSectionNode); 
 			End;
 86 :		Begin
          // source: delphi.y line#350
-         _CurrentValue.yyUnitItemNode := ExportItemNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSectionNode, yyv[yysp-0].yyStringObject); 
+         yyval.yyUnitItemNode := ExportItemNode.Create(yyv[yysp-3].yyASTString, yyv[yysp-2].yyParametersSectionNode, yyv[yysp-0].yyASTString); 
 			End;
 87 :		Begin
          // source: delphi.y line#351
-         _CurrentValue.yyUnitItemNode := ExportItemNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSectionNode, yyv[yysp-0].yyCardinal); 
+         yyval.yyUnitItemNode := ExportItemNode.Create(yyv[yysp-3].yyASTString, yyv[yysp-2].yyParametersSectionNode, yyv[yysp-0].yyCardinal); 
 			End;
 88 :		Begin
          // source: delphi.y line#355
-         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+         yyval.yyASTString := yyv[yysp-0].yyASTString; 
 			End;
 89 :		Begin
          // source: delphi.y line#356
-         _CurrentValue.yyStringObject := StringObject.Create(yyv[yysp-2].yyStringObject.Value + '.' + yyv[yysp-0].yyStringObject.Value); // possible mem leak
+         yyval.yyASTString := yyv[yysp-2].yyASTString + '.' + yyv[yysp-0].yyASTString; // possible mem leak
 			End;
 90 :		Begin
          // source: delphi.y line#361
@@ -693,1571 +693,1571 @@ Begin
 			End;
 92 :		Begin
          // source: delphi.y line#368
-         _CurrentValue.yyCallableDeclarationNode := yyv[yysp-0].yyRoutineDefinitionNode; 
+         yyval.yyCallableDeclarationNode := yyv[yysp-0].yyRoutineDefinitionNode; 
 			End;
 93 :		Begin
          // source: delphi.y line#369
-         _CurrentValue.yyCallableDeclarationNode := yyv[yysp-1].yyRoutineDeclarationNode; yyv[yysp-1].yyRoutineDeclarationNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
+         yyval.yyCallableDeclarationNode := yyv[yysp-1].yyRoutineDeclarationNode; yyv[yysp-1].yyRoutineDeclarationNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
 			End;
 94 :		Begin
          // source: delphi.y line#370
-         _CurrentValue.yyCallableDeclarationNode := yyv[yysp-2].yyMethodDefinitionNode; yyv[yysp-2].yyMethodDefinitionNode.body := yyv[yysp-1].yyRoutineSectionNode; 
+         yyval.yyCallableDeclarationNode := yyv[yysp-2].yyMethodDefinitionNode; yyv[yysp-2].yyMethodDefinitionNode.body := yyv[yysp-1].yyRoutineSectionNode; 
 			End;
 95 :		Begin
          // source: delphi.y line#374
-         _CurrentValue.yyRoutineDefinitionNode := RoutineDefinitionNode.Create(yyv[yysp-3].yyRoutineDeclarationNode.name, yyv[yysp-3].yyRoutineDeclarationNode.SignatureType, yyv[yysp-2].yyFunctionDirectiveListNode, yyv[yysp-1].yyRoutineSectionNode); 
+         yyval.yyRoutineDefinitionNode := RoutineDefinitionNode.Create(yyv[yysp-3].yyRoutineDeclarationNode.name, yyv[yysp-3].yyRoutineDeclarationNode.SignatureType, yyv[yysp-2].yyFunctionDirectiveListNode, yyv[yysp-1].yyRoutineSectionNode); 
 			End;
 96 :		Begin
          // source: delphi.y line#378
-         _CurrentValue.yyMethodDeclarationNode := MethodDeclarationNode.Create(_lastObjName, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSectionNode, yyv[yysp-1].yyTypeNode); 
+         yyval.yyMethodDeclarationNode := MethodDeclarationNode.Create(_lastObjName, yyv[yysp-3].yyASTString, yyv[yysp-2].yyParametersSectionNode, yyv[yysp-1].yyTypeNode); 
 			End;
 97 :		Begin
          // source: delphi.y line#379
-         _CurrentValue.yyMethodDeclarationNode := MethodDeclarationNode.Create(_lastObjName, yyv[yysp-2].yyStringObject, yyv[yysp-1].yyParametersSectionNode, Nil); 
+         yyval.yyMethodDeclarationNode := MethodDeclarationNode.Create(_lastObjName, yyv[yysp-2].yyASTString, yyv[yysp-1].yyParametersSectionNode, Nil); 
 			End;
 98 :		Begin
          // source: delphi.y line#383
-         _CurrentValue.yyRoutineDeclarationNode := RoutineDeclarationNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSectionNode, yyv[yysp-1].yyTypeNode); 
+         yyval.yyRoutineDeclarationNode := RoutineDeclarationNode.Create(yyv[yysp-3].yyASTString, yyv[yysp-2].yyParametersSectionNode, yyv[yysp-1].yyTypeNode); 
 			End;
 99 :		Begin
          // source: delphi.y line#384
-         _CurrentValue.yyRoutineDeclarationNode := RoutineDeclarationNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-1].yyParametersSectionNode); 
+         yyval.yyRoutineDeclarationNode := RoutineDeclarationNode.Create(yyv[yysp-2].yyASTString, yyv[yysp-1].yyParametersSectionNode); 
 			End;
 100 :		Begin
          // source: delphi.y line#388
-         _CurrentValue.yyMethodDefinitionNode := yyv[yysp-2].yyMethodDefinitionNode; yyv[yysp-2].yyMethodDefinitionNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
+         yyval.yyMethodDefinitionNode := yyv[yysp-2].yyMethodDefinitionNode; yyv[yysp-2].yyMethodDefinitionNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
 			End;
 101 :		Begin
          // source: delphi.y line#389
-         _CurrentValue.yyMethodDefinitionNode := yyv[yysp-2].yyMethodDefinitionNode; yyv[yysp-2].yyMethodDefinitionNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; yyv[yysp-2].yyMethodDefinitionNode.isStatic := true; 
+         yyval.yyMethodDefinitionNode := yyv[yysp-2].yyMethodDefinitionNode; yyv[yysp-2].yyMethodDefinitionNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; yyv[yysp-2].yyMethodDefinitionNode.isStatic := true; 
 			End;
 102 :		Begin
          // source: delphi.y line#390
-         _CurrentValue.yyMethodDefinitionNode := MethodDefinitionNode.Create(yyv[yysp-5].yyStringObject, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSectionNode, Nil, yyv[yysp-0].yyFunctionDirectiveListNode, yyv[yysp-6].yyMethodKindEnum);
+         yyval.yyMethodDefinitionNode := MethodDefinitionNode.Create(yyv[yysp-5].yyASTString, yyv[yysp-3].yyASTString, yyv[yysp-2].yyParametersSectionNode, Nil, yyv[yysp-0].yyFunctionDirectiveListNode, yyv[yysp-6].yyMethodKindEnum);
 			End;
 103 :		Begin
          // source: delphi.y line#394
-         _CurrentValue.yyMethodDefinitionNode := MethodDefinitionNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyStringObject, yyv[yysp-1].yyParametersSectionNode, yyv[yysp-0].yyTypeNode); 
+         yyval.yyMethodDefinitionNode := MethodDefinitionNode.Create(yyv[yysp-4].yyASTString, yyv[yysp-2].yyASTString, yyv[yysp-1].yyParametersSectionNode, yyv[yysp-0].yyTypeNode); 
 			End;
 104 :		Begin
          // source: delphi.y line#395
-         _CurrentValue.yyMethodDefinitionNode := MethodDefinitionNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyStringObject, yyv[yysp-0].yyParametersSectionNode); 
+         yyval.yyMethodDefinitionNode := MethodDefinitionNode.Create(yyv[yysp-3].yyASTString, yyv[yysp-1].yyASTString, yyv[yysp-0].yyParametersSectionNode); 
 			End;
 105 :		Begin
          // source: delphi.y line#399
-         _CurrentValue.yyRoutineDeclarationNode := yyv[yysp-0].yyRoutineDeclarationNode; 
+         yyval.yyRoutineDeclarationNode := yyv[yysp-0].yyRoutineDeclarationNode; 
 			End;
 106 :		Begin
          // source: delphi.y line#403
-         _CurrentValue.yyMethodDeclarationNode := yyv[yysp-1].yyMethodDeclarationNode; yyv[yysp-1].yyMethodDeclarationNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
+         yyval.yyMethodDeclarationNode := yyv[yysp-1].yyMethodDeclarationNode; yyv[yysp-1].yyMethodDeclarationNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
 			End;
 107 :		Begin
          // source: delphi.y line#404
-         _CurrentValue.yyMethodDeclarationNode := MethodDeclarationNode.Create(_lastObjName, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSectionNode, Nil, yyv[yysp-0].yyFunctionDirectiveListNode, yyv[yysp-4].yyMethodKindEnum); 
+         yyval.yyMethodDeclarationNode := MethodDeclarationNode.Create(_lastObjName, yyv[yysp-3].yyASTString, yyv[yysp-2].yyParametersSectionNode, Nil, yyv[yysp-0].yyFunctionDirectiveListNode, yyv[yysp-4].yyMethodKindEnum); 
 			End;
 108 :		Begin
          // source: delphi.y line#408
-         _CurrentValue.yyMethodDeclarationNode := yyv[yysp-0].yyMethodDeclarationNode; 
+         yyval.yyMethodDeclarationNode := yyv[yysp-0].yyMethodDeclarationNode; 
 			End;
 109 :		Begin
          // source: delphi.y line#412
-         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+         yyval.yyASTString := yyv[yysp-0].yyASTString; 
 			End;
 110 :		Begin
          // source: delphi.y line#415
-         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+         yyval.yyASTString := yyv[yysp-0].yyASTString; 
 			End;
 111 :		Begin
          // source: delphi.y line#418
-         _CurrentValue.yyMethodKindEnum := method_Constructor; 
+         yyval.yyMethodKindEnum := method_Constructor; 
 			End;
 112 :		Begin
          // source: delphi.y line#419
-         _CurrentValue.yyMethodKindEnum := method_Destructor; 
+         yyval.yyMethodKindEnum := method_Destructor; 
 			End;
 113 :		Begin
          // source: delphi.y line#423
-         _CurrentValue.yyProceduralTypeNode := yyv[yysp-2].yyProceduralTypeNode; yyv[yysp-2].yyProceduralTypeNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
+         yyval.yyProceduralTypeNode := yyv[yysp-2].yyProceduralTypeNode; yyv[yysp-2].yyProceduralTypeNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
 			End;
 114 :		Begin
          // source: delphi.y line#427
-         _CurrentValue.yyProceduralTypeNode := ProceduralTypeNode.Create(yyv[yysp-0].yyParametersSectionNode); 
+         yyval.yyProceduralTypeNode := ProceduralTypeNode.Create(yyv[yysp-0].yyParametersSectionNode); 
 			End;
 115 :		Begin
          // source: delphi.y line#428
-         _CurrentValue.yyProceduralTypeNode := ProceduralTypeNode.Create(yyv[yysp-1].yyParametersSectionNode, yyv[yysp-0].yyTypeNode); 
+         yyval.yyProceduralTypeNode := ProceduralTypeNode.Create(yyv[yysp-1].yyParametersSectionNode, yyv[yysp-0].yyTypeNode); 
 			End;
 116 :		Begin
          // source: delphi.y line#429
-         _CurrentValue.yyProceduralTypeNode := MethodTypeNode.Create(yyv[yysp-1].yyParametersSectionNode); 
+         yyval.yyProceduralTypeNode := MethodTypeNode.Create(yyv[yysp-1].yyParametersSectionNode); 
 			End;
 117 :		Begin
          // source: delphi.y line#430
-         _CurrentValue.yyProceduralTypeNode := MethodTypeNode.Create(yyv[yysp-2].yyParametersSectionNode, yyv[yysp-1].yyTypeNode); 
+         yyval.yyProceduralTypeNode := MethodTypeNode.Create(yyv[yysp-2].yyParametersSectionNode, yyv[yysp-1].yyTypeNode); 
 			End;
 118 :		Begin
-         _CurrentValue := yyv[yysp-1];
+         yyval := yyv[yysp-1];
 			End;
 119 :		Begin
          // source: delphi.y line#438
-         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode;
+         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode;
 			End;
 120 :		Begin
          // source: delphi.y line#443
-         _CurrentValue.yyRoutineSectionNode := RoutineSectionNode.Create(yyv[yysp-1].yyDeclarationListNode, yyv[yysp-0].yyBlockStatementNode); 
+         yyval.yyRoutineSectionNode := RoutineSectionNode.Create(yyv[yysp-1].yyDeclarationListNode, yyv[yysp-0].yyBlockStatementNode); 
 			End;
 121 :		Begin
          // source: delphi.y line#444
-         _CurrentValue.yyRoutineSectionNode := RoutineSectionNode.Create(Nil, yyv[yysp-0].yyBlockStatementNode); 
+         yyval.yyRoutineSectionNode := RoutineSectionNode.Create(Nil, yyv[yysp-0].yyBlockStatementNode); 
 			End;
 122 :		Begin
          // source: delphi.y line#448
-         _CurrentValue.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode; 
+         yyval.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode; 
 			End;
 123 :		Begin
          // source: delphi.y line#449
-         _CurrentValue.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode; 
+         yyval.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode; 
 			End;
 124 :		Begin
          // source: delphi.y line#453
-         _CurrentValue.yyParametersSectionNode := ParametersSectionNode.Create(); 
+         yyval.yyParametersSectionNode := ParametersSectionNode.Create(); 
 			End;
 125 :		Begin
          // source: delphi.y line#454
-         _CurrentValue.yyParametersSectionNode := ParametersSectionNode.Create(); 
+         yyval.yyParametersSectionNode := ParametersSectionNode.Create(); 
 			End;
 126 :		Begin
          // source: delphi.y line#455
-         _CurrentValue.yyParametersSectionNode := ParametersSectionNode.Create(yyv[yysp-1].yyDeclarationListNode); 
+         yyval.yyParametersSectionNode := ParametersSectionNode.Create(yyv[yysp-1].yyDeclarationListNode); 
 			End;
 127 :		Begin
          // source: delphi.y line#459
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
 			End;
 128 :		Begin
          // source: delphi.y line#460
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
+         yyval.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
 			End;
 129 :		Begin
          // source: delphi.y line#465
-         _CurrentValue.yyDeclarationListNode := CreateParamDecls(yyv[yysp-1].yyIdentifierListNode, yyv[yysp-0].yyTypeNode, Nil, param_Var); 
+         yyval.yyDeclarationListNode := CreateParamDecls(yyv[yysp-1].yyIdentifierListNode, yyv[yysp-0].yyTypeNode, Nil, param_Var); 
 			End;
 130 :		Begin
          // source: delphi.y line#466
-         _CurrentValue.yyDeclarationListNode := CreateParamDecls(yyv[yysp-1].yyIdentifierListNode, yyv[yysp-0].yyTypeNode, Nil, param_Out); 
+         yyval.yyDeclarationListNode := CreateParamDecls(yyv[yysp-1].yyIdentifierListNode, yyv[yysp-0].yyTypeNode, Nil, param_Out); 
 			End;
 131 :		Begin
          // source: delphi.y line#467
-         _CurrentValue.yyDeclarationListNode := CreateParamDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-1].yyTypeNode, yyv[yysp-0].yyExpressionNode, param_Default); 
+         yyval.yyDeclarationListNode := CreateParamDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-1].yyTypeNode, yyv[yysp-0].yyExpressionNode, param_Default); 
 			End;
 132 :		Begin
          // source: delphi.y line#468
-         _CurrentValue.yyDeclarationListNode := CreateParamDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-1].yyTypeNode, yyv[yysp-0].yyExpressionNode, param_Const); 
+         yyval.yyDeclarationListNode := CreateParamDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-1].yyTypeNode, yyv[yysp-0].yyExpressionNode, param_Const); 
 			End;
 133 :		Begin
          // source: delphi.y line#472
-         _CurrentValue.yyTypeNode := Nil; 
+         yyval.yyTypeNode := Nil; 
 			End;
 134 :		Begin
          // source: delphi.y line#473
-         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
 			End;
 135 :		Begin
          // source: delphi.y line#477
-         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
 			End;
 136 :		Begin
          // source: delphi.y line#481
-         _CurrentValue.yyExpressionNode := Nil; 
+         yyval.yyExpressionNode := Nil; 
 			End;
 137 :		Begin
          // source: delphi.y line#482
-         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
+         yyval.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
 			End;
 138 :		Begin
          // source: delphi.y line#486
-         _CurrentValue.yyConstExpressionNode := ConstIdentifierNode.Create(yyv[yysp-0].yyStringObject); 
+         yyval.yyConstExpressionNode := ConstIdentifierNode.Create(yyv[yysp-0].yyASTString); 
 			End;
 139 :		Begin
          // source: delphi.y line#487
-         _CurrentValue.yyConstExpressionNode := NullLiteralNode.Create(); 
+         yyval.yyConstExpressionNode := NullLiteralNode.Create(); 
 			End;
 140 :		Begin
          // source: delphi.y line#492
-         _CurrentValue.yyFunctionDirectiveListNode := JoinImportDirectives(yyv[yysp-4].yyFunctionDirectiveListNode, yyv[yysp-0].yyFunctionDirectiveListNode, yyv[yysp-2].yyExternalDirectiveNode); 
+         yyval.yyFunctionDirectiveListNode := JoinImportDirectives(yyv[yysp-4].yyFunctionDirectiveListNode, yyv[yysp-0].yyFunctionDirectiveListNode, yyv[yysp-2].yyExternalDirectiveNode); 
 			End;
 141 :		Begin
          // source: delphi.y line#493
-         _CurrentValue.yyFunctionDirectiveListNode := JoinImportDirectives(yyv[yysp-3].yyFunctionDirectiveListNode, yyv[yysp-0].yyFunctionDirectiveListNode, FunctionAttributeNode.Create(attribute_Forward)); 
+         yyval.yyFunctionDirectiveListNode := JoinImportDirectives(yyv[yysp-3].yyFunctionDirectiveListNode, yyv[yysp-0].yyFunctionDirectiveListNode, FunctionAttributeNode.Create(attribute_Forward)); 
 			End;
 142 :		Begin
          // source: delphi.y line#497
-         _CurrentValue.yyExternalDirectiveNode := ExternalDirectiveNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExternalDirectiveNode := ExternalDirectiveNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyExpressionNode); 
 			End;
 143 :		Begin
          // source: delphi.y line#498
-         _CurrentValue.yyExternalDirectiveNode := ExternalDirectiveNode.Create(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExternalDirectiveNode := ExternalDirectiveNode.Create(yyv[yysp-0].yyExpressionNode); 
 			End;
 144 :		Begin
          // source: delphi.y line#499
-         _CurrentValue.yyExternalDirectiveNode := Nil; 
+         yyval.yyExternalDirectiveNode := Nil; 
 			End;
 145 :		Begin
          // source: delphi.y line#503
-         _CurrentValue.yyFunctionDirectiveListNode := Nil ; 
+         yyval.yyFunctionDirectiveListNode := Nil ; 
 			End;
 146 :		Begin
          // source: delphi.y line#504
-         _CurrentValue.yyFunctionDirectiveListNode := yyv[yysp-0].yyFunctionDirectiveListNode   ; 
+         yyval.yyFunctionDirectiveListNode := yyv[yysp-0].yyFunctionDirectiveListNode   ; 
 			End;
 147 :		Begin
          // source: delphi.y line#508
-         _CurrentValue.yyFunctionDirectiveListNode := Nil ; 
+         yyval.yyFunctionDirectiveListNode := Nil ; 
 			End;
 148 :		Begin
          // source: delphi.y line#509
-         _CurrentValue.yyFunctionDirectiveListNode := yyv[yysp-1].yyFunctionDirectiveListNode   ; 
+         yyval.yyFunctionDirectiveListNode := yyv[yysp-1].yyFunctionDirectiveListNode   ; 
 			End;
 149 :		Begin
          // source: delphi.y line#513
-         _CurrentValue.yyFunctionDirectiveListNode := Nil ; 
+         yyval.yyFunctionDirectiveListNode := Nil ; 
 			End;
 150 :		Begin
          // source: delphi.y line#514
-         _CurrentValue.yyFunctionDirectiveListNode := yyv[yysp-1].yyFunctionDirectiveListNode; 
+         yyval.yyFunctionDirectiveListNode := yyv[yysp-1].yyFunctionDirectiveListNode; 
 			End;
 151 :		Begin
          // source: delphi.y line#518
-         _CurrentValue.yyFunctionDirectiveListNode := Nil; 
+         yyval.yyFunctionDirectiveListNode := Nil; 
 			End;
 152 :		Begin
          // source: delphi.y line#519
-         _CurrentValue.yyFunctionDirectiveListNode := yyv[yysp-1].yyFunctionDirectiveListNode   ; 
+         yyval.yyFunctionDirectiveListNode := yyv[yysp-1].yyFunctionDirectiveListNode   ; 
 			End;
 153 :		Begin
          // source: delphi.y line#523
-         _CurrentValue.yyFunctionDirectiveListNode := FunctionDirectiveListNode.Create(yyv[yysp-0].yyFunctionAttributeNode); 
+         yyval.yyFunctionDirectiveListNode := FunctionDirectiveListNode.Create(yyv[yysp-0].yyFunctionAttributeNode); 
 			End;
 154 :		Begin
          // source: delphi.y line#524
-         _CurrentValue.yyFunctionDirectiveListNode := yyv[yysp-2].yyFunctionDirectiveListNode; yyv[yysp-2].yyFunctionDirectiveListNode.Add(yyv[yysp-0].yyFunctionAttributeNode); 
+         yyval.yyFunctionDirectiveListNode := yyv[yysp-2].yyFunctionDirectiveListNode; yyv[yysp-2].yyFunctionDirectiveListNode.Add(yyv[yysp-0].yyFunctionAttributeNode); 
 			End;
 155 :		Begin
          // source: delphi.y line#528
-         _CurrentValue.yyFunctionDirectiveListNode := FunctionDirectiveListNode.Create(yyv[yysp-0].yyFunctionAttributeNode); 
+         yyval.yyFunctionDirectiveListNode := FunctionDirectiveListNode.Create(yyv[yysp-0].yyFunctionAttributeNode); 
 			End;
 156 :		Begin
          // source: delphi.y line#529
-         _CurrentValue.yyFunctionDirectiveListNode := yyv[yysp-2].yyFunctionDirectiveListNode; yyv[yysp-2].yyFunctionDirectiveListNode.Add(yyv[yysp-0].yyFunctionAttributeNode); 
+         yyval.yyFunctionDirectiveListNode := yyv[yysp-2].yyFunctionDirectiveListNode; yyv[yysp-2].yyFunctionDirectiveListNode.Add(yyv[yysp-0].yyFunctionAttributeNode); 
 			End;
 157 :		Begin
          // source: delphi.y line#533
-         _CurrentValue.yyFunctionDirectiveListNode := FunctionDirectiveListNode.Create(yyv[yysp-0].yyFunctionAttributeNode); 
+         yyval.yyFunctionDirectiveListNode := FunctionDirectiveListNode.Create(yyv[yysp-0].yyFunctionAttributeNode); 
 			End;
 158 :		Begin
          // source: delphi.y line#534
-         _CurrentValue.yyFunctionDirectiveListNode := yyv[yysp-2].yyFunctionDirectiveListNode; yyv[yysp-2].yyFunctionDirectiveListNode.Add(yyv[yysp-0].yyFunctionAttributeNode); 
+         yyval.yyFunctionDirectiveListNode := yyv[yysp-2].yyFunctionDirectiveListNode; yyv[yysp-2].yyFunctionDirectiveListNode.Add(yyv[yysp-0].yyFunctionAttributeNode); 
 			End;
 159 :		Begin
          // source: delphi.y line#538
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Overload); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Overload); 
 			End;
 160 :		Begin
          // source: delphi.y line#539
-         _CurrentValue.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
+         yyval.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
 			End;
 161 :		Begin
          // source: delphi.y line#543
-         _CurrentValue.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
+         yyval.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
 			End;
 162 :		Begin
          // source: delphi.y line#544
-         _CurrentValue.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
+         yyval.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
 			End;
 163 :		Begin
          // source: delphi.y line#548
-         _CurrentValue.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
+         yyval.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
 			End;
 164 :		Begin
          // source: delphi.y line#549
-         _CurrentValue.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
+         yyval.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
 			End;
 165 :		Begin
          // source: delphi.y line#550
-         _CurrentValue.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
+         yyval.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
 			End;
 166 :		Begin
          // source: delphi.y line#555
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Far); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Far); 
 			End;
 167 :		Begin
          // source: delphi.y line#556
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Near); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Near); 
 			End;
 168 :		Begin
          // source: delphi.y line#557
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Resident); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Resident); 
 			End;
 169 :		Begin
          // source: delphi.y line#561
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Abstract); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Abstract); 
 			End;
 170 :		Begin
          // source: delphi.y line#562
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Dynamic); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Dynamic); 
 			End;
 171 :		Begin
          // source: delphi.y line#563
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Override); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Override); 
 			End;
 172 :		Begin
          // source: delphi.y line#564
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Virtual); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Virtual); 
 			End;
 173 :		Begin
          // source: delphi.y line#565
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Reintroduce); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Reintroduce); 
 			End;
 174 :		Begin
          // source: delphi.y line#569
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Assembler); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Assembler); 
 			End;
 175 :		Begin
          // source: delphi.y line#570
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Export); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Export); 
 			End;
 176 :		Begin
          // source: delphi.y line#571
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Inline); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Inline); 
 			End;
 177 :		Begin
          // source: delphi.y line#572
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Overload); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Overload); 
 			End;
 178 :		Begin
          // source: delphi.y line#573
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_VarArgs); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_VarArgs); 
 			End;
 179 :		Begin
          // source: delphi.y line#577
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_Pascal); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_Pascal); 
 			End;
 180 :		Begin
          // source: delphi.y line#578
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_SafeCall); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_SafeCall); 
 			End;
 181 :		Begin
          // source: delphi.y line#579
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_StdCall); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_StdCall); 
 			End;
 182 :		Begin
          // source: delphi.y line#580
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_CDecl); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_CDecl); 
 			End;
 183 :		Begin
          // source: delphi.y line#581
-         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_Register); 
+         yyval.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_Register); 
 			End;
 184 :		Begin
          // source: delphi.y line#586
-         _CurrentValue.yyBlockStatementNode := yyv[yysp-1].yyBlockStatementNode; 
+         yyval.yyBlockStatementNode := yyv[yysp-1].yyBlockStatementNode; 
 			End;
 185 :		Begin
          // source: delphi.y line#590
-         _CurrentValue.yyBlockStatementNode := BlockStatementNode.Create(StatementListNode.Create(yyv[yysp-0].yyStatementListNode)); 
+         yyval.yyBlockStatementNode := BlockStatementNode.Create(StatementListNode.Create(yyv[yysp-0].yyStatementListNode)); 
 			End;
 186 :		Begin
          // source: delphi.y line#594
-         _CurrentValue.yyStatementListNode := StatementListNode.Create(yyv[yysp-0].yyStatementNode); 
+         yyval.yyStatementListNode := StatementListNode.Create(yyv[yysp-0].yyStatementNode); 
 			End;
 187 :		Begin
          // source: delphi.y line#595
-         _CurrentValue.yyStatementListNode := yyv[yysp-0].yyStatementListNode; yyv[yysp-0].yyStatementListNode.Add(yyv[yysp-2].yyStatementNode); 
+         yyval.yyStatementListNode := yyv[yysp-0].yyStatementListNode; yyv[yysp-0].yyStatementListNode.Add(yyv[yysp-2].yyStatementNode); 
 			End;
 188 :		Begin
          // source: delphi.y line#599
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyStatementNode; 
 			End;
 189 :		Begin
          // source: delphi.y line#600
-         _CurrentValue.yyStatementNode := LabelStatementNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyStatementNode); 
+         yyval.yyStatementNode := LabelStatementNode.Create(yyv[yysp-2].yyASTString, yyv[yysp-0].yyStatementNode); 
 			End;
 190 :		Begin
          // source: delphi.y line#604
-         _CurrentValue.yyStatementNode := EmptyStatementNode.Create(); 
+         yyval.yyStatementNode := EmptyStatementNode.Create(); 
 			End;
 191 :		Begin
          // source: delphi.y line#605
-         _CurrentValue.yyStatementNode := ExpressionStatementNode.Create(yyv[yysp-0].yyLvalueExpressionNode); 
+         yyval.yyStatementNode := ExpressionStatementNode.Create(yyv[yysp-0].yyLvalueExpressionNode); 
 			End;
 192 :		Begin
          // source: delphi.y line#606
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyStatementNode; 
 			End;
 193 :		Begin
          // source: delphi.y line#607
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyStatementNode; 
 			End;
 194 :		Begin
          // source: delphi.y line#608
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyBlockStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyBlockStatementNode; 
 			End;
 195 :		Begin
          // source: delphi.y line#609
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyStatementNode; 
 			End;
 196 :		Begin
          // source: delphi.y line#610
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyStatementNode; 
 			End;
 197 :		Begin
          // source: delphi.y line#611
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyStatementNode; 
 			End;
 198 :		Begin
          // source: delphi.y line#612
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyStatementNode; 
 			End;
 199 :		Begin
          // source: delphi.y line#613
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyStatementNode; 
 			End;
 200 :		Begin
          // source: delphi.y line#614
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyStatementNode; 
 			End;
 201 :		Begin
          // source: delphi.y line#615
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyStatementNode; 
 			End;
 202 :		Begin
          // source: delphi.y line#616
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyStatementNode; 
 			End;
 203 :		Begin
          // source: delphi.y line#617
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyStatementNode; 
 			End;
 204 :		Begin
          // source: delphi.y line#618
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyBlockStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyBlockStatementNode; 
 			End;
 205 :		Begin
          // source: delphi.y line#619
-         _CurrentValue.yyStatementNode := BreakStatementNode.Create(); 
+         yyval.yyStatementNode := BreakStatementNode.Create(); 
 			End;
 206 :		Begin
          // source: delphi.y line#620
-         _CurrentValue.yyStatementNode := ContinueStatementNode.Create(); 
+         yyval.yyStatementNode := ContinueStatementNode.Create(); 
 			End;
 207 :		Begin
          // source: delphi.y line#624
-         _CurrentValue.yyStatementNode := AssignmentNode.Create(yyv[yysp-2].yyLvalueExpressionNode, yyv[yysp-0].yyExpressionNode); 
+         yyval.yyStatementNode := AssignmentNode.Create(yyv[yysp-2].yyLvalueExpressionNode, yyv[yysp-0].yyExpressionNode); 
 			End;
 208 :		Begin
          // source: delphi.y line#628
-         _CurrentValue.yyStatementNode := GotoStatementNode.Create(yyv[yysp-0].yyStringObject); 
+         yyval.yyStatementNode := GotoStatementNode.Create(yyv[yysp-0].yyASTString); 
 			End;
 209 :		Begin
          // source: delphi.y line#632
-         _CurrentValue.yyStatementNode := IfStatementNode.Create(yyv[yysp-4].yyExpressionNode, yyv[yysp-2].yyStatementNode, yyv[yysp-0].yyStatementNode); 
+         yyval.yyStatementNode := IfStatementNode.Create(yyv[yysp-4].yyExpressionNode, yyv[yysp-2].yyStatementNode, yyv[yysp-0].yyStatementNode); 
 			End;
 210 :		Begin
          // source: delphi.y line#633
-         _CurrentValue.yyStatementNode := IfStatementNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyStatementNode, Nil); 
+         yyval.yyStatementNode := IfStatementNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyStatementNode, Nil); 
 			End;
 211 :		Begin
          // source: delphi.y line#638
-         _CurrentValue.yyStatementNode := CaseStatementNode.Create(yyv[yysp-4].yyExpressionNode, yyv[yysp-2].yyStatementListNode, yyv[yysp-1].yyStatementNode); 
+         yyval.yyStatementNode := CaseStatementNode.Create(yyv[yysp-4].yyExpressionNode, yyv[yysp-2].yyStatementListNode, yyv[yysp-1].yyStatementNode); 
 			End;
 212 :		Begin
          // source: delphi.y line#642
-         _CurrentValue.yyStatementNode := Nil;
+         yyval.yyStatementNode := Nil;
 			End;
 213 :		Begin
          // source: delphi.y line#643
-         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-0].yyStatementNode; 
 			End;
 214 :		Begin
          // source: delphi.y line#644
-         _CurrentValue.yyStatementNode := yyv[yysp-1].yyStatementNode; 
+         yyval.yyStatementNode := yyv[yysp-1].yyStatementNode; 
 			End;
 215 :		Begin
          // source: delphi.y line#648
-         _CurrentValue.yyStatementListNode := StatementListNode.Create(yyv[yysp-0].yyStatementNode); 
+         yyval.yyStatementListNode := StatementListNode.Create(yyv[yysp-0].yyStatementNode); 
 			End;
 216 :		Begin
          // source: delphi.y line#649
-         _CurrentValue.yyStatementListNode := yyv[yysp-2].yyStatementListNode; yyv[yysp-2].yyStatementListNode.Add(yyv[yysp-0].yyStatementNode); 
+         yyval.yyStatementListNode := yyv[yysp-2].yyStatementListNode; yyv[yysp-2].yyStatementListNode.Add(yyv[yysp-0].yyStatementNode); 
 			End;
 217 :		Begin
          // source: delphi.y line#653
-         _CurrentValue.yyStatementNode := Nil; 
+         yyval.yyStatementNode := Nil; 
 			End;
 218 :		Begin
          // source: delphi.y line#654
-         _CurrentValue.yyStatementNode := CaseSelectorNode.Create(yyv[yysp-2].yyExpressionListNode, yyv[yysp-0].yyStatementNode); 
+         yyval.yyStatementNode := CaseSelectorNode.Create(yyv[yysp-2].yyExpressionListNode, yyv[yysp-0].yyStatementNode); 
 			End;
 219 :		Begin
          // source: delphi.y line#658
-         _CurrentValue.yyExpressionListNode := ExpressionListNode.Create(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionListNode := ExpressionListNode.Create(yyv[yysp-0].yyExpressionNode); 
 			End;
 220 :		Begin
          // source: delphi.y line#659
-         _CurrentValue.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
 			End;
 221 :		Begin
          // source: delphi.y line#663
-         _CurrentValue.yyStatementNode := RepeatLoopNode.Create(yyv[yysp-2].yyBlockStatementNode, yyv[yysp-0].yyExpressionNode); 
+         yyval.yyStatementNode := RepeatLoopNode.Create(yyv[yysp-2].yyBlockStatementNode, yyv[yysp-0].yyExpressionNode); 
 			End;
 222 :		Begin
          // source: delphi.y line#667
-         _CurrentValue.yyStatementNode := WhileLoopNode.Create(yyv[yysp-0].yyStatementNode, yyv[yysp-2].yyExpressionNode); 
+         yyval.yyStatementNode := WhileLoopNode.Create(yyv[yysp-0].yyStatementNode, yyv[yysp-2].yyExpressionNode); 
 			End;
 223 :		Begin
          // source: delphi.y line#672
-         _CurrentValue.yyStatementNode := ForLoopNode.Create(yyv[yysp-6].yyIdentifierNode, yyv[yysp-4].yyExpressionNode, yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyStatementNode, yyv[yysp-3].yyInteger); 
+         yyval.yyStatementNode := ForLoopNode.Create(yyv[yysp-6].yyIdentifierNode, yyv[yysp-4].yyExpressionNode, yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyStatementNode, yyv[yysp-3].yyInteger); 
 			End;
 224 :		Begin
          // source: delphi.y line#676
-         _CurrentValue.yyInteger := 1; 
+         yyval.yyInteger := 1; 
 			End;
 225 :		Begin
          // source: delphi.y line#677
-         _CurrentValue.yyInteger := -1; 
+         yyval.yyInteger := -1; 
 			End;
 226 :		Begin
          // source: delphi.y line#681
-         _CurrentValue.yyStatementNode := WithStatementNode.Create(yyv[yysp-2].yyExpressionListNode, yyv[yysp-0].yyStatementNode); 
+         yyval.yyStatementNode := WithStatementNode.Create(yyv[yysp-2].yyExpressionListNode, yyv[yysp-0].yyStatementNode); 
 			End;
 227 :		Begin
          // source: delphi.y line#686
-         _CurrentValue.yyStatementNode := TryExceptStatementNode.Create(yyv[yysp-3].yyBlockStatementNode, yyv[yysp-1].yyExceptionBlockNode); 
+         yyval.yyStatementNode := TryExceptStatementNode.Create(yyv[yysp-3].yyBlockStatementNode, yyv[yysp-1].yyExceptionBlockNode); 
 			End;
 228 :		Begin
          // source: delphi.y line#690
-         _CurrentValue.yyExceptionBlockNode := ExceptionBlockNode.Create(yyv[yysp-2].yyStatementListNode, yyv[yysp-0].yyBlockStatementNode); 
+         yyval.yyExceptionBlockNode := ExceptionBlockNode.Create(yyv[yysp-2].yyStatementListNode, yyv[yysp-0].yyBlockStatementNode); 
 			End;
 229 :		Begin
          // source: delphi.y line#691
-         _CurrentValue.yyExceptionBlockNode := ExceptionBlockNode.Create(yyv[yysp-0].yyStatementListNode); 
+         yyval.yyExceptionBlockNode := ExceptionBlockNode.Create(yyv[yysp-0].yyStatementListNode); 
 			End;
 230 :		Begin
          // source: delphi.y line#692
-         _CurrentValue.yyExceptionBlockNode := ExceptionBlockNode.Create(Nil, yyv[yysp-0].yyBlockStatementNode); 
+         yyval.yyExceptionBlockNode := ExceptionBlockNode.Create(Nil, yyv[yysp-0].yyBlockStatementNode); 
 			End;
 231 :		Begin
          // source: delphi.y line#696
-         _CurrentValue.yyStatementListNode := StatementListNode.Create(yyv[yysp-0].yyStatementNode); 
+         yyval.yyStatementListNode := StatementListNode.Create(yyv[yysp-0].yyStatementNode); 
 			End;
 232 :		Begin
          // source: delphi.y line#697
-         _CurrentValue.yyStatementListNode := yyv[yysp-1].yyStatementListNode; yyv[yysp-1].yyStatementListNode.Add(yyv[yysp-0].yyStatementNode); 
+         yyval.yyStatementListNode := yyv[yysp-1].yyStatementListNode; yyv[yysp-1].yyStatementListNode.Add(yyv[yysp-0].yyStatementNode); 
 			End;
 233 :		Begin
          // source: delphi.y line#701
-         _CurrentValue.yyStatementNode := OnStatementNode.Create(yyv[yysp-5].yyStringObject, yyv[yysp-3].yyStringObject, yyv[yysp-1].yyStatementNode); 
+         yyval.yyStatementNode := OnStatementNode.Create(yyv[yysp-5].yyASTString, yyv[yysp-3].yyASTString, yyv[yysp-1].yyStatementNode); 
 			End;
 234 :		Begin
          // source: delphi.y line#702
-         _CurrentValue.yyStatementNode := OnStatementNode.Create(Nil, yyv[yysp-3].yyStringObject, yyv[yysp-1].yyStatementNode); 
+         yyval.yyStatementNode := OnStatementNode.Create('', yyv[yysp-3].yyASTString, yyv[yysp-1].yyStatementNode); 
 			End;
 235 :		Begin
          // source: delphi.y line#707
-         _CurrentValue.yyStatementNode := TryFinallyStatementNode.Create(yyv[yysp-3].yyBlockStatementNode, yyv[yysp-1].yyBlockStatementNode); 
+         yyval.yyStatementNode := TryFinallyStatementNode.Create(yyv[yysp-3].yyBlockStatementNode, yyv[yysp-1].yyBlockStatementNode); 
 			End;
 236 :		Begin
          // source: delphi.y line#711
-         _CurrentValue.yyStatementNode := RaiseStatementNode.Create(Nil, Nil); 
+         yyval.yyStatementNode := RaiseStatementNode.Create(Nil, Nil); 
 			End;
 237 :		Begin
          // source: delphi.y line#712
-         _CurrentValue.yyStatementNode := RaiseStatementNode.Create(yyv[yysp-0].yyLvalueExpressionNode, Nil); 
+         yyval.yyStatementNode := RaiseStatementNode.Create(yyv[yysp-0].yyLvalueExpressionNode, Nil); 
 			End;
 238 :		Begin
          // source: delphi.y line#713
-         _CurrentValue.yyStatementNode := RaiseStatementNode.Create(Nil, yyv[yysp-0].yyExpressionNode); 
+         yyval.yyStatementNode := RaiseStatementNode.Create(Nil, yyv[yysp-0].yyExpressionNode); 
 			End;
 239 :		Begin
          // source: delphi.y line#714
-         _CurrentValue.yyStatementNode := RaiseStatementNode.Create(yyv[yysp-2].yyLvalueExpressionNode, yyv[yysp-0].yyExpressionNode); 
+         yyval.yyStatementNode := RaiseStatementNode.Create(yyv[yysp-2].yyLvalueExpressionNode, yyv[yysp-0].yyExpressionNode); 
 			End;
 240 :		Begin
          // source: delphi.y line#718
-         _CurrentValue.yyBlockStatementNode := AssemblerBlockNode.Create(yyv[yysp-1].yyStatementListNode); 
+         yyval.yyBlockStatementNode := AssemblerBlockNode.Create(yyv[yysp-1].yyStatementListNode); 
 			End;
 241 :		Begin
          // source: delphi.y line#722
-         _CurrentValue.yyStatementListNode := Nil; 
+         yyval.yyStatementListNode := Nil; 
 			End;
 242 :		Begin
          // source: delphi.y line#723
-         _CurrentValue.yyStatementListNode := Nil; 
+         yyval.yyStatementListNode := Nil; 
 			End;
 243 :		Begin
          // source: delphi.y line#727
-         _CurrentValue.yyIdentifierNode := IdentifierNode.Create(yyv[yysp-0].yyStringObject); 
+         yyval.yyIdentifierNode := IdentifierNode.Create(yyv[yysp-0].yyASTString); 
 			End;
 244 :		Begin
          // source: delphi.y line#731
-         _CurrentValue.yyLvalueExpressionNode := UnresolvedIdNode.Create(yyv[yysp-0].yyIdentifierNode); 
+         yyval.yyLvalueExpressionNode := UnresolvedIdNode.Create(yyv[yysp-0].yyIdentifierNode); 
 			End;
 245 :		Begin
          // source: delphi.y line#732
-         _CurrentValue.yyLvalueExpressionNode := UnresolvedCallNode.Create(yyv[yysp-3].yyLvalueExpressionNode, yyv[yysp-1].yyExpressionListNode); 
+         yyval.yyLvalueExpressionNode := UnresolvedCallNode.Create(yyv[yysp-3].yyLvalueExpressionNode, yyv[yysp-1].yyExpressionListNode); 
 			End;
 246 :		Begin
          // source: delphi.y line#733
-         _CurrentValue.yyLvalueExpressionNode := StaticCastNode.Create(PointerTypeNode, yyv[yysp-1].yyExpressionNode); 
+         yyval.yyLvalueExpressionNode := StaticCastNode.Create(PointerTypeNode, yyv[yysp-1].yyExpressionNode); 
 			End;
 247 :		Begin
          // source: delphi.y line#734
-         _CurrentValue.yyLvalueExpressionNode := ObjectAccessNode.Create(yyv[yysp-2].yyLvalueExpressionNode, yyv[yysp-0].yyStringObject); 
+         yyval.yyLvalueExpressionNode := ObjectAccessNode.Create(yyv[yysp-2].yyLvalueExpressionNode, yyv[yysp-0].yyASTString); 
 			End;
 248 :		Begin
          // source: delphi.y line#735
-         _CurrentValue.yyLvalueExpressionNode := InheritedCallNode.Create(Nil); 
+         yyval.yyLvalueExpressionNode := InheritedCallNode.Create(); 
 			End;
 249 :		Begin
          // source: delphi.y line#736
-         _CurrentValue.yyLvalueExpressionNode := InheritedCallNode.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyExpressionListNode); 
+         yyval.yyLvalueExpressionNode := InheritedCallNode.Create(yyv[yysp-1].yyASTString, yyv[yysp-0].yyExpressionListNode); 
 			End;
 250 :		Begin
          // source: delphi.y line#740
-         _CurrentValue.yyLvalueExpressionNode := UnresolvedIdNode.Create(yyv[yysp-0].yyIdentifierNode); 
+         yyval.yyLvalueExpressionNode := UnresolvedIdNode.Create(yyv[yysp-0].yyIdentifierNode); 
 			End;
 251 :		Begin
          // source: delphi.y line#741
-         _CurrentValue.yyLvalueExpressionNode := UnresolvedCallNode.Create(yyv[yysp-3].yyLvalueExpressionNode, yyv[yysp-1].yyExpressionListNode); 
+         yyval.yyLvalueExpressionNode := UnresolvedCallNode.Create(yyv[yysp-3].yyLvalueExpressionNode, yyv[yysp-1].yyExpressionListNode); 
 			End;
 252 :		Begin
          // source: delphi.y line#742
-         _CurrentValue.yyLvalueExpressionNode := StaticCastNode.Create(PointerTypeNode, yyv[yysp-1].yyExpressionNode); 
+         yyval.yyLvalueExpressionNode := StaticCastNode.Create(PointerTypeNode, yyv[yysp-1].yyExpressionNode); 
 			End;
 253 :		Begin
          // source: delphi.y line#743
-         _CurrentValue.yyLvalueExpressionNode := ObjectAccessNode.Create(yyv[yysp-2].yyLvalueExpressionNode, yyv[yysp-0].yyStringObject); 
+         yyval.yyLvalueExpressionNode := ObjectAccessNode.Create(yyv[yysp-2].yyLvalueExpressionNode, yyv[yysp-0].yyASTString); 
 			End;
 254 :		Begin
          // source: delphi.y line#744
-         _CurrentValue.yyLvalueExpressionNode := PointerDereferenceNode.Create(yyv[yysp-1].yyLvalueExpressionNode); 
+         yyval.yyLvalueExpressionNode := PointerDereferenceNode.Create(yyv[yysp-1].yyLvalueExpressionNode); 
 			End;
 255 :		Begin
          // source: delphi.y line#745
-         _CurrentValue.yyLvalueExpressionNode := ArrayAccessNode.Create(yyv[yysp-3].yyLvalueExpressionNode, yyv[yysp-1].yyExpressionListNode); 
+         yyval.yyLvalueExpressionNode := ArrayAccessNode.Create(yyv[yysp-3].yyLvalueExpressionNode, yyv[yysp-1].yyExpressionListNode); 
 			End;
 256 :		Begin
          // source: delphi.y line#746
-         _CurrentValue.yyLvalueExpressionNode := ExprAsLvalueNode.Create(yyv[yysp-1].yyExpressionNode); 
+         yyval.yyLvalueExpressionNode := ExprAsLvalueNode.Create(yyv[yysp-1].yyExpressionNode); 
 			End;
 257 :		Begin
          // source: delphi.y line#750
-         If (yyv[yysp-0].yyLvalueExpressionNode Is ExprAsLvalueNode) Then _CurrentValue.yyExpressionNode := (yyv[yysp-0].yyLvalueExpressionNode as ExprAsLvalueNode).expr Else _CurrentValue.yyExpressionNode := LvalueAsExprNode.Create(yyv[yysp-0].yyLvalueExpressionNode); 
+         If (yyv[yysp-0].yyLvalueExpressionNode Is ExprAsLvalueNode) Then yyval.yyExpressionNode := (yyv[yysp-0].yyLvalueExpressionNode as ExprAsLvalueNode).expr Else yyval.yyExpressionNode := LvalueAsExprNode.Create(yyv[yysp-0].yyLvalueExpressionNode); 
 			End;
 258 :		Begin
          // source: delphi.y line#754
-         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyLiteralNode; 
+         yyval.yyExpressionNode := yyv[yysp-0].yyLiteralNode; 
 			End;
 259 :		Begin
          // source: delphi.y line#755
-         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
+         yyval.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
 			End;
 260 :		Begin
          // source: delphi.y line#756
-         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
+         yyval.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
 			End;
 261 :		Begin
          // source: delphi.y line#757
-         _CurrentValue.yyExpressionNode := AddressLvalueNode.Create(yyv[yysp-0].yyLvalueExpressionNode); 
+         yyval.yyExpressionNode := AddressLvalueNode.Create(yyv[yysp-0].yyLvalueExpressionNode); 
 			End;
 262 :		Begin
          // source: delphi.y line#758
-         _CurrentValue.yyExpressionNode := LogicalNotNode.Create(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionNode := LogicalNotNode.Create(yyv[yysp-0].yyExpressionNode); 
 			End;
 263 :		Begin
          // source: delphi.y line#759
-         _CurrentValue.yyExpressionNode := UnaryPlusNode.Create(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionNode := UnaryPlusNode.Create(yyv[yysp-0].yyExpressionNode); 
 			End;
 264 :		Begin
          // source: delphi.y line#760
-         _CurrentValue.yyExpressionNode := UnaryMinusNode.Create(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionNode := UnaryMinusNode.Create(yyv[yysp-0].yyExpressionNode); 
 			End;
 265 :		Begin
          // source: delphi.y line#761
-         _CurrentValue.yyExpressionNode := InheritedCallNode.Create(Nil); 
+         yyval.yyExpressionNode := InheritedCallNode.Create(); 
 			End;
 266 :		Begin
          // source: delphi.y line#762
-         _CurrentValue.yyExpressionNode := InheritedCallNode.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyExpressionListNode); 
+         yyval.yyExpressionNode := InheritedCallNode.Create(yyv[yysp-1].yyASTString, yyv[yysp-0].yyExpressionListNode); 
 			End;
 267 :		Begin
          // source: delphi.y line#763
-         _CurrentValue.yyExpressionNode := ArrayAccessNode.Create(ArrayConstNode.Create(yyv[yysp-3].yyStringObject), ExpressionListNode.Create(yyv[yysp-1].yyExpressionNode)); 
+         yyval.yyExpressionNode := ArrayAccessNode.Create(ArrayConstNode.Create(yyv[yysp-3].yyASTString), ExpressionListNode.Create(yyv[yysp-1].yyExpressionNode)); 
 			End;
 268 :		Begin
          // source: delphi.y line#767
-         _CurrentValue.yyExpressionListNode := ExpressionListNode.Create(); 
+         yyval.yyExpressionListNode := ExpressionListNode.Create(); 
 			End;
 269 :		Begin
          // source: delphi.y line#768
-         _CurrentValue.yyExpressionListNode := yyv[yysp-1].yyExpressionListNode; 
+         yyval.yyExpressionListNode := yyv[yysp-1].yyExpressionListNode; 
 			End;
 270 :		Begin
          // source: delphi.y line#772
-         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
+         yyval.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
 			End;
 271 :		Begin
          // source: delphi.y line#773
-         _CurrentValue.yyExpressionNode := RuntimeCastNode.Create(yyv[yysp-2].yyExpressionNode, ClassRefTypeNode.Create(yyv[yysp-0].yyStringObject)); 
+         yyval.yyExpressionNode := RuntimeCastNode.Create(yyv[yysp-2].yyExpressionNode, ClassRefTypeNode.Create(yyv[yysp-0].yyASTString)); 
 			End;
 272 :		Begin
          // source: delphi.y line#774
-         _CurrentValue.yyExpressionNode := IsExpressionNode.Create(yyv[yysp-2].yyExpressionNode, ClassRefTypeNode.Create(yyv[yysp-0].yyStringObject)); 
+         yyval.yyExpressionNode := IsExpressionNode.Create(yyv[yysp-2].yyExpressionNode, ClassRefTypeNode.Create(yyv[yysp-0].yyASTString)); 
 			End;
 273 :		Begin
          // source: delphi.y line#775
-         _CurrentValue.yyExpressionNode := InExpressionNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionNode := InExpressionNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyExpressionNode); 
 			End;
 274 :		Begin
          // source: delphi.y line#776
-         _CurrentValue.yyExpressionNode := CreateBinaryExpression(yyv[yysp-2].yyExpressionNode, yyv[yysp-1].yyInteger, yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionNode := CreateBinaryExpression(yyv[yysp-2].yyExpressionNode, yyv[yysp-1].yyInteger, yyv[yysp-0].yyExpressionNode); 
 			End;
 275 :		Begin
          // source: delphi.y line#777
-         _CurrentValue.yyExpressionNode := CreateBinaryExpression(yyv[yysp-2].yyExpressionNode, yyv[yysp-1].yyInteger, yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionNode := CreateBinaryExpression(yyv[yysp-2].yyExpressionNode, yyv[yysp-1].yyInteger, yyv[yysp-0].yyExpressionNode); 
 			End;
 276 :		Begin
          // source: delphi.y line#778
-         _CurrentValue.yyExpressionNode := CreateBinaryExpression(yyv[yysp-2].yyExpressionNode, yyv[yysp-1].yyInteger, yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionNode := CreateBinaryExpression(yyv[yysp-2].yyExpressionNode, yyv[yysp-1].yyInteger, yyv[yysp-0].yyExpressionNode); 
 			End;
 277 :		Begin
          // source: delphi.y line#782
-         _CurrentValue.yyInteger := KW_MUL; 
+         yyval.yyInteger := KW_MUL; 
 			End;
 278 :		Begin
          // source: delphi.y line#783
-         _CurrentValue.yyInteger := KW_DIV; 
+         yyval.yyInteger := KW_DIV; 
 			End;
 279 :		Begin
          // source: delphi.y line#784
-         _CurrentValue.yyInteger := KW_QUOT; 
+         yyval.yyInteger := KW_QUOT; 
 			End;
 280 :		Begin
          // source: delphi.y line#785
-         _CurrentValue.yyInteger := KW_MOD; 
+         yyval.yyInteger := KW_MOD; 
 			End;
 281 :		Begin
          // source: delphi.y line#786
-         _CurrentValue.yyInteger := KW_SHR; 
+         yyval.yyInteger := KW_SHR; 
 			End;
 282 :		Begin
          // source: delphi.y line#787
-         _CurrentValue.yyInteger := KW_SHL; 
+         yyval.yyInteger := KW_SHL; 
 			End;
 283 :		Begin
          // source: delphi.y line#788
-         _CurrentValue.yyInteger := KW_AND; 
+         yyval.yyInteger := KW_AND; 
 			End;
 284 :		Begin
          // source: delphi.y line#791
-         _CurrentValue.yyInteger := KW_SUB; 
+         yyval.yyInteger := KW_SUB; 
 			End;
 285 :		Begin
          // source: delphi.y line#792
-         _CurrentValue.yyInteger := KW_SUM; 
+         yyval.yyInteger := KW_SUM; 
 			End;
 286 :		Begin
          // source: delphi.y line#793
-         _CurrentValue.yyInteger := KW_OR; 
+         yyval.yyInteger := KW_OR; 
 			End;
 287 :		Begin
          // source: delphi.y line#794
-         _CurrentValue.yyInteger := KW_XOR; 
+         yyval.yyInteger := KW_XOR; 
 			End;
 288 :		Begin
          // source: delphi.y line#797
-         _CurrentValue.yyInteger := KW_EQ; 
+         yyval.yyInteger := KW_EQ; 
 			End;
 289 :		Begin
          // source: delphi.y line#798
-         _CurrentValue.yyInteger := KW_NE; 
+         yyval.yyInteger := KW_NE; 
 			End;
 290 :		Begin
          // source: delphi.y line#799
-         _CurrentValue.yyInteger := KW_LT; 
+         yyval.yyInteger := KW_LT; 
 			End;
 291 :		Begin
          // source: delphi.y line#800
-         _CurrentValue.yyInteger := KW_LE; 
+         yyval.yyInteger := KW_LE; 
 			End;
 292 :		Begin
          // source: delphi.y line#801
-         _CurrentValue.yyInteger := KW_GT; 
+         yyval.yyInteger := KW_GT; 
 			End;
 293 :		Begin
          // source: delphi.y line#802
-         _CurrentValue.yyInteger := KW_GE; 
+         yyval.yyInteger := KW_GE; 
 			End;
 294 :		Begin
          // source: delphi.y line#806
-         _CurrentValue.yyExpressionListNode := ExpressionListNode.Create(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionListNode := ExpressionListNode.Create(yyv[yysp-0].yyExpressionNode); 
 			End;
 295 :		Begin
          // source: delphi.y line#807
-         _CurrentValue.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
 			End;
 296 :		Begin
          // source: delphi.y line#811
-         _CurrentValue.yyExpressionListNode := ExpressionListNode.Create(); 
+         yyval.yyExpressionListNode := ExpressionListNode.Create(); 
 			End;
 297 :		Begin
          // source: delphi.y line#812
-         _CurrentValue.yyExpressionListNode := yyv[yysp-0].yyExpressionListNode; 
+         yyval.yyExpressionListNode := yyv[yysp-0].yyExpressionListNode; 
 			End;
 298 :		Begin
          // source: delphi.y line#816
-         _CurrentValue.yyLiteralNode := yyv[yysp-0].yyLiteralNode; 
+         yyval.yyLiteralNode := yyv[yysp-0].yyLiteralNode; 
 			End;
 299 :		Begin
          // source: delphi.y line#817
-         _CurrentValue.yyLiteralNode := yyv[yysp-0].yyLiteralNode; 
+         yyval.yyLiteralNode := yyv[yysp-0].yyLiteralNode; 
 			End;
 300 :		Begin
          // source: delphi.y line#821
-         _CurrentValue.yyLiteralNode := IntLiteralNode.Create(yyv[yysp-0].yyCardinal);
+         yyval.yyLiteralNode := IntLiteralNode.Create(yyv[yysp-0].yyCardinal);
 			End;
 301 :		Begin
          // source: delphi.y line#822
-         _CurrentValue.yyLiteralNode := BoolLiteralNode.Create(yyv[yysp-0].yyBoolean);
+         yyval.yyLiteralNode := BoolLiteralNode.Create(yyv[yysp-0].yyBoolean);
 			End;
 302 :		Begin
          // source: delphi.y line#823
-         _CurrentValue.yyLiteralNode := RealLiteralNode.Create(yyv[yysp-0].yyDouble);
+         yyval.yyLiteralNode := RealLiteralNode.Create(yyv[yysp-0].yyDouble);
 			End;
 303 :		Begin
          // source: delphi.y line#824
-         _CurrentValue.yyLiteralNode := NullLiteralNode.Create();
+         yyval.yyLiteralNode := NullLiteralNode.Create();
 			End;
 304 :		Begin
          // source: delphi.y line#828
-         _CurrentValue.yyLiteralNode := IntLiteralNode.Create(yyv[yysp-0].yyCardinal);
+         yyval.yyLiteralNode := IntLiteralNode.Create(yyv[yysp-0].yyCardinal);
 			End;
 305 :		Begin
          // source: delphi.y line#829
-         _CurrentValue.yyLiteralNode := CharLiteralNode.Create(yyv[yysp-0].yyAnsiChar);
+         yyval.yyLiteralNode := CharLiteralNode.Create(yyv[yysp-0].yyAnsiChar);
 			End;
 306 :		Begin
          // source: delphi.y line#830
-         _CurrentValue.yyLiteralNode := BoolLiteralNode.Create(yyv[yysp-0].yyBoolean);
+         yyval.yyLiteralNode := BoolLiteralNode.Create(yyv[yysp-0].yyBoolean);
 			End;
 307 :		Begin
          // source: delphi.y line#834
-         If (Length(yyv[yysp-0].yyStringObject.Value)=1) Then _CurrentValue.yyLiteralNode := CharLiteralNode.Create(yyv[yysp-0].yyStringObject.Value[1]) Else _CurrentValue.yyLiteralNode := StringLiteralNode.Create(yyv[yysp-0].yyStringObject); 
+         If (Length(yyv[yysp-0].yyASTString)=1) Then yyval.yyLiteralNode := CharLiteralNode.Create(yyv[yysp-0].yyASTString[1]) Else yyval.yyLiteralNode := StringLiteralNode.Create(yyv[yysp-0].yyASTString); 
 			End;
 308 :		Begin
          // source: delphi.y line#838
-         _CurrentValue.yyStringLiteralNode := StringLiteralNode.Create(yyv[yysp-0].yyStringObject); 
+         yyval.yyStringLiteralNode := StringLiteralNode.Create(yyv[yysp-0].yyASTString); 
 			End;
 309 :		Begin
          // source: delphi.y line#842
-         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+         yyval.yyASTString := yyv[yysp-0].yyASTString; 
 			End;
 310 :		Begin
          // source: delphi.y line#843
-         _CurrentValue.yyStringObject := StringObject.Create(yyv[yysp-0].yyAnsiChar); 
+         yyval.yyASTString := yyv[yysp-0].yyAnsiChar; 
 			End;
 311 :		Begin
          // source: delphi.y line#844
-         _CurrentValue.yyStringObject := StringObject.Create(yyv[yysp-1].yyStringObject.Value + yyv[yysp-0].yyStringObject.Value); 
+         yyval.yyASTString := yyv[yysp-1].yyASTString + yyv[yysp-0].yyASTString; 
 			End;
 312 :		Begin
          // source: delphi.y line#845
-         _CurrentValue.yyStringObject := StringObject.Create(yyv[yysp-1].yyStringObject.Value + yyv[yysp-0].yyAnsiChar); 
+         yyval.yyASTString := yyv[yysp-1].yyASTString + yyv[yysp-0].yyAnsiChar; 
 			End;
 313 :		Begin
          // source: delphi.y line#849
-         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; if (Length(yyv[yysp-0].yyStringObject.Value) = 1) Then yyerror('Expected string, found char'); 
+         yyval.yyASTString := yyv[yysp-0].yyASTString; if (Length(yyv[yysp-0].yyASTString) = 1) Then yyerror('Expected string, found char'); 
 			End;
 314 :		Begin
          // source: delphi.y line#853
-         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; If (Length(yyv[yysp-0].yyStringObject.Value) <= 0) Then yyerror('Invalid empty string'); 
+         yyval.yyASTString := yyv[yysp-0].yyASTString; If (Length(yyv[yysp-0].yyASTString) <= 0) Then yyerror('Invalid empty string'); 
 			End;
 315 :		Begin
          // source: delphi.y line#857
-         _CurrentValue.yyIdentifierListNode := IdentifierListNode.Create(IdentifierNode.Create(yyv[yysp-0].yyStringObject)); 
+         yyval.yyIdentifierListNode := IdentifierListNode.Create(IdentifierNode.Create(yyv[yysp-0].yyASTString)); 
 			End;
 316 :		Begin
          // source: delphi.y line#858
-         _CurrentValue.yyIdentifierListNode := yyv[yysp-2].yyIdentifierListNode; yyv[yysp-2].yyIdentifierListNode.Add(IdentifierNode.Create(yyv[yysp-0].yyStringObject)); 
+         yyval.yyIdentifierListNode := yyv[yysp-2].yyIdentifierListNode; yyv[yysp-2].yyIdentifierListNode.Add(IdentifierNode.Create(yyv[yysp-0].yyASTString)); 
 			End;
 317 :		Begin
          // source: delphi.y line#861
-         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+         yyval.yyASTString := yyv[yysp-0].yyASTString; 
 			End;
 318 :		Begin
          // source: delphi.y line#865
-         _CurrentValue.yyCardinal := 0; 
+         yyval.yyCardinal := 0; 
 			End;
 319 :		Begin
          // source: delphi.y line#868
-         _CurrentValue.yyCardinal := yyv[yysp-0].yyInt64; 
+         yyval.yyCardinal := yyv[yysp-0].yyInt64; 
 			End;
 320 :		Begin
          // source: delphi.y line#871
-         _CurrentValue.yyAnsiChar := yyv[yysp-0].yyAnsiChar;
+         yyval.yyAnsiChar := yyv[yysp-0].yyAnsiChar;
 			End;
 321 :		Begin
          // source: delphi.y line#874
-         _CurrentValue.yyDouble := yyv[yysp-0].yyDouble;
+         yyval.yyDouble := yyv[yysp-0].yyDouble;
 			End;
 322 :		Begin
          // source: delphi.y line#877
-         _CurrentValue.yyBoolean := yyv[yysp-0].yyBoolean;
+         yyval.yyBoolean := yyv[yysp-0].yyBoolean;
 			End;
 323 :		Begin
          // source: delphi.y line#880
-         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+         yyval.yyASTString := yyv[yysp-0].yyASTString; 
 			End;
 324 :		Begin
          // source: delphi.y line#886
-         _CurrentValue.yyTypeNode := RangeTypeNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyExpressionNode); yyv[yysp-2].yyExpressionNode.EnforceConst := True; yyv[yysp-0].yyExpressionNode.EnforceConst := True; 
+         yyval.yyTypeNode := RangeTypeNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyExpressionNode); yyv[yysp-2].yyExpressionNode.EnforceConst := True; yyv[yysp-0].yyExpressionNode.EnforceConst := True; 
 			End;
 325 :		Begin
          // source: delphi.y line#890
-         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyLiteralNode; 
+         yyval.yyExpressionNode := yyv[yysp-0].yyLiteralNode; 
 			End;
 326 :		Begin
          // source: delphi.y line#891
-         _CurrentValue.yyExpressionNode := UnaryPlusNode.Create(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionNode := UnaryPlusNode.Create(yyv[yysp-0].yyExpressionNode); 
 			End;
 327 :		Begin
          // source: delphi.y line#892
-         _CurrentValue.yyExpressionNode := UnaryMinusNode.Create(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionNode := UnaryMinusNode.Create(yyv[yysp-0].yyExpressionNode); 
 			End;
 328 :		Begin
          // source: delphi.y line#896
-         _CurrentValue.yyTypeNode := EnumTypeNode.Create(yyv[yysp-1].yyEnumValueListNode); 
+         yyval.yyTypeNode := EnumTypeNode.Create(yyv[yysp-1].yyEnumValueListNode); 
 			End;
 329 :		Begin
          // source: delphi.y line#900
-         _CurrentValue.yyEnumValueListNode := EnumValueListNode.Create(yyv[yysp-0].yyEnumValueNode); 
+         yyval.yyEnumValueListNode := EnumValueListNode.Create(yyv[yysp-0].yyEnumValueNode); 
 			End;
 330 :		Begin
          // source: delphi.y line#901
-         _CurrentValue.yyEnumValueListNode := yyv[yysp-2].yyEnumValueListNode; yyv[yysp-2].yyEnumValueListNode.Add(yyv[yysp-0].yyEnumValueNode); 
+         yyval.yyEnumValueListNode := yyv[yysp-2].yyEnumValueListNode; yyv[yysp-2].yyEnumValueListNode.Add(yyv[yysp-0].yyEnumValueNode); 
 			End;
 331 :		Begin
          // source: delphi.y line#905
-         _CurrentValue.yyEnumValueNode := EnumValueNode.Create(yyv[yysp-0].yyStringObject); 
+         yyval.yyEnumValueNode := EnumValueNode.Create(yyv[yysp-0].yyASTString); 
 			End;
 332 :		Begin
          // source: delphi.y line#906
-         _CurrentValue.yyEnumValueNode := EnumValueNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyExpressionNode); 
+         yyval.yyEnumValueNode := EnumValueNode.Create(yyv[yysp-2].yyASTString, yyv[yysp-0].yyExpressionNode); 
 			End;
 333 :		Begin
          // source: delphi.y line#910
-         _CurrentValue.yyExpressionNode := SetExpressionNode.Create();
+         yyval.yyExpressionNode := SetExpressionNode.Create();
 			End;
 334 :		Begin
          // source: delphi.y line#911
-         _CurrentValue.yyExpressionNode := SetExpressionNode.Create(yyv[yysp-1].yyExpressionListNode); 
+         yyval.yyExpressionNode := SetExpressionNode.Create(yyv[yysp-1].yyExpressionListNode); 
 			End;
 335 :		Begin
          // source: delphi.y line#915
-         _CurrentValue.yyExpressionListNode := ExpressionListNode.Create(); _CurrentValue.yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionListNode := ExpressionListNode.Create(); yyval.yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
 			End;
 336 :		Begin
          // source: delphi.y line#916
-         _CurrentValue.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
 			End;
 337 :		Begin
          // source: delphi.y line#920
-         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
+         yyval.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
 			End;
 338 :		Begin
          // source: delphi.y line#921
-         _CurrentValue.yyExpressionNode := SetRangeNode.Create(RangeTypeNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyExpressionNode)); 
+         yyval.yyExpressionNode := SetRangeNode.Create(RangeTypeNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyExpressionNode)); 
 			End;
 339 :		Begin
          // source: delphi.y line#926
-         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); _CurrentValue.yyDeclarationListNode.Add(yyv[yysp-0].yyConstDeclarationNode); 
+         yyval.yyDeclarationListNode := DeclarationListNode.Create(); yyval.yyDeclarationListNode.Add(yyv[yysp-0].yyConstDeclarationNode); 
 			End;
 340 :		Begin
          // source: delphi.y line#927
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyConstDeclarationNode); 
+         yyval.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyConstDeclarationNode); 
 			End;
 341 :		Begin
          // source: delphi.y line#931
-         _CurrentValue.yyConstDeclarationNode := ConstDeclarationNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyExpressionNode); 
+         yyval.yyConstDeclarationNode := ConstDeclarationNode.Create(yyv[yysp-3].yyASTString, yyv[yysp-1].yyExpressionNode); 
 			End;
 342 :		Begin
          // source: delphi.y line#932
-         _CurrentValue.yyConstDeclarationNode := ConstDeclarationNode.Create(yyv[yysp-5].yyStringObject, yyv[yysp-1].yyExpressionNode, yyv[yysp-3].yyTypeNode); 
+         yyval.yyConstDeclarationNode := ConstDeclarationNode.Create(yyv[yysp-5].yyASTString, yyv[yysp-1].yyExpressionNode, yyv[yysp-3].yyTypeNode); 
 			End;
 343 :		Begin
          // source: delphi.y line#934
-         _CurrentValue.yyConstDeclarationNode := ConstDeclarationNode.Create(yyv[yysp-5].yyStringObject, yyv[yysp-1].yyConstExpressionNode, yyv[yysp-3].yyProceduralTypeNode); yyv[yysp-3].yyProceduralTypeNode.Directives := yyv[yysp-2].yyFunctionDirectiveListNode; 
+         yyval.yyConstDeclarationNode := ConstDeclarationNode.Create(yyv[yysp-5].yyASTString, yyv[yysp-1].yyConstExpressionNode, yyv[yysp-3].yyProceduralTypeNode); yyv[yysp-3].yyProceduralTypeNode.Directives := yyv[yysp-2].yyFunctionDirectiveListNode; 
 			End;
 344 :		Begin
          // source: delphi.y line#938
-         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
+         yyval.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
 			End;
 345 :		Begin
          // source: delphi.y line#939
-         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyConstExpressionNode; 
+         yyval.yyExpressionNode := yyv[yysp-0].yyConstExpressionNode; 
 			End;
 346 :		Begin
          // source: delphi.y line#940
-         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyConstExpressionNode; 
+         yyval.yyExpressionNode := yyv[yysp-0].yyConstExpressionNode; 
 			End;
 347 :		Begin
          // source: delphi.y line#944
-         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyExpressionNode; yyv[yysp-0].yyExpressionNode.EnforceConst := true; 
+         yyval.yyExpressionNode := yyv[yysp-0].yyExpressionNode; yyv[yysp-0].yyExpressionNode.EnforceConst := true; 
 			End;
 348 :		Begin
          // source: delphi.y line#948
-         _CurrentValue.yyExpressionListNode := ExpressionListNode.Create(); _CurrentValue.yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionListNode := ExpressionListNode.Create(); yyval.yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
 			End;
 349 :		Begin
          // source: delphi.y line#949
-         _CurrentValue.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
 			End;
 350 :		Begin
          // source: delphi.y line#953
-         _CurrentValue.yyConstExpressionNode := ArrayConstNode.Create(yyv[yysp-1].yyExpressionListNode); yyv[yysp-1].yyExpressionListNode.InsertAt(0, yyv[yysp-3].yyExpressionNode); 
+         yyval.yyConstExpressionNode := ArrayConstNode.Create(yyv[yysp-1].yyExpressionListNode); yyv[yysp-1].yyExpressionListNode.InsertAt(0, yyv[yysp-3].yyExpressionNode); 
 			End;
 351 :		Begin
          // source: delphi.y line#957
-         _CurrentValue.yyExpressionListNode := ExpressionListNode.Create(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionListNode := ExpressionListNode.Create(yyv[yysp-0].yyExpressionNode); 
 			End;
 352 :		Begin
          // source: delphi.y line#958
-         _CurrentValue.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
+         yyval.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
 			End;
 353 :		Begin
          // source: delphi.y line#962
-         _CurrentValue.yyConstExpressionNode := RecordConstNode.Create(yyv[yysp-2].yyFieldInitListNode); 
+         yyval.yyConstExpressionNode := RecordConstNode.Create(yyv[yysp-2].yyFieldInitListNode); 
 			End;
 354 :		Begin
          // source: delphi.y line#966
-         _CurrentValue.yyFieldInitListNode := FieldInitListNode.Create(); _CurrentValue.yyFieldInitListNode.Add(yyv[yysp-0].yyFieldInitNode);
+         yyval.yyFieldInitListNode := FieldInitListNode.Create(); yyval.yyFieldInitListNode.Add(yyv[yysp-0].yyFieldInitNode);
 			End;
 355 :		Begin
          // source: delphi.y line#967
-         _CurrentValue.yyFieldInitListNode := yyv[yysp-2].yyFieldInitListNode; yyv[yysp-2].yyFieldInitListNode.Add(yyv[yysp-0].yyFieldInitNode); 
+         yyval.yyFieldInitListNode := yyv[yysp-2].yyFieldInitListNode; yyv[yysp-2].yyFieldInitListNode.Add(yyv[yysp-0].yyFieldInitNode); 
 			End;
 356 :		Begin
          // source: delphi.y line#971
-         _CurrentValue.yyFieldInitNode := FieldInitNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyExpressionNode); 
+         yyval.yyFieldInitNode := FieldInitNode.Create(yyv[yysp-2].yyASTString, yyv[yysp-0].yyExpressionNode); 
 			End;
 357 :		Begin
          // source: delphi.y line#975
-         _CurrentValue.yyStructuredTypeNode := RecordTypeNode.Create(DeclarationListNode.Create()); 
+         yyval.yyStructuredTypeNode := RecordTypeNode.Create(DeclarationListNode.Create()); 
 			End;
 358 :		Begin
          // source: delphi.y line#976
-         _CurrentValue.yyStructuredTypeNode := RecordTypeNode.Create(yyv[yysp-2].yyDeclarationListNode); 
+         yyval.yyStructuredTypeNode := RecordTypeNode.Create(yyv[yysp-2].yyDeclarationListNode); 
 			End;
 359 :		Begin
          // source: delphi.y line#977
-         _CurrentValue.yyStructuredTypeNode := RecordTypeNode.Create(yyv[yysp-4].yyDeclarationListNode); 
+         yyval.yyStructuredTypeNode := RecordTypeNode.Create(yyv[yysp-4].yyDeclarationListNode); 
 			End;
 360 :		Begin
          // source: delphi.y line#978
-         _CurrentValue.yyStructuredTypeNode := RecordTypeNode.Create(yyv[yysp-2].yyDeclarationListNode); 
+         yyval.yyStructuredTypeNode := RecordTypeNode.Create(yyv[yysp-2].yyDeclarationListNode); 
 			End;
 361 :		Begin
          // source: delphi.y line#982
-         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(VariantDeclarationNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyTypeNode, yyv[yysp-0].yyDeclarationListNode)); 
+         yyval.yyDeclarationListNode := DeclarationListNode.Create(VariantDeclarationNode.Create(yyv[yysp-4].yyASTString, yyv[yysp-2].yyTypeNode, yyv[yysp-0].yyDeclarationListNode)); 
 			End;
 362 :		Begin
          // source: delphi.y line#983
-         _CurrentValue.yyDeclarationListNode :=  DeclarationListNode.Create(VariantDeclarationNode.Create(Nil, yyv[yysp-2].yyTypeNode, yyv[yysp-0].yyDeclarationListNode)); 
+         yyval.yyDeclarationListNode :=  DeclarationListNode.Create(VariantDeclarationNode.Create('', yyv[yysp-2].yyTypeNode, yyv[yysp-0].yyDeclarationListNode)); 
 			End;
 363 :		Begin
          // source: delphi.y line#987
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
 			End;
 364 :		Begin
          // source: delphi.y line#988
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
+         yyval.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
 			End;
 365 :		Begin
          // source: delphi.y line#989
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.InsertAt(0, yyv[yysp-2].yyDeclarationListNode); 
+         yyval.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.InsertAt(0, yyv[yysp-2].yyDeclarationListNode); 
 			End;
 366 :		Begin
          // source: delphi.y line#993
-         _CurrentValue.yyDeclarationListNode := CreateRecordUnionField(yyv[yysp-5].yyExpressionListNode, yyv[yysp-2].yyDeclarationListNode); 
+         yyval.yyDeclarationListNode := CreateRecordUnionField(yyv[yysp-5].yyExpressionListNode, yyv[yysp-2].yyDeclarationListNode); 
 			End;
 367 :		Begin
          // source: delphi.y line#997
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
 			End;
 368 :		Begin
          // source: delphi.y line#998
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
+         yyval.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
 			End;
 369 :		Begin
          // source: delphi.y line#1002
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
 			End;
 370 :		Begin
          // source: delphi.y line#1003
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
 			End;
 371 :		Begin
          // source: delphi.y line#1007
-         _CurrentValue.yyClassTypeNode := ClassTypeNode.Create(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-1].yyObjectSectionNode); 
+         yyval.yyClassTypeNode := ClassTypeNode.Create(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-1].yyObjectSectionNode); 
 			End;
 372 :		Begin
          // source: delphi.y line#1008
-         _CurrentValue.yyClassTypeNode := ClassTypeNode.Create(yyv[yysp-0].yyIdentifierListNode); 
+         yyval.yyClassTypeNode := ClassTypeNode.Create(yyv[yysp-0].yyIdentifierListNode); 
 			End;
 373 :		Begin
          // source: delphi.y line#1012
-         _CurrentValue.yyIdentifierListNode := Nil; 
+         yyval.yyIdentifierListNode := Nil; 
 			End;
 374 :		Begin
          // source: delphi.y line#1013
-         _CurrentValue.yyIdentifierListNode := yyv[yysp-1].yyIdentifierListNode; 
+         yyval.yyIdentifierListNode := yyv[yysp-1].yyIdentifierListNode; 
 			End;
 375 :		Begin
          // source: delphi.y line#1017
-         _CurrentValue.yyObjectSectionNode := yyv[yysp-1].yyObjectSectionNode; yyv[yysp-1].yyObjectSectionNode.Add(yyv[yysp-0].yyObjectSectionNode); 
+         yyval.yyObjectSectionNode := yyv[yysp-1].yyObjectSectionNode; yyv[yysp-1].yyObjectSectionNode.Add(yyv[yysp-0].yyObjectSectionNode); 
 			End;
 376 :		Begin
          // source: delphi.y line#1021
-         _CurrentValue.yyObjectSectionNode := ObjectSectionNode.Create(yyv[yysp-1].yyDeclarationListNode, yyv[yysp-0].yyDeclarationListNode); 
+         yyval.yyObjectSectionNode := ObjectSectionNode.Create(yyv[yysp-1].yyDeclarationListNode, yyv[yysp-0].yyDeclarationListNode); 
 			End;
 377 :		Begin
          // source: delphi.y line#1022
-         _CurrentValue.yyObjectSectionNode := ObjectSectionNode.Create(Nil, yyv[yysp-0].yyDeclarationListNode); 
+         yyval.yyObjectSectionNode := ObjectSectionNode.Create(Nil, yyv[yysp-0].yyDeclarationListNode); 
 			End;
 378 :		Begin
          // source: delphi.y line#1026
-         _CurrentValue.yyObjectSectionNode := ObjectSectionNode.Create(); 
+         yyval.yyObjectSectionNode := ObjectSectionNode.Create(); 
 			End;
 379 :		Begin
          // source: delphi.y line#1027
-         _CurrentValue.yyObjectSectionNode := yyv[yysp-2].yyObjectSectionNode; yyv[yysp-2].yyObjectSectionNode.AddDecls(yyv[yysp-0].yyDeclarationListNode, yyv[yysp-1].yyScopeEnum); 
+         yyval.yyObjectSectionNode := yyv[yysp-2].yyObjectSectionNode; yyv[yysp-2].yyObjectSectionNode.AddDecls(yyv[yysp-0].yyDeclarationListNode, yyv[yysp-1].yyScopeEnum); 
 			End;
 380 :		Begin
          // source: delphi.y line#1029
-         _CurrentValue.yyObjectSectionNode := yyv[yysp-3].yyObjectSectionNode; yyv[yysp-3].yyObjectSectionNode.AddDecls(yyv[yysp-0].yyDeclarationListNode, yyv[yysp-2].yyScopeEnum); yyv[yysp-3].yyObjectSectionNode.AddFields(yyv[yysp-1].yyDeclarationListNode, yyv[yysp-2].yyScopeEnum); 
+         yyval.yyObjectSectionNode := yyv[yysp-3].yyObjectSectionNode; yyv[yysp-3].yyObjectSectionNode.AddDecls(yyv[yysp-0].yyDeclarationListNode, yyv[yysp-2].yyScopeEnum); yyv[yysp-3].yyObjectSectionNode.AddFields(yyv[yysp-1].yyDeclarationListNode, yyv[yysp-2].yyScopeEnum); 
 			End;
 381 :		Begin
          // source: delphi.y line#1033
-         _CurrentValue.yyScopeEnum := Scope_Published; 
+         yyval.yyScopeEnum := Scope_Published; 
 			End;
 382 :		Begin
          // source: delphi.y line#1034
-         _CurrentValue.yyScopeEnum := Scope_Public; 
+         yyval.yyScopeEnum := Scope_Public; 
 			End;
 383 :		Begin
          // source: delphi.y line#1035
-         _CurrentValue.yyScopeEnum := Scope_Protected; 
+         yyval.yyScopeEnum := Scope_Protected; 
 			End;
 384 :		Begin
          // source: delphi.y line#1036
-         _CurrentValue.yyScopeEnum := Scope_Private; 
+         yyval.yyScopeEnum := Scope_Private; 
 			End;
 385 :		Begin
          // source: delphi.y line#1040
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
+         yyval.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
 			End;
 386 :		Begin
          // source: delphi.y line#1041
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; MakeFieldDeclarationsStatic(yyv[yysp-1].yyDeclarationListNode); 
+         yyval.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; MakeFieldDeclarationsStatic(yyv[yysp-1].yyDeclarationListNode); 
 			End;
 387 :		Begin
          // source: delphi.y line#1045
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
 			End;
 388 :		Begin
          // source: delphi.y line#1046
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
+         yyval.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
 			End;
 389 :		Begin
          // source: delphi.y line#1050
-         _CurrentValue.yyDeclarationListNode := CreateFieldDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyTypeNode); 
+         yyval.yyDeclarationListNode := CreateFieldDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyTypeNode); 
 			End;
 390 :		Begin
          // source: delphi.y line#1051
-         _CurrentValue.yyDeclarationListNode := CreateFieldDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyProceduralTypeNode); 
+         yyval.yyDeclarationListNode := CreateFieldDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyProceduralTypeNode); 
 			End;
 391 :		Begin
          // source: delphi.y line#1053
-         _CurrentValue.yyDeclarationListNode := CreateFieldDecls(yyv[yysp-4].yyIdentifierListNode, yyv[yysp-2].yyProceduralTypeNode); yyv[yysp-2].yyProceduralTypeNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
+         yyval.yyDeclarationListNode := CreateFieldDecls(yyv[yysp-4].yyIdentifierListNode, yyv[yysp-2].yyProceduralTypeNode); yyv[yysp-2].yyProceduralTypeNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
 			End;
 392 :		Begin
          // source: delphi.y line#1057
-         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); 
+         yyval.yyDeclarationListNode := DeclarationListNode.Create(); 
 			End;
 393 :		Begin
          // source: delphi.y line#1058
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+         yyval.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
 			End;
 394 :		Begin
          // source: delphi.y line#1062
-         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); _CurrentValue.yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationNode); 
+         yyval.yyDeclarationListNode := DeclarationListNode.Create(); yyval.yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationNode); 
 			End;
 395 :		Begin
          // source: delphi.y line#1063
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationNode); 
+         yyval.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationNode); 
 			End;
 396 :		Begin
          // source: delphi.y line#1067
-         _CurrentValue.yyDeclarationNode := yyv[yysp-0].yyMethodDeclarationNode; yyv[yysp-0].yyMethodDeclarationNode.isStatic := yyv[yysp-1].yyBoolean; 
+         yyval.yyDeclarationNode := yyv[yysp-0].yyMethodDeclarationNode; yyv[yysp-0].yyMethodDeclarationNode.isStatic := yyv[yysp-1].yyBoolean; 
 			End;
 397 :		Begin
          // source: delphi.y line#1068
-         _CurrentValue.yyDeclarationNode := yyv[yysp-0].yyDeclarationNode; 
+         yyval.yyDeclarationNode := yyv[yysp-0].yyDeclarationNode; 
 			End;
 398 :		Begin
          // source: delphi.y line#1072
-         _CurrentValue.yyBoolean := False; 
+         yyval.yyBoolean := False; 
 			End;
 399 :		Begin
          // source: delphi.y line#1073
-         _CurrentValue.yyBoolean := True ; 
+         yyval.yyBoolean := True ; 
 			End;
 400 :		Begin
          // source: delphi.y line#1077
-         _CurrentValue.yyInterfaceTypeNode := InterfaceTypeNode.Create(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyObjectSectionNode, yyv[yysp-1].yyStringLiteralNode); 
+         yyval.yyInterfaceTypeNode := InterfaceTypeNode.Create(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyObjectSectionNode, yyv[yysp-1].yyStringLiteralNode); 
 			End;
 401 :		Begin
          // source: delphi.y line#1078
-         _CurrentValue.yyInterfaceTypeNode := InterfaceTypeNode.Create(yyv[yysp-0].yyIdentifierListNode); 
+         yyval.yyInterfaceTypeNode := InterfaceTypeNode.Create(yyv[yysp-0].yyIdentifierListNode); 
 			End;
 402 :		Begin
          // source: delphi.y line#1082
-         _CurrentValue.yyObjectSectionNode := ObjectSectionNode.Create(Nil, yyv[yysp-1].yyDeclarationListNode, Scope_Public); 
+         yyval.yyObjectSectionNode := ObjectSectionNode.Create(Nil, yyv[yysp-1].yyDeclarationListNode, Scope_Public); 
 			End;
 403 :		Begin
          // source: delphi.y line#1086
-         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(yyv[yysp-0].yyDeclarationNode); 
+         yyval.yyDeclarationListNode := DeclarationListNode.Create(yyv[yysp-0].yyDeclarationNode); 
 			End;
 404 :		Begin
          // source: delphi.y line#1087
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationNode); 
+         yyval.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationNode); 
 			End;
 405 :		Begin
          // source: delphi.y line#1091
-         _CurrentValue.yyDeclarationNode := yyv[yysp-0].yyMethodDeclarationNode; 
+         yyval.yyDeclarationNode := yyv[yysp-0].yyMethodDeclarationNode; 
 			End;
 406 :		Begin
          // source: delphi.y line#1092
-         _CurrentValue.yyDeclarationNode := yyv[yysp-0].yyDeclarationNode; 
+         yyval.yyDeclarationNode := yyv[yysp-0].yyDeclarationNode; 
 			End;
 407 :		Begin
          // source: delphi.y line#1096
-         _CurrentValue.yyStringLiteralNode := Nil; 
+         yyval.yyStringLiteralNode := Nil; 
 			End;
 408 :		Begin
          // source: delphi.y line#1097
-         _CurrentValue.yyStringLiteralNode := yyv[yysp-1].yyStringLiteralNode; 
+         yyval.yyStringLiteralNode := yyv[yysp-1].yyStringLiteralNode; 
 			End;
 409 :		Begin
          // source: delphi.y line#1103
-         _CurrentValue.yyDeclarationNode := PropertyDeclarationNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyTypeNode, yyv[yysp-1].yyPropertySpecifiersNode); 
+         yyval.yyDeclarationNode := PropertyDeclarationNode.Create(yyv[yysp-4].yyASTString, yyv[yysp-2].yyTypeNode, yyv[yysp-1].yyPropertySpecifiersNode); 
 			End;
 410 :		Begin
          // source: delphi.y line#1105
-         _CurrentValue.yyDeclarationNode := ArrayPropertyNode.Create(yyv[yysp-6].yyStringObject, yyv[yysp-3].yyTypeNode, yyv[yysp-5].yyDeclarationListNode, yyv[yysp-2].yyPropertySpecifiersNode, yyv[yysp-0].yyBoolean); 
+         yyval.yyDeclarationNode := ArrayPropertyNode.Create(yyv[yysp-6].yyASTString, yyv[yysp-3].yyTypeNode, yyv[yysp-5].yyDeclarationListNode, yyv[yysp-2].yyPropertySpecifiersNode, yyv[yysp-0].yyBoolean); 
 			End;
 411 :		Begin
          // source: delphi.y line#1106
-         _CurrentValue.yyDeclarationNode := PropertyDeclarationNode.Create(yyv[yysp-2].yyStringObject, Nil, yyv[yysp-1].yyPropertySpecifiersNode); 
+         yyval.yyDeclarationNode := PropertyDeclarationNode.Create(yyv[yysp-2].yyASTString, Nil, yyv[yysp-1].yyPropertySpecifiersNode); 
 			End;
 412 :		Begin
          // source: delphi.y line#1110
-         _CurrentValue.yyBoolean := false;
+         yyval.yyBoolean := false;
 			End;
 413 :		Begin
          // source: delphi.y line#1111
-         _CurrentValue.yyBoolean := CheckDirectiveId('default', yyv[yysp-0].yyStringObject); 
+         yyval.yyBoolean := CheckDirectiveId('default', yyv[yysp-0].yyASTString); 
 			End;
 414 :		Begin
          // source: delphi.y line#1115
-         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
+         yyval.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
 			End;
 415 :		Begin
          // source: delphi.y line#1119
-         _CurrentValue.yyDeclarationListNode := CreateVarParamDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyTypeNode); 
+         yyval.yyDeclarationListNode := CreateVarParamDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyTypeNode); 
 			End;
 416 :		Begin
          // source: delphi.y line#1120
-         _CurrentValue.yyDeclarationListNode := CreateConstParamDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyTypeNode); 
+         yyval.yyDeclarationListNode := CreateConstParamDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyTypeNode); 
 			End;
 417 :		Begin
          // source: delphi.y line#1125
-         _CurrentValue.yyPropertySpecifiersNode := PropertySpecifiersNode.Create(yyv[yysp-4].yyIntLiteralNode, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyStringObject, yyv[yysp-1].yyConstExpressionNode, yyv[yysp-0].yyLiteralNode); 
+         yyval.yyPropertySpecifiersNode := PropertySpecifiersNode.Create(yyv[yysp-4].yyIntLiteralNode, yyv[yysp-3].yyASTString, yyv[yysp-2].yyASTString, yyv[yysp-1].yyConstExpressionNode, yyv[yysp-0].yyLiteralNode); 
 			End;
 418 :		Begin
          // source: delphi.y line#1129
-         _CurrentValue.yyPropertySpecifiersNode := PropertySpecifiersNode.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyStringObject); 
+         yyval.yyPropertySpecifiersNode := PropertySpecifiersNode.Create(yyv[yysp-1].yyASTString, yyv[yysp-0].yyASTString); 
 			End;
 419 :		Begin
          // source: delphi.y line#1133
-         _CurrentValue.yyPropertySpecifiersNode := PropertySpecifiersNode.Create(yyv[yysp-5].yyIntLiteralNode, yyv[yysp-4].yyStringObject, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyConstExpressionNode, yyv[yysp-1].yyLiteralNode, yyv[yysp-0].yyStringObject); 
+         yyval.yyPropertySpecifiersNode := PropertySpecifiersNode.Create(yyv[yysp-5].yyIntLiteralNode, yyv[yysp-4].yyASTString, yyv[yysp-3].yyASTString, yyv[yysp-2].yyConstExpressionNode, yyv[yysp-1].yyLiteralNode, yyv[yysp-0].yyASTString); 
 			End;
 420 :		Begin
          // source: delphi.y line#1137
-         _CurrentValue.yyIntLiteralNode := Nil; 
+         yyval.yyIntLiteralNode := Nil; 
 			End;
 421 :		Begin
          // source: delphi.y line#1138
-         _CurrentValue.yyIntLiteralNode := IntLiteralNode.Create(yyv[yysp-0].yyCardinal);  
+         yyval.yyIntLiteralNode := IntLiteralNode.Create(yyv[yysp-0].yyCardinal);  
 			End;
 422 :		Begin
          // source: delphi.y line#1142
-         _CurrentValue.yyStringObject := Nil; 
+         yyval.yyASTString := ''; 
 			End;
 423 :		Begin
          // source: delphi.y line#1143
-         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+         yyval.yyASTString := yyv[yysp-0].yyASTString; 
 			End;
 424 :		Begin
          // source: delphi.y line#1147
-         _CurrentValue.yyStringObject := Nil; 
+         yyval.yyASTString := ''; 
 			End;
 425 :		Begin
          // source: delphi.y line#1148
-         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+         yyval.yyASTString := yyv[yysp-0].yyASTString; 
 			End;
 426 :		Begin
          // source: delphi.y line#1152
-         _CurrentValue.yyConstExpressionNode := BoolLiteralNode.Create(true);  
+         yyval.yyConstExpressionNode := BoolLiteralNode.Create(true);  
 			End;
 427 :		Begin
          // source: delphi.y line#1153
-         _CurrentValue.yyConstExpressionNode := ConstIdentifierNode.Create(yyv[yysp-0].yyStringObject);  
+         yyval.yyConstExpressionNode := ConstIdentifierNode.Create(yyv[yysp-0].yyASTString);  
 			End;
 428 :		Begin
          // source: delphi.y line#1154
-         _CurrentValue.yyConstExpressionNode := BoolLiteralNode.Create(yyv[yysp-0].yyBoolean);  
+         yyval.yyConstExpressionNode := BoolLiteralNode.Create(yyv[yysp-0].yyBoolean);  
 			End;
 429 :		Begin
          // source: delphi.y line#1158
-         _CurrentValue.yyLiteralNode := IntLiteralNode.Create(MaxInt);  
+         yyval.yyLiteralNode := IntLiteralNode.Create(MaxInt);  
 			End;
 430 :		Begin
          // source: delphi.y line#1159
-         _CurrentValue.yyLiteralNode := IntLiteralNode.Create(MaxInt);  
+         yyval.yyLiteralNode := IntLiteralNode.Create(MaxInt);  
 			End;
 431 :		Begin
          // source: delphi.y line#1160
-         _CurrentValue.yyLiteralNode := ConstExpressionNode(yyv[yysp-0].yyExpressionNode).ResolveToLiteral(); 
+         yyval.yyLiteralNode := ConstExpressionNode(yyv[yysp-0].yyExpressionNode).ResolveToLiteral(); 
 			End;
 432 :		Begin
          // source: delphi.y line#1164
-         _CurrentValue.yyStringObject := Nil;  
+         yyval.yyASTString := '';  
 			End;
 433 :		Begin
          // source: delphi.y line#1165
-         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+         yyval.yyASTString := yyv[yysp-0].yyASTString; 
 			End;
 434 :		Begin
          // source: delphi.y line#1170
-         _CurrentValue.yyTypeDeclarationNode := TypeDeclarationNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-1].yyTypeNode); 
+         yyval.yyTypeDeclarationNode := TypeDeclarationNode.Create(yyv[yysp-2].yyASTString, yyv[yysp-1].yyTypeNode); 
 			End;
 435 :		Begin
          // source: delphi.y line#1171
-         _CurrentValue.yyTypeDeclarationNode := TypeDeclarationNode.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyProceduralTypeNode); 
+         yyval.yyTypeDeclarationNode := TypeDeclarationNode.Create(yyv[yysp-1].yyASTString, yyv[yysp-0].yyProceduralTypeNode); 
 			End;
 436 :		Begin
          // source: delphi.y line#1172
-         _CurrentValue.yyTypeDeclarationNode := ClassDeclarationNode.Create(yyv[yysp-2].yyStringObject,yyv[yysp-1].yyClassTypeNode); yyv[yysp-1].yyClassTypeNode.Name := yyv[yysp-2].yyStringObject; 
+         yyval.yyTypeDeclarationNode := ClassDeclarationNode.Create(yyv[yysp-2].yyASTString,yyv[yysp-1].yyClassTypeNode); yyv[yysp-1].yyClassTypeNode.Name := yyv[yysp-2].yyASTString; 
 			End;
 437 :		Begin
          // source: delphi.y line#1173
-         _CurrentValue.yyTypeDeclarationNode := InterfaceDeclarationNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-1].yyInterfaceTypeNode); yyv[yysp-1].yyInterfaceTypeNode.Name := yyv[yysp-2].yyStringObject; 
+         yyval.yyTypeDeclarationNode := InterfaceDeclarationNode.Create(yyv[yysp-2].yyASTString, yyv[yysp-1].yyInterfaceTypeNode); yyv[yysp-1].yyInterfaceTypeNode.Name := yyv[yysp-2].yyASTString; 
 			End;
 438 :		Begin
          // source: delphi.y line#1177
-         _CurrentValue.yyStringObject := yyv[yysp-2].yyStringObject; _lastObjName := yyv[yysp-2].yyStringObject; 
+         yyval.yyASTString := yyv[yysp-2].yyASTString; _lastObjName := yyv[yysp-2].yyASTString; 
 			End;
 439 :		Begin
 			End;
 440 :		Begin
-         _CurrentValue := yyv[yysp-0];
+         yyval := yyv[yysp-0];
 			End;
 441 :		Begin
          // source: delphi.y line#1186
-         _CurrentValue.yyTypeNode := UnresolvedTypeNode.Create(yyv[yysp-0].yyStringObject); 
+         yyval.yyTypeNode := UnresolvedTypeNode.Create(yyv[yysp-0].yyASTString); 
 			End;
 442 :		Begin
          // source: delphi.y line#1187
-         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
 			End;
 443 :		Begin
          // source: delphi.y line#1188
-         _CurrentValue.yyTypeNode := PointerTypeNode.Create(yyv[yysp-0].yyTypeNode); 
+         yyval.yyTypeNode := PointerTypeNode.Create(yyv[yysp-0].yyTypeNode); 
 			End;
 444 :		Begin
          // source: delphi.y line#1189
-         _CurrentValue.yyTypeNode := MetaTypeNode.Create(PointerTypeNode); 
+         yyval.yyTypeNode := MetaTypeNode.Create('Pointer'); 
 			End;
 445 :		Begin
          // source: delphi.y line#1190
-         _CurrentValue.yyTypeNode := MetaclassTypeNode.Create(ClassRefTypeNode.Create(yyv[yysp-0].yyStringObject)); 
+         yyval.yyTypeNode := MetaclassTypeNode.Create(ClassRefTypeNode.Create(yyv[yysp-0].yyASTString)); 
 			End;
 446 :		Begin
          // source: delphi.y line#1191
-         _CurrentValue.yyTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
+         yyval.yyTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
 			End;
 447 :		Begin
          // source: delphi.y line#1192
-         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
 			End;
 448 :		Begin
          // source: delphi.y line#1193
-         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
 			End;
 449 :		Begin
          // source: delphi.y line#1197
-         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
 			End;
 450 :		Begin
          // source: delphi.y line#1198
-         _CurrentValue.yyTypeNode := UnresolvedOrdinalTypeNode.Create(yyv[yysp-0].yyStringObject); 
+         yyval.yyTypeNode := UnresolvedOrdinalTypeNode.Create(yyv[yysp-0].yyASTString); 
 			End;
 451 :		Begin
          // source: delphi.y line#1202
-         _CurrentValue.yyTypeNode := UnresolvedVariableTypeNode.Create(yyv[yysp-0].yyStringObject); 
+         yyval.yyTypeNode := UnresolvedVariableTypeNode.Create(yyv[yysp-0].yyASTString); 
 			End;
 452 :		Begin
          // source: delphi.y line#1203
-         _CurrentValue.yyTypeNode := ArrayTypeNode.Create(yyv[yysp-0].yyTypeNode); 
+         yyval.yyTypeNode := ArrayTypeNode.Create(yyv[yysp-0].yyTypeNode); 
 			End;
 453 :		Begin
          // source: delphi.y line#1204
-         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
 			End;
 454 :		Begin
          // source: delphi.y line#1205
-         _CurrentValue.yyTypeNode := MetaTypeNode.Create(PointerTypeNode); 
+         yyval.yyTypeNode := MetaTypeNode.Create('Pointer'); 
 			End;
 455 :		Begin
          // source: delphi.y line#1209
-         _CurrentValue.yyTypeNode := UnresolvedTypeNode.Create(yyv[yysp-0].yyStringObject); 
+         yyval.yyTypeNode := UnresolvedTypeNode.Create(yyv[yysp-0].yyASTString); 
 			End;
 456 :		Begin
          // source: delphi.y line#1210
-         _CurrentValue.yyTypeNode := MetaTypeNode.Create(PointerTypeNode); 
+         yyval.yyTypeNode := MetaTypeNode.Create('Pointer'); 
 			End;
 457 :		Begin
          // source: delphi.y line#1211
-         _CurrentValue.yyTypeNode := MetaTypeNode.Create(StringTypeNode); 
+         yyval.yyTypeNode := MetaTypeNode.Create('String'); 
 			End;
 458 :		Begin
          // source: delphi.y line#1215
-         _CurrentValue.yyClassTypeNode := yyv[yysp-0].yyClassTypeNode; 
+         yyval.yyClassTypeNode := yyv[yysp-0].yyClassTypeNode; 
 			End;
 459 :		Begin
          // source: delphi.y line#1216
-         _CurrentValue.yyClassTypeNode := yyv[yysp-0].yyClassTypeNode; yyv[yysp-0].yyClassTypeNode.IsPacked := true; 
+         yyval.yyClassTypeNode := yyv[yysp-0].yyClassTypeNode; yyv[yysp-0].yyClassTypeNode.IsPacked := true; 
 			End;
 460 :		Begin
          // source: delphi.y line#1220
-         _CurrentValue.yyInterfaceTypeNode := yyv[yysp-0].yyInterfaceTypeNode; 
+         yyval.yyInterfaceTypeNode := yyv[yysp-0].yyInterfaceTypeNode; 
 			End;
 461 :		Begin
          // source: delphi.y line#1221
-         _CurrentValue.yyInterfaceTypeNode := yyv[yysp-0].yyInterfaceTypeNode; yyv[yysp-0].yyInterfaceTypeNode.IsPacked := true; 
+         yyval.yyInterfaceTypeNode := yyv[yysp-0].yyInterfaceTypeNode; yyv[yysp-0].yyInterfaceTypeNode.IsPacked := true; 
 			End;
 462 :		Begin
          // source: delphi.y line#1225
-         _CurrentValue.yyTypeNode := MetaTypeNode.Create(StringTypeNode); 
+         yyval.yyTypeNode := MetaTypeNode.Create('String'); 
 			End;
 463 :		Begin
          // source: delphi.y line#1226
-         _CurrentValue.yyTypeNode := StringTypeNode.Create(yyv[yysp-1].yyExpressionNode); 
+         yyval.yyTypeNode := StringTypeNode.Create(yyv[yysp-1].yyExpressionNode); 
 			End;
 464 :		Begin
          // source: delphi.y line#1231
-         _CurrentValue.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
+         yyval.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
 			End;
 465 :		Begin
          // source: delphi.y line#1232
-         _CurrentValue.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; yyv[yysp-0].yyStructuredTypeNode.IsPacked := true; 
+         yyval.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; yyv[yysp-0].yyStructuredTypeNode.IsPacked := true; 
 			End;
 466 :		Begin
          // source: delphi.y line#1236
-         _CurrentValue.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
+         yyval.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
 			End;
 467 :		Begin
          // source: delphi.y line#1237
-         _CurrentValue.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
+         yyval.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
 			End;
 468 :		Begin
          // source: delphi.y line#1238
-         _CurrentValue.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
+         yyval.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
 			End;
 469 :		Begin
          // source: delphi.y line#1239
-         _CurrentValue.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
+         yyval.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
 			End;
 470 :		Begin
          // source: delphi.y line#1243
-         _CurrentValue.yyTypeListNode := TypeListNode.Create(); _CurrentValue.yyTypeListNode.Add(yyv[yysp-0].yyTypeNode); 
+         yyval.yyTypeListNode := TypeListNode.Create(); yyval.yyTypeListNode.Add(yyv[yysp-0].yyTypeNode); 
 			End;
 471 :		Begin
          // source: delphi.y line#1244
-         _CurrentValue.yyTypeListNode := yyv[yysp-2].yyTypeListNode; _CurrentValue.yyTypeListNode.Add(yyv[yysp-0].yyTypeNode); 
+         yyval.yyTypeListNode := yyv[yysp-2].yyTypeListNode; yyval.yyTypeListNode.Add(yyv[yysp-0].yyTypeNode); 
 			End;
 472 :		Begin
          // source: delphi.y line#1248
-         _CurrentValue.yyStructuredTypeNode := ArrayTypeNode.Create(yyv[yysp-0].yyTypeNode, yyv[yysp-3].yyTypeListNode); 
+         yyval.yyStructuredTypeNode := ArrayTypeNode.Create(yyv[yysp-0].yyTypeNode, yyv[yysp-3].yyTypeListNode); 
 			End;
 473 :		Begin
          // source: delphi.y line#1249
-         _CurrentValue.yyStructuredTypeNode := ArrayTypeNode.Create(yyv[yysp-0].yyTypeNode, UnresolvedIntegralTypeNode.Create(yyv[yysp-3].yyStringObject)); 
+         yyval.yyStructuredTypeNode := ArrayTypeNode.Create(yyv[yysp-0].yyTypeNode, UnresolvedIntegralTypeNode.Create(yyv[yysp-3].yyASTString)); 
 			End;
 474 :		Begin
          // source: delphi.y line#1250
-         _CurrentValue.yyStructuredTypeNode := ArrayTypeNode.Create(yyv[yysp-0].yyTypeNode); 
+         yyval.yyStructuredTypeNode := ArrayTypeNode.Create(yyv[yysp-0].yyTypeNode); 
 			End;
 475 :		Begin
          // source: delphi.y line#1254
-         _CurrentValue.yyStructuredTypeNode := SetTypeNode.Create(yyv[yysp-0].yyTypeNode);
+         yyval.yyStructuredTypeNode := SetTypeNode.Create(yyv[yysp-0].yyTypeNode);
 			End;
 476 :		Begin
          // source: delphi.y line#1258
-         _CurrentValue.yyStructuredTypeNode := FileTypeNode.Create(yyv[yysp-0].yyTypeNode); 
+         yyval.yyStructuredTypeNode := FileTypeNode.Create(yyv[yysp-0].yyTypeNode); 
 			End;
 477 :		Begin
          // source: delphi.y line#1259
-         _CurrentValue.yyStructuredTypeNode := FileTypeNode.Create(Nil); 
+         yyval.yyStructuredTypeNode := FileTypeNode.Create(Nil); 
 			End;
 478 :		Begin
          // source: delphi.y line#1263
-         _CurrentValue.yyTypeNode := UnresolvedVariableTypeNode.Create(yyv[yysp-0].yyStringObject); 
+         yyval.yyTypeNode := UnresolvedVariableTypeNode.Create(yyv[yysp-0].yyASTString); 
 			End;
 479 :		Begin
          // source: delphi.y line#1264
-         _CurrentValue.yyTypeNode := StringTypeNode.Create(yyv[yysp-1].yyExpressionNode); 
+         yyval.yyTypeNode := StringTypeNode.Create(yyv[yysp-1].yyExpressionNode); 
 			End;
 480 :		Begin
          // source: delphi.y line#1265
-         _CurrentValue.yyTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
+         yyval.yyTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
 			End;
 481 :		Begin
          // source: delphi.y line#1266
-         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
 			End;
 482 :		Begin
          // source: delphi.y line#1267
-         _CurrentValue.yyTypeNode := yyv[yysp-0].yyProceduralTypeNode; 
+         yyval.yyTypeNode := yyv[yysp-0].yyProceduralTypeNode; 
 			End;
 483 :		Begin
          // source: delphi.y line#1271
-         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+         yyval.yyASTString := yyv[yysp-0].yyASTString; 
 			End;
 484 :		Begin
          // source: delphi.y line#1272
-         _CurrentValue.yyStringObject := StringObject.Create(yyv[yysp-2].yyStringObject.Value + '.' + yyv[yysp-0].yyStringObject.Value); 
+         yyval.yyASTString := yyv[yysp-2].yyASTString + '.' + yyv[yysp-0].yyASTString; 
 			End;
   End;
 End(*yyaction*);
@@ -15144,42 +15144,37 @@ yytokens : array [256..yymaxtoken] of YYTokenRec = (
 
 const _error = 256; (* error token *)
 
-
-Function PascalParser.yyact(state, sym : Integer; var act : Integer) : Boolean;
-// search action table
-Var
-  K:Integer;
-Begin
-  k := yyal[state];
-  While (k<=yyah[state]) and (yya[k].sym<>sym) do inc(k);
-  If k>yyah[state] then
-      yyact := false
-  Else
-    Begin
-      act := yya[k].act;
-      yyact := true;
-    End;
-End;
-
-Function PascalParser.yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
-//  search goto table
-Var
-  k:Integer;
-Begin
-  k := yygl[state];
-  While (k<=yygh[state]) and (yyg[k].sym<>sym) Do
-    Inc(k);
-
-  If k>yygh[state] Then
-    Result := false
-  Else
+function PascalParser.yyact(state, sym : Integer; var act : Integer) : Boolean;
+  (* search action table *)
+  var k : Integer;
   Begin
-    nstate := yyg[k].act;
-    Result := true;
-  End;
-End;
+    k := yyal[state];
+    while (k<=yyah[state]) and (yya[k].sym<>sym) do inc(k);
+    if k>yyah[state] then
+      yyact := false
+    else
+      Begin
+        act := yya[k].act;
+        yyact := true;
+      End;
+  End(*yyact*);
 
-Function PascalParser.yycharsym(i : Integer) : String;
+function PascalParser.yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
+  (* search goto table *)
+  var k : Integer;
+  Begin
+    k := yygl[state];
+    while (k<=yygh[state]) and (yyg[k].sym<>sym) do inc(k);
+    if k>yygh[state] then
+      yygoto := false
+    else
+      Begin
+        nstate := yyg[k].act;
+        yygoto := true;
+      End;
+  End(*yygoto*);
+
+function PascalParser.yycharsym(i : Integer) : String;
 Begin
   if (i >= 1) and (i <= 255) then
     Begin
@@ -15224,16 +15219,15 @@ End;
 Function PascalParser.Parse():ASTNode;
 label parse, next, error, errlab, shift, reduce, accept, abort;
 
-Begin(*yyparse*)
+Begin
 
-  (* initialize: *)
+  //initialize
 
   yystate := 0; yychar := -1; yynerrs := 0; yyerrflag := 0; yysp := 0;
-  _Root := Nil;
 
 parse:
 
-  (* push state and value: *)
+  // push state and value: 
 
   inc(yysp);
   if yysp>yymaxdepth then
@@ -15245,13 +15239,9 @@ parse:
 
 next:
 
-    If (yyd[yystate]=0) and (yychar=-1) Then // get next symbol
+  If (yyd[yystate]=0) and (yychar=-1) Then // get next symbol
     Begin
-      If _CurrentValue = Nil Then
-        _CurrentValue := YYSType.Create();
-
-      yychar := lexer.parse(_CurrentValue); 
-    
+      yychar := lexer.parse(); 
       If yychar<0 Then 
         yychar := 0;
     End;
@@ -15319,7 +15309,7 @@ shift:
 
   (* go to new state, clear lookahead character: *)
 
-  yystate := yyn; yychar := -1; yyval := YYSType.Create();
+  yystate := yyn; yychar := -1; yyval := yylval;
   if yyerrflag>0 then dec(yyerrflag);
 
   goto parse;
@@ -15346,13 +15336,13 @@ reduce:
 
 accept:
 
-  Result := _Root; Exit;
+  Result := _Root; exit;
 
 abort:
 
   Result := Nil; exit;
 
-End(*yyparse*);
+End;
 
 End.
    

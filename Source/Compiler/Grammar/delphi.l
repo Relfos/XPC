@@ -154,7 +154,7 @@ on			Begin Return(KW_ON); End;
 				End;
 
 <XFUNCEXTERN>name 		Begin Return(KW_NAME); End;
-<XFUNCEXTERN>'[^']*'		Begin yylval.yyStringObject := StringObject.Create(Copy(yytext, 2, yylength()-2)); Return(CONST_STR); End;
+<XFUNCEXTERN>'[^']*'		Begin yylval.yyASTString := Copy(yytext, 2, yylength()-2); Return(CONST_STR); End;
 <XFUNCEXTERN>"."			Begin Return(KW_DOT); End;
 <XFUNCEXTERN>{ID}		Begin Return(ProcessIdentifier(yytext)); End;
 	
@@ -231,7 +231,7 @@ nil					Begin Return(CONST_NIL); End;
 \#[0-9]+			Begin yylval.yyAnsiChar := AnsiChar(StringToInt(Copy(yytext, 2, MaxInt))); Return(CONST_CHAR); End;
 \#[$][0-9a-f]*+			Begin yylval.yyAnsiChar := AnsiChar(HexStrToInt(Copy(yytext, 2, MaxInt))); Return(CONST_CHAR); End;
 					
-'[^']*'				Begin yylval.yyStringObject := StringObject.Create(Copy(yytext, 2, yylength-2)); Return(CONST_STR); End;
+'[^']*'				Begin yylval.yyASTString := Copy(yytext, 2, yylength-2); Return(CONST_STR); End;
 
 true				Begin yylval.yyBoolean := true;  Return(CONST_BOOL); End;
 false				Begin yylval.yyBoolean := false; Return(CONST_BOOL); End;

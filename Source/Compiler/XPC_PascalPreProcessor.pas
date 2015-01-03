@@ -61,47 +61,31 @@ Procedure PascalPreProcessor.yyaction(yyruleno : Integer );
 begin
   (* actions: *)
   case yyruleno of
-  1:
-      				Begin End;
-  2:
-  					Begin yypushstate(XCOMMENT1); End;
-  3:
-    				Begin yypushstate(XCOMMENT2); End;
+  1:				Begin End;
+  2:					Begin yypushstate(XCOMMENT1); End;
+  3:				Begin yypushstate(XCOMMENT2); End;
 
-  4:
-             		{ yypopstate(); End;
-  5:
-               		{ yypopstate(); End;
+  4:		{ yypopstate(); End;
+  5:		{ yypopstate(); End;
 
-  6:
-                    		Begin End;
-  7:
-                 			Begin End;
-  8:
-               				Begin CheckSourceNewline(); End;
-  9:
-            				Begin End;
-  10:
-      			Begin throw new PreprocessorException(yyline, "Unterminated comment"); End;}
+  6:		Begin End;
+  7:			Begin End;
+  8:				Begin CheckSourceNewline(); End;
+  9:				Begin End;
+  10:			Begin throw new PreprocessorException(yyline, "Unterminated comment"); End;}
 
 
-  11:
-                    		Begin End;
-  12:
-                 			Begin End;
-  13:
-               				Begin CheckSourceNewline(); End;
-  14:
-            				Begin End;
-  15:
-        			Begin throw new PreprocessorException(yyline, "Unterminated comment"); End;}
+  11:		Begin End;
+  12:			Begin End;
+  13:				Begin CheckSourceNewline(); End;
+  14:				Begin End;
+  15:			Begin throw new PreprocessorException(yyline, "Unterminated comment"); End;}
 
 	{ PreProcessor - process compiler directives }
 	
 	
 	{ includes }
-  16:
-             		Begin
+  16:		Begin
 						string ifile = GetDirectiveArg("i");
 						string inctext = FetchInclude(ifile);
 						
@@ -117,108 +101,83 @@ begin
 					End;
 
 	{ defines }
-  17:
-                  	Begin	AddDefine(GetDirectiveArg("define"));	End;
+  17:	Begin	AddDefine(GetDirectiveArg("define"));	End;
 
-  18:
-                 	Begin	RemoveDefine(GetDirectiveArg("undef"));	End;
+  18:	Begin	RemoveDefine(GetDirectiveArg("undef"));	End;
 
 	{ ifdefs }
-  19:
-                 	Begin	
+  19:	Begin	
                         if (!IsDefinedDir("ifdef")) Then
                             yypushstate(XNOTDEF);
 					End;
 
-  20:
-                 	Begin
+  20:	Begin
                         if (!IsDefinedDir("ifopt"))
 							yypushstate(XNOTDEF);
 					End;
 
-  21:
-                  	Begin
+  21:	Begin
                         Boolean defined = IsDefined(GetDirectiveArg("ifndef"));
 						defines.Push(!defined);
 						if (defined)
 							yypushstate(XNOTDEF);
 					End;
 
-  22:
-               		Begin
+  22:		Begin
                         // currently in a defined section, switch to non-defined
 						defines.Pop();
 						defines.Push(false);
 						yypushstate(XNOTDEF);
 					End;
 
-  23:
-                	Begin defines.Pop(); End;
+  23:	Begin defines.Pop(); End;
 
 
-  24:
-  Other compiler directives: ignored for now }
-  25:
-          			Begin End;
+  24: Other compiler directives: ignored for now }
+  25:			Begin End;
 
 	/* not-defined code section */
-  26:
-               				Begin End;
-  27:
-           					Begin yypushstate(XCOMMENT1); End;
-  28:
-             				Begin yypushstate(XCOMMENT2); End;
+  26:				Begin End;
+  27:					Begin yypushstate(XCOMMENT1); End;
+  28:				Begin yypushstate(XCOMMENT2); End;
  
 					/* push true to signal that these defines are within a non-defined section */
-  29:
-                          	Begin defines.Push(true); End;
+  29:	Begin defines.Push(true); End;
 
-  30:
-                          	Begin defines.Push(true); End;
+  30:	Begin defines.Push(true); End;
 
-  31:
-                           	Begin defines.Push(true); End;
+  31:	Begin defines.Push(true); End;
 
-  32:
-                        	Begin	if (defines.Peek() == false)	// at the non-def section start, must leave
+  32:	Begin	if (defines.Peek() == false)	// at the non-def section start, must leave
                                 Begin	yypopstate();
 							defines.Pop();
 							defines.Push(true);
                                 End; // else, leave the top def as true
 					End;
 
-  33:
-                         	Begin	Boolean def = defines.Pop(); 
+  33:	Begin	Boolean def = defines.Pop(); 
 						if (def == false)
 							yypopstate();
 					End;
  
-  34:
-                   			Begin { chomp up as much as possible in one match} End;
-  35:
-             				Begin CheckSourceNewline(); End;
-  36:
-          					Begin  { ignore everything in a non-def section } End;
+  34:			Begin { chomp up as much as possible in one match} End;
+  35:				Begin CheckSourceNewline(); End;
+  36:					Begin  { ignore everything in a non-def section } End;
 
 
-  37:
-          			Begin outBuilder.Append(zzBuffer, zzStartRead, zzMarkedPos-zzStartRead); End;
+  37:			Begin outBuilder.Append(zzBuffer, zzStartRead, zzMarkedPos-zzStartRead); End;
 
-  38:
-                  	Begin
+  38:	Begin
                         if (zzBuffer[zzMarkedPos-1] != '\'')	// if last char not quote
 							pperror("Unterminated string");
 						else
 							outBuilder.Append(zzBuffer, zzStartRead, zzMarkedPos-zzStartRead);
 					End;
 
-  39:
-        			Begin outBuilder.Append(yycharat(0)); End;
-  40:
-    				Begin CheckSourceNewline(); End;
+  39:			Begin outBuilder.Append(yycharat(0)); End;
+  40:				Begin CheckSourceNewline(); End;
 
-  41:
- 					Begin pperror("Unknown char: " + text + " (ASCII " + ((int) text[0]) +")"); End
+  41:					Begin pperror("Unknown char: " + text + " (ASCII " + ((int) text[0]) +")"); End
 
   end;
 end(*yyaction*);

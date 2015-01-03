@@ -1,32 +1,32 @@
-Program test1;
+program test1;
 
-Var
-  public : Real;
-  A,B:String;
-  A1,B1:String;
-  A2,B2:String;
-  A3,B3:String;
+var
+  public : real;
+  a,b:string;
+  a1,b1:string;
+  a2,b2:string;
+  a3,b3:string;
 
-Const
-  X = 'test';
-  X1 = 'test1';
-  X2 = 'test2';
-  X3 = 'test3';
+const
+  x = 'test';
+  x1 = 'test1';
+  x2 = 'test2';
+  x3 = 'test3';
 
-Function Str1():String;
-Begin
-  Result := X;
-End;
+function str1():string;
+begin
+  result := x;
+end;
 
-Var
-  C:String;
-  C1:String;
-  C2:String;
-  C3:String;
+var
+  c:string;
+  c1:string;
+  c2:string;
+  c3:string;
 
-Begin
-  A := 'A';
-  B := Str1();
-  C := A+B;
+begin
+  a := 'a';
+  b := str1();
+  c := a+b;
   x1 := 2.5;
-End.
+end.

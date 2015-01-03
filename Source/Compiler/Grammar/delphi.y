@@ -30,7 +30,7 @@
 %nonassoc LOWESTPREC 
 %right KW_THEN 
 %right KW_ELSE 
-%token <StringObject> PASCAL_IDENTIFIER CONST_STR
+%token <ASTString> PASCAL_IDENTIFIER CONST_STR
 %token <Int64> CONST_INT  CONST_NIL
 %token <Double> CONST_REAL 
 %token <AnsiChar> CONST_CHAR 
@@ -49,7 +49,7 @@
 %nonassoc MAXPREC
 
 
-%type <StringObject> id qualifid idtypeopt labelid stringconst stringorchar stringnonNil conststr expid programid
+%type <ASTString> id qualifid idtypeopt labelid stringconst stringorchar stringnonNil conststr expid programid
 %type <IdentifierListNode> labelidlst idlst varids heritage 
 
 %type <SourceNode> goal file program library unit package 
@@ -76,7 +76,7 @@
 %type <DeclarationListNode> formalparamslst formalparm
 %type <ParametersSectionNode> formalparams
 %type <ExternalDirectiveNode> externarg
-%type <StringObject> kwfunction kwprocedure
+%type <ASTString> kwfunction kwprocedure
 
 %type <BlockStatementNode> block funcblock assemblerstmt blockstmt
 %type <ExceptionBlockNode> exceptionblock
@@ -111,7 +111,7 @@
 %type <ScopeEnum> scope
 %type <Boolean> staticopt defaultdiropt
 %type <ObjectSectionNode> classbody interfbody class1stsec scopeseclst
-%type <StringObject> implopt readopt writeopt
+%type <ASTString> implopt readopt writeopt
 %type <IntLiteralNode> indexopt 
 %type <LiteralNode> defaultopt 
 %type <ConstExpressionNode> storeopt
@@ -151,7 +151,7 @@ program
     ;
     
 programid
-    :                                       { $$ := Nil; }
+    :                                       { $$ := ''; }
     | KW_PROGRAM id SCOL                    { $$ := $2;   }
     ; 
     
@@ -290,10 +290,10 @@ thrvarsec
     ;
 
 vardecl
-    : varids vartype SCOL                       { $$ := CreateDecls($1, $2, Nil, Nil); }
-    | varids vartype KW_EQ constinit SCOL       { $$ := CreateDecls($1, $2, $4, Nil); }
+    : varids vartype SCOL                       { $$ := CreateDecls($1, $2, Nil); }
+    | varids vartype KW_EQ constinit SCOL       { $$ := CreateDecls($1, $2, $4); }
     | varids vartype KW_ABSOLUTE id SCOL        { $$ := CreateDecls($1, $2, Nil, $4); }
-    | varids proceduraltype                     { $$ := CreateDecls($1, $2, Nil, Nil); }
+    | varids proceduraltype                     { $$ := CreateDecls($1, $2, Nil); }
     | varids proceduralsign SCOL funcdir_noterm_opt functypeinit SCOL    { RaiseError('TODO'); (*$$ := CreateDecls($1, $2, $5))); $2.Directives := $4;*) }
     ;
 
@@ -330,7 +330,7 @@ labelid
                                         Begin
                                             yyerror('Label number must be between 0 and 9999');
                                         End;
-                                        $$ := StringObject.Create(CardinalToString($1));
+                                        $$ := CardinalToString($1);
                                     }
     | id                            { $$ := $1; }
     ;
@@ -353,7 +353,7 @@ expitem
     
 expid
     : id                            { $$ := $1; }
-    | id KW_DOT id                  { $$ := StringObject.Create($1.Value + '.' + $3.Value); // possible mem leak}
+    | id KW_DOT id                  { $$ := $1 + '.' + $3; // possible mem leak}
     ;
 
 
@@ -699,7 +699,7 @@ onlst
 
 ondef
     : KW_ON id COLON id KW_DO nonlblstmt SCOL   { $$ := OnStatementNode.Create($2, $4, $6); }
-    | KW_ON          id KW_DO nonlblstmt SCOL   { $$ := OnStatementNode.Create(Nil, $2, $4); }
+    | KW_ON          id KW_DO nonlblstmt SCOL   { $$ := OnStatementNode.Create('', $2, $4); }
     ;
 
 tryfinallystmt
@@ -732,7 +732,7 @@ lvalstmt
     | lvalue LPAR exprlstopt RPAR       { $$ := UnresolvedCallNode.Create($1, $3); }
     | TYPE_PTR LPAR expr RPAR           { $$ := StaticCastNode.Create(PointerTypeNode, $3); }
     | lvalue KW_DOT id                  { $$ := ObjectAccessNode.Create($1, $3); }
-    | KW_INHERITED                      { $$ := InheritedCallNode.Create(Nil); }
+    | KW_INHERITED                      { $$ := InheritedCallNode.Create(); }
     | KW_INHERITED id callparams        { $$ := InheritedCallNode.Create($2, $3); }
     ;
     
@@ -758,7 +758,7 @@ unaryexpr
     | KW_NOT unaryexpr                  { $$ := LogicalNotNode.Create($2); }
     | KW_SUM unaryexpr                  { $$ := UnaryPlusNode.Create($2); }
     | KW_SUB unaryexpr                  { $$ := UnaryMinusNode.Create($2); }
-    | KW_INHERITED                      { $$ := InheritedCallNode.Create(Nil); }
+    | KW_INHERITED                      { $$ := InheritedCallNode.Create(); }
     | KW_INHERITED id callparams        { $$ := InheritedCallNode.Create($2, $3); }
     | stringnonNil LBRAC expr RBRAC    { $$ := ArrayAccessNode.Create(ArrayConstNode.Create($1), ExpressionListNode.Create($3)); }
     ;
@@ -831,7 +831,7 @@ discrete
     ;
 
 strorcharlit
-    : stringorchar  { If (Length($1.Value)=1) Then $$ := CharLiteralNode.Create($1.Value[1]) Else $$ := StringLiteralNode.Create($1); }
+    : stringorchar  { If (Length($1)=1) Then $$ := CharLiteralNode.Create($1[1]) Else $$ := StringLiteralNode.Create($1); }
     ;
 
 stringlit
@@ -840,17 +840,17 @@ stringlit
 
 stringorchar
     : conststr      { $$ := $1; }
-    | constchar     { $$ := StringObject.Create($1); }
-    | stringorchar conststr     { $$ := StringObject.Create($1.Value + $2.Value); }
-    | stringorchar constchar    { $$ := StringObject.Create($1.Value + $2); }
+    | constchar     { $$ := $1; }
+    | stringorchar conststr     { $$ := $1 + $2; }
+    | stringorchar constchar    { $$ := $1 + $2; }
     ;
     
 stringconst
-    : stringorchar  { $$ := $1; if (Length($1.Value) = 1) Then yyerror('Expected string, found char'); }
+    : stringorchar  { $$ := $1; if (Length($1) = 1) Then yyerror('Expected string, found char'); }
     ;
 
 stringnonNil
-    : stringconst   { $$ := $1; If (Length($1.Value) <= 0) Then yyerror('Invalid empty string'); }
+    : stringconst   { $$ := $1; If (Length($1) <= 0) Then yyerror('Invalid empty string'); }
     ;
     
 idlst
@@ -980,7 +980,7 @@ recordtype
     
 recvariant
     : KW_CASE id COLON ordinaltype KW_OF recfieldlst    { $$ := DeclarationListNode.Create(VariantDeclarationNode.Create($2, $4, $6)); }
-    | KW_CASE          ordinaltype KW_OF recfieldlst    { $$ :=  DeclarationListNode.Create(VariantDeclarationNode.Create(Nil, $2, $4)); }
+    | KW_CASE          ordinaltype KW_OF recfieldlst    { $$ :=  DeclarationListNode.Create(VariantDeclarationNode.Create('', $2, $4)); }
     ;
 
 recfieldlst
@@ -1139,12 +1139,12 @@ indexopt
     ;
 
 readopt
-    :                           { $$ := Nil; }
+    :                           { $$ := ''; }
     | KW_READ   id              { $$ := $2; }
     ;
 
 writeopt
-    :                           { $$ := Nil; }
+    :                           { $$ := ''; }
     | KW_WRITE  id              { $$ := $2; }
     ;
 
@@ -1161,7 +1161,7 @@ defaultopt
     ;
     
 implopt
-    :                           { $$ := Nil;  }
+    :                           { $$ := '';  }
     | KW_IMPLEMENTS id          { $$ := $2; }
     ;
 
@@ -1186,7 +1186,7 @@ vartype
     : qualifid                      { $$ := UnresolvedTypeNode.Create($1); }
     | stringtype                    { $$ := $1; }
     | KW_DEREF vartype              { $$ := PointerTypeNode.Create($2); }
-    | TYPE_PTR                      { $$ := MetaTypeNode.Create(PointerTypeNode); }
+    | TYPE_PTR                      { $$ := MetaTypeNode.Create('Pointer'); }
     | KW_CLASS KW_OF qualifid       { $$ := MetaclassTypeNode.Create(ClassRefTypeNode.Create($3)); }
     | packstructtype                { $$ := $1; }
     | rangetype                     { $$ := $1; }
@@ -1202,13 +1202,13 @@ funcpartype
     : qualifid                      { $$ := UnresolvedVariableTypeNode.Create($1); }
     | TYPE_ARRAY KW_OF funcpartype  { $$ := ArrayTypeNode.Create($3); }
     | stringtype                    { $$ := $1; }
-    | TYPE_PTR                      { $$ := MetaTypeNode.Create(PointerTypeNode); }
+    | TYPE_PTR                      { $$ := MetaTypeNode.Create('Pointer'); }
     ;
 
 funcrettype
     : qualifid                      { $$ := UnresolvedTypeNode.Create($1); }
-    | TYPE_PTR                      { $$ := MetaTypeNode.Create(PointerTypeNode); }
-    | TYPE_STR                      { $$ := MetaTypeNode.Create(StringTypeNode); }
+    | TYPE_PTR                      { $$ := MetaTypeNode.Create('Pointer'); }
+    | TYPE_STR                      { $$ := MetaTypeNode.Create('String'); }
     ;
         
 packclasstype
@@ -1222,7 +1222,7 @@ packinterftype
     ;
     
 stringtype
-    : TYPE_STR                      { $$ := MetaTypeNode.Create(StringTypeNode); }
+    : TYPE_STR                      { $$ := MetaTypeNode.Create('String'); }
     | TYPE_STR LBRAC constexpr RBRAC{ $$ := StringTypeNode.Create($3); }
     ;
 
@@ -1269,7 +1269,7 @@ fixedtype
     
 qualifid    
     : id                            { $$ := $1; }
-    | id KW_DOT id                  { $$ := StringObject.Create($1.Value + '.' + $3.Value); }
+    | id KW_DOT id                  { $$ := $1 + '.' + $3; }
     ;
     
 %%   

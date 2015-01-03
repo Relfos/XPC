@@ -186,13 +186,13 @@ Type
 
       Procedure yyerror(Const S:AnsiString);
 
-      Procedure yyaction(yyruleno:Integer; Values:Pointer); Virtual; Abstract;
+      Procedure yyaction(yyruleno:Integer); Virtual; Abstract;
 
   Public
     Constructor Create(Source:Stream);
     Destructor Destroy; Override;
 
-    Function Parse(Values:Pointer):Integer; Virtual; Abstract;
+    Function Parse():Integer; Virtual; Abstract;
 
     Property Finished:Boolean Read yydone;
 

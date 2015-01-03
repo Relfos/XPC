@@ -12,10 +12,10 @@ Uses XPC_Lexer, TERRA_Utils, TERRA_OS, TERRA_IO, TERRA_Error, TERRA_FileIO, TERR
 Type
   PascalLexer = Class(CustomLexer)
     Protected
-        Procedure yyaction(yyruleno:Integer; Values:Pointer); Override;   
+        Procedure yyaction(yyruleno:Integer); Override;   
         
     Public
-        Function Parse(Values:Pointer):Integer; Override;
+        Function Parse():Integer; Override;
   End;
 
 Implementation
@@ -34,15 +34,12 @@ End;
 
 { PascalLexer }
  
-Procedure PascalLexer.yyaction(yyruleno:Integer; Values:Pointer); 
-  (* local definitions: *)
+Procedure PascalLexer.yyaction(yyruleno:Integer); 
+  // local definitions: 
 %%
 
-Var
-    yylval:YYSType;
 Begin
-    yylval := YYSType(Values);
-  (* actions: *)
+  // actions
   Case yyruleno Of
 %%
   End;
@@ -51,7 +48,7 @@ End;
 (* DFA table: *)
 %%
 
-Function PascalLexer.Parse(Values:Pointer):Integer;
+Function PascalLexer.Parse():Integer;
 Var 
     yyn : Integer;
 
@@ -97,7 +94,7 @@ action:
 
   If yyfind(yyrule) Then
   Begin
-    yyaction(yyrule, Values);
+    yyaction(yyrule);
     If yyreject Then 
         Goto Action;
   End Else 

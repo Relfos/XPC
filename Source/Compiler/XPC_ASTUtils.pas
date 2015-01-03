@@ -23,7 +23,7 @@ Interface
 Uses TERRA_Collections, XPC_ASTNodes;
 
 Function MakeThreadVars(Src:DeclarationListNode):DeclarationListNode;
-Function CreateDecls(Ids:IdentifierListNode; VarTypes:TypeNode; Init:ExpressionNode; AbsoluteID:StringObject):DeclarationListNode;
+Function CreateDecls(Ids:IdentifierListNode; VarTypes:TypeNode; Init:ExpressionNode; Const AbsoluteID:ASTString = ''):DeclarationListNode;
 Function CreateLabelDecls(Ids:IdentifierListNode):DeclarationListNode;
 Function CreateParamDecls(Ids:IdentifierListNode; ParamType:TypeNode; Init:ExpressionNode; Kind:ParameterKindEnum):DeclarationListNode;
 Function CreateVarParamDecls(Ids:IdentifierListNode; ParamType:TypeNode):DeclarationListNode;
@@ -33,7 +33,7 @@ Function JoinImportDirectives(d1, d2:FunctionDirectiveListNode; i:FunctionAttrib
 Function JoinImportDirectives(d1, d2:FunctionDirectiveListNode; e:ExternalDirectiveNode):ImportDirectivesNode; Overload;
 Function CreateRecordUnionField(Src:ExpressionListNode; Fields:DeclarationListNode):DeclarationListNode;
 Procedure MakeFieldDeclarationsStatic(DeclList:DeclarationListNode);
-Function CheckDirectiveId(expected:AnsiString; idtoken:StringObject):Boolean;
+Function CheckDirectiveId(expected:AnsiString; Const idtoken:ASTString):Boolean;
 
 Implementation
 Uses TERRA_Error;
@@ -52,17 +52,15 @@ Begin
   Result := Src;
 End;
 
-Function CreateDecls(Ids:IdentifierListNode; VarTypes:TypeNode; Init:ExpressionNode; AbsoluteID:StringObject):DeclarationListNode;
+Function CreateDecls(Ids:IdentifierListNode; VarTypes:TypeNode; Init:ExpressionNode; Const AbsoluteID:ASTString = ''):DeclarationListNode;
 Var
   I:Integer;
-  S:StringObject;
   V:VarDeclarationNode;
 Begin
   Result := DeclarationListNode.Create();
   For I:=0 To Pred(Ids.Count) Do
   Begin
-    S := StringObject(Ids.Elements[I]);
-    V := VarDeclarationNode.Create(S, VarTypes, Init, AbsoluteID);
+    V := VarDeclarationNode.Create(Ids.GetIdentifier(I).Name, VarTypes, AbsoluteID, Init);
     Result.Add(V);
   End;
 End;
@@ -70,14 +68,12 @@ End;
 Function CreateLabelDecls(Ids:IdentifierListNode):DeclarationListNode;
 Var
   I:Integer;
-  S:StringObject;
   L:LabelDeclarationNode;
 Begin
   Result := DeclarationListNode.Create();
   For I:=0 To Pred(Ids.Count) Do
   Begin
-    S := StringObject(Ids.Elements[I]);
-    L := LabelDeclarationNode.Create(S, Nil);
+    L := LabelDeclarationNode.Create(Ids.GetIdentifier(I).Name, Nil);
     Result.Add(L);
   End;
 End;
@@ -85,14 +81,12 @@ End;
 Function CreateParamDecls(Ids:IdentifierListNode; ParamType:TypeNode; Init:ExpressionNode; Kind:ParameterKindEnum):DeclarationListNode;
 Var
   I:Integer;
-  S:StringObject;
   P:ParamDeclarationNode;
 Begin
   Result := DeclarationListNode.Create();
   For I:=0 To Pred(Ids.Count) Do
   Begin
-    S := StringObject(IDs.Elements[I]);
-    P := ParamDeclarationNode.Create(S, ParamType, Init, Kind);
+    P := ParamDeclarationNode.Create(Ids.GetIdentifier(I).Name, ParamType, Init, Kind);
     Result.Add(P);
   End;
 End;
@@ -100,14 +94,12 @@ End;
 Function CreateVarParamDecls(Ids:IdentifierListNode; ParamType:TypeNode):DeclarationListNode;
 Var
   I:Integer;
-  S:StringObject;
   P:ParamDeclarationNode;
 Begin
   Result := DeclarationListNode.Create();
   For I:=0 To Pred(Ids.Count) Do
   Begin
-    S := StringObject(IDs.Elements[I]);
-    P := VarParamDeclarationNode.Create(S, ParamType);
+    P := VarParamDeclarationNode.Create(Ids.GetIdentifier(I).Name, ParamType);
     Result.Add(P);
   End;
 End;
@@ -115,14 +107,12 @@ End;
 Function CreateConstParamDecls(Ids:IdentifierListNode; ParamType:TypeNode; init:ExpressionNode = Nil):DeclarationListNode;
 Var
   I:Integer;
-  S:StringObject;
   P:ParamDeclarationNode;
 Begin
   Result := DeclarationListNode.Create();
   For I:=0 To Pred(Ids.Count) Do
   Begin
-    S := StringObject(IDs.Elements[I]);
-    P := ConstParamDeclarationNode.Create(S, ParamType, Init);
+    P := ConstParamDeclarationNode.Create(Ids.GetIdentifier(I).Name, ParamType, Init);
     Result.Add(P);
   End;
 End;
@@ -130,14 +120,12 @@ End;
 Function CreateFieldDecls(Ids:IdentifierListNode; FieldsType:TypeNode):DeclarationListNode;
 Var
   I:Integer;
-  S:StringObject;
   P:FieldDeclarationNode;
 Begin
   Result := DeclarationListNode.Create();
   For I:=0 To Pred(Ids.Count) Do
   Begin
-    S := StringObject(IDs.Elements[I]);
-    P := FieldDeclarationNode.Create(S, FieldsType);
+    P := FieldDeclarationNode.Create(Ids.GetIdentifier(I).Name, FieldsType);
     Result.Add(P);
   End;
 End;
@@ -162,7 +150,7 @@ Begin
   Result := DeclarationListNode.Create();
   For I:=0 To Pred(Src.Count) Do
   Begin
-    Result.Add(VarEntryDeclarationNode.Create(Src.Get(I), Fields));
+    Result.Add(VarEntryDeclarationNode.Create(Src.GetExpression(I), Fields));
   End;
 End;
 
@@ -174,11 +162,11 @@ Begin
     FieldDeclarationNode(DeclList.Get(I)).IsStatic := True;
 End;
 
-Function CheckDirectiveId(expected:AnsiString; idtoken:StringObject):Boolean;
+Function CheckDirectiveId(expected:AnsiString; Const idtoken:ASTString):Boolean;
 Begin
-  If (expected <> idtoken.Value) Then
+  If (expected <> idtoken) Then
   Begin
-    RaiseError('Invalid directive ' + idtoken.Value + ', expected: ' + expected);
+    RaiseError('Invalid directive ' + idtoken + ', expected: ' + expected);
     Result := False;
   End Else
     Result := True;

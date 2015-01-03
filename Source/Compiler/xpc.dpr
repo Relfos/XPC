@@ -21,7 +21,8 @@ Program XPC;
 
 {$APPTYPE CONSOLE}
 
-Uses XPC_PascalLexer, XPC_PascalParser, XPC_ASTNodes, TERRA_IO, TERRA_FileIO;
+Uses SysUtils, TERRA_Utils, TERRA_IO, TERRA_FileIO,
+  XPC_PascalLexer, XPC_PascalParser, XPC_ASTNodes, XPC_ASTPrinter;
 
 Const
   SrcName = 'Tests\Sources\test0.dpr';
@@ -30,18 +31,35 @@ Var
   Src:Stream;
   Parser:PascalParser;
   Result:ASTNode;
+  Printer:ASTPrinter;
 Begin
   WriteLn('Compiling ', SrcName);
-  Src := MemoryStream.Create(SrcName);
-  Parser := PascalParser.Create(Src);
   Try
+    Src := MemoryStream.Create(SrcName);
+    Parser := PascalParser.Create(Src);
+
     Result := Parser.Parse();
-  Finally
-    Parser.Destroy();
+
+  Except
+    On E : Exception Do
+    Begin
+      WriteLn(E.Message);
+
+      If Assigned(Parser) Then
+        Parser.Destroy();
+
+      If Assigned(Src) Then
+        Src.Destroy();
+    End;
   End;
-  Src.Destroy;
 
   If Assigned(Result) Then
+  Begin
+    Printer := ASTPrinter.Create();
+    Printer.Dispatch(Result);
+    Printer.Destroy();
     WriteLn('Compile sucess!');
+  End;
+
   ReadLn;
 End.

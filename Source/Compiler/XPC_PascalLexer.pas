@@ -41,10 +41,10 @@ const SCLASS = 16;
 Type
   PascalLexer = Class(CustomLexer)
     Protected
-        Procedure yyaction(yyruleno:Integer; Values:Pointer); Override;   
+        Procedure yyaction(yyruleno:Integer); Override;   
         
     Public
-        Function Parse(Values:Pointer):Integer; Override;
+        Function Parse():Integer; Override;
   End;
 
 Implementation
@@ -63,15 +63,12 @@ End;
 
 { PascalLexer }
  
-Procedure PascalLexer.yyaction(yyruleno:Integer; Values:Pointer); 
-  (* local definitions: *)
+Procedure PascalLexer.yyaction(yyruleno:Integer); 
+  // local definitions: 
 
 
-Var
-    yylval:YYSType;
 Begin
-    yylval := YYSType(Values);
-  (* actions: *)
+  // actions
   Case yyruleno Of
   1:		Begin Return(KW_LIBRARY); End;
   2:		Begin Return(KW_UNIT); End;
@@ -219,7 +216,7 @@ Begin
 				End;
 
   88: 		Begin Return(KW_NAME); End;
-  89:		Begin yylval.yyStringObject := StringObject.Create(Copy(yytext, 2, yylength()-2)); Return(CONST_STR); End;
+  89:		Begin yylval.yyASTString := Copy(yytext, 2, yylength()-2); Return(CONST_STR); End;
   90:			Begin Return(KW_DOT); End;
   91:		Begin Return(ProcessIdentifier(yytext)); End;
 	
@@ -296,7 +293,7 @@ Begin
   127:			Begin yylval.yyAnsiChar := AnsiChar(StringToInt(Copy(yytext, 2, MaxInt))); Return(CONST_CHAR); End;
   128:			Begin yylval.yyAnsiChar := AnsiChar(HexStrToInt(Copy(yytext, 2, MaxInt))); Return(CONST_CHAR); End;
 					
-  129:				Begin yylval.yyStringObject := StringObject.Create(Copy(yytext, 2, yylength-2)); Return(CONST_STR); End;
+  129:				Begin yylval.yyASTString := Copy(yytext, 2, yylength-2); Return(CONST_STR); End;
 
   130:				Begin yylval.yyBoolean := true;  Return(CONST_BOOL); End;
   131:				Begin yylval.yyBoolean := false; Return(CONST_BOOL); End;
@@ -30020,7 +30017,7 @@ yyth : array [0..yynstates-1] of Integer = (
 );
 
 
-Function PascalLexer.Parse(Values:Pointer):Integer;
+Function PascalLexer.Parse():Integer;
 Var 
     yyn : Integer;
 
@@ -30066,7 +30063,7 @@ action:
 
   If yyfind(yyrule) Then
   Begin
-    yyaction(yyrule, Values);
+    yyaction(yyrule);
     If yyreject Then 
         Goto Action;
   End Else 

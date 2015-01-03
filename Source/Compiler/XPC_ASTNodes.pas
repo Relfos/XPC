@@ -22,9 +22,13 @@ Unit XPC_ASTNodes;
 {$I terra.inc}
 
 Interface
-Uses TypInfo, TERRA_Collections;
+Uses TERRA_Collections;
+
+{$M+}
 
 Type
+  ASTString = AnsiString;
+  
   ScopeEnum = (scope_Public,  scope_Protected, scope_Private, scope_Published);
 
 	MethodKindEnum = (method_Default,	method_Constructor, method_Destructor);
@@ -60,33 +64,38 @@ Type
 	LogicalBinaryOp = (op_AND, op_OR, op_XOR);
 	ComparisonBinaryOp = (op_EQ, op_NE, op_LT, op_LE, op_GT, op_GE, op_SGT, op_SGE,op_SLT,op_SLE);
 
-
+  PASTNode = ^ASTNode;
   ASTNode = Class
-    Protected
-      Procedure LinkChild(Child:ASTNode);
+    Public
+      Function Level:Integer;
+
+      Procedure Assign(Target:PASTNode; Child:ASTNode);
 
     Published
       Owner:ASTNode;
   End;
 
+  ASTNodeType = Class Of ASTNode;
+
   ListNode = Class(ASTNode)
-    Elements:Array Of ASTNode;
-    Count:Integer;
+    Public
+      Elements:Array Of ASTNode;
+      Count:Integer;
 
-    Constructor Create(Element:ASTNode = Nil);
+      Constructor Create(Element:ASTNode = Nil);
 
-    Procedure Add(Element:ASTNode); Overload;
-    Procedure Add(List:ListNode); Overload;
+      Procedure Add(Element:ASTNode); Overload;
+      Procedure AddList(List:ListNode); Overload;
 
-    Procedure InsertAt(Index:Integer; Element:ASTNode); Overload;
-    Procedure InsertAt(Index:Integer; List:ListNode); Overload;
+      Procedure InsertAt(Index:Integer; Element:ASTNode); Overload;
+      Procedure InsertListAt(Index:Integer; List:ListNode); Overload;
 
-    Function Get(Index:Integer):ASTNode;
+      Function Get(Index:Integer):ASTNode;
   End;
 
 	SourceNode = Class(ASTNode)
     Protected
-      Name:StringObject;
+      Name:ASTString;
   End;
 
   TypeNode = Class(ASTNode)
@@ -97,39 +106,41 @@ Type
 
   TypeListNode = Class(ListNode)
     Public
-      Function Get(Index:Integer):TypeNode;
+      Function GetType(Index:Integer):TypeNode;
   End;
 
-  MetaTypeClass = Class Of TypeNode;
-
   MetaTypeNode = Class(TypeNode)
-    Value:MetaTypeClass;
+    Public
+      Value:ASTString;
 
-    Constructor Create(TypeClass:MetaTypeClass);
+    Constructor Create(TypeName:ASTString);
   End;
 
   DeclarationNode = Class(ASTNode)
-		Name:StringObject;
-		DeclType:TypeNode;
+    Public
+  		Name:ASTString;
 
-		Constructor Create(Name:StringObject; T:TypeNode = Nil);
+  		Constructor Create(Const Name:ASTString; T:TypeNode = Nil);
+
+    Published
+      DeclType:TypeNode;
   End;
 
   DeclarationListNode = Class(ListNode)
     Public
-      Function Get(Index:Integer):DeclarationNode;
+      Function GetDeclaration(Index:Integer):DeclarationNode;
   End;
 
   UnitItemNode = Class(DeclarationNode)
-    Location:StringObject;
+    Public
+      Location:ASTString;
 
-    Constructor Create(Name:StringObject; Location:StringObject); Overload;
-    Constructor Create(Name:StringObject); Overload;
+      Constructor Create(Const Name:ASTString; Const Location:ASTString = ''); 
   End;
 
   UnitListNode = Class(ListNode)
     Public
-      Function Get(Index:Integer):UnitItemNode;
+      Function GetUnit(Index:Integer):UnitItemNode;
   End;
 
 	StatementNode = Class(ASTNode)
@@ -139,15 +150,19 @@ Type
   IdentifierListNode = Class;
 
 	SectionNode = Class(ASTNode)
-		Decls:DeclarationListNode;
+    Public
+  		Constructor Create(Decls:DeclarationListNode);
 
-		Constructor Create(Decls:DeclarationListNode);
+    Published
+  		Decls:DeclarationListNode;
   End;
 
   TopLevelDeclarationSectionNode = Class(SectionNode)
-    Useslist:UnitListNode;
+    Public
+  		Constructor Create(UsesList:UnitListNode; Decls:DeclarationListNode);
 
-		Constructor Create(UsesList:UnitListNode; Decls:DeclarationListNode);
+    Published
+      UsesList:UnitListNode;
   End;
 
 
@@ -158,45 +173,54 @@ Type
   End;
 
   StatementListNode = Class(StatementNode)
-    Protected
-      List:ListNode;
-
     Public
       Constructor Create(St:StatementNode);
       Procedure Add(St:StatementNode);
 
-      Function Get(Index:Integer):StatementNode;
+      Function GetStatement(Index:Integer):StatementNode;
+
+    Published
+      List:ListNode;
   End;
 
 	BlockStatementNode = Class(StatementNode)
-		List:StatementListNode;
+    Public
+  		Constructor Create(List:StatementListNode);
 
-		Constructor Create(List:StatementListNode);
+    Published
+  		List:StatementListNode;
   End;
 
 	ProgramSectionNode = Class(TopLevelDeclarationSectionNode)
-    Block:BlockStatementNode;
+    Public
+      Constructor Create(UsesList:UnitListNode; Decls:DeclarationListNode; Code:BlockStatementNode);
 
-    Constructor Create(UsesList:UnitListNode; Decls:DeclarationListNode; Code:BlockStatementNode);
+    Published
+      Block:BlockStatementNode;
   End;
 
 	ProgramNode = Class(SourceNode)
-    Section:ProgramSectionNode;
+    Public
+      Constructor Create(Const Name:ASTString; UsesList:UnitListNode; Decls:DeclarationListNode; Body:BlockStatementNode);
 
-    Constructor Create(Name:StringObject; UsesList:UnitListNode; Decls:DeclarationListNode; Body:BlockStatementNode);
+    Published
+      Section:ProgramSectionNode;
   End;
 
 	ConstantValueNode = Class(ASTNode)
   End;
 
   ExpressionNode = Class(ASTNode)
-		ForcedType:TypeNode;
-    EnforceConst:Boolean;
+    Public
+      EnforceConst:Boolean;
+
+    Published
+  		ForcedType:TypeNode;
   End;
 
   ExpressionListNode = Class(ListNode)
     Public
-      Function Get(Index:Integer):ExpressionNode;
+      Function GetExpression(Index:Integer):ExpressionNode;
   End;
 
   LiteralNode = Class;
@@ -213,37 +237,43 @@ Type
   End;
 
 	VarDeclarationNode = Class(ValueDeclarationNode)
-		Init:ExpressionNode;
-		AbsoluteID:StringObject;
-		IsThrVar:Boolean;
+    Public
+		  AbsoluteID:ASTString;
+	  	IsThrVar:Boolean;
 
-		Constructor Create(Name:StringObject; VarType:TypeNode; Init:ExpressionNode = Nil; AbsoluteId:StringObject = Nil);
+		  Constructor Create(Const Name:ASTString; VarType:TypeNode; Const AbsoluteId:ASTString; Init:ExpressionNode = Nil);
+
+    Published
+  		Init:ExpressionNode;
   End;
 
 	/// Routine parameters. May be value (default), variable, constant, or out.
 	/// Param types must be an id, string or open array (array of paramtype)
 	ParamDeclarationNode = Class(ValueDeclarationNode)
-		Init:ExpressionNode;
-    Kind:ParameterKindEnum;
+    Public
+      Kind:ParameterKindEnum;
 
-		Constructor Create(Name:StringObject; ParamType:TypeNode; Init:ExpressionNode; Kind:ParameterKindEnum);
+	  	Constructor Create(Const Name:ASTString; ParamType:TypeNode; Init:ExpressionNode; Kind:ParameterKindEnum);
+
+    Published
+  		Init:ExpressionNode;
   End;
 
 	VarParamDeclarationNode = Class(ParamDeclarationNode)
-		Constructor Create(Name:StringObject; VarType:TypeNode);
+		Constructor Create(Const Name:ASTString; VarType:TypeNode);
   End;
 
 	ConstParamDeclarationNode = Class(ParamDeclarationNode)
-		Constructor Create(Name:StringObject; ConstType:TypeNode; Init:ExpressionNode = Nil);
+		Constructor Create(Const Name:ASTString; ConstType:TypeNode; Init:ExpressionNode = Nil);
   End;
 
 	OutParamDeclarationNode = Class(ParamDeclarationNode)
-		Constructor Create(Name:StringObject; VarType:TypeNode);
+		Constructor Create(Const Name:ASTString; VarType:TypeNode);
   End;
 
 
   ParametersSectionNode = Class(SectionNode)
-		  ReturnVar:ParamDeclarationNode; //TODO
+    Public
 
 		  Constructor Create(Decls:DeclarationListNode=Nil);
 		//public override bool Equals(object obj)
@@ -251,6 +281,9 @@ Type
 			ParametersSection sec = obj as ParametersSection;
 			return sec != null && returnVar.Equals(sec.returnVar) && decls.SequenceEqual(sec.decls);
 		}
+
+    Published
+		  ReturnVar:ParamDeclarationNode; //TODO
   End;
 
 
@@ -259,89 +292,108 @@ Type
 	///		Abstract => virtual
 	///		varargs => cdecl
   FunctionAttributeNode = Class(ASTNode)
-    Value:FunctionAttributeEnum;
+    Public
+      Value:FunctionAttributeEnum;
 
-    Constructor Create(Value:FunctionAttributeEnum);
+      Constructor Create(Value:FunctionAttributeEnum);
   End;
 
 	FunctionDirectiveListNode  = Class(ListNode)
-		CallConv:FunctionAttributeNode;
+    Public
 
-		/// Checks the immediate coherence between function directives.
-		/// Must be called after all directives are added
-		Function CheckDirectives():Boolean;
+		  // Checks the immediate coherence between function directives.
+	  	// Must be called after all directives are added
+  		Function CheckDirectives():Boolean;
+
+    Published
+  		CallConv:FunctionAttributeNode;
   End;
 
   ProceduralTypeNode = Class;
 
-	/// Declaration of a Callable unit, i.e. a global routine or method
+	// Declaration of a Callable unit, i.e. a global routine or method
 	CallableDeclarationNode = Class(DeclarationNode)
-		/// Gets the fully qualified name of this callable
-		/// (obj+metname for methods, plus parameter types for overloads)
-		/// To be set by the Resolver
-		QualifiedName:StringObject;
+    Public
+  		// Gets the fully qualified name of this callable
+  		// (obj+metname for methods, plus parameter types for overloads)
+  		// To be set by the Resolver
+	  	QualifiedName:ASTString;
 
-		/// Section that declares this callable.
-		/// To be set by resolver
-		DeclaringSection:SectionNode;
+  		// Section that declares this callable. To be set by resolver
+	  	DeclaringSection:SectionNode;
 
-    SignatureType:ProceduralTypeNode;
-    ResultType:TypeNode;
+		  Constructor Create(Const Name:ASTString; Params:ParametersSectionNode; RetType:TypeNode = Nil; Dirs:FunctionDirectiveListNode = Nil);
 
-    Directives:FunctionDirectiveListNode;
+    Published
+      SignatureType:ProceduralTypeNode;
+      ResultType:TypeNode;
 
-		Constructor Create(Name:StringObject; Params:ParametersSectionNode; RetType:TypeNode = Nil; Dirs:FunctionDirectiveListNode = Nil);
+      Directives:FunctionDirectiveListNode;
   End;
 
 
 	RoutineSectionNode = Class(SectionNode)
-    Block:StatementNode;
+    Public
+  		 // to be set by resolver
+	  	DeclaringCallable:CallableDeclarationNode;
 
-		 // to be set by resolver
-		DeclaringCallable:CallableDeclarationNode;
+  		Constructor Create(Decls:DeclarationListNode; Block:StatementNode);
 
-		Constructor Create(Decls:DeclarationListNode; Block:StatementNode);
+    Public
+      Block:StatementNode;
   End;
 
 	LibraryNode = Class(SourceNode)
-		Section:ProgramSectionNode;
+    Public
+  		Constructor Create(Const Name:ASTString; UsesList:UnitListNode; Decls:DeclarationListNode; Body:BlockStatementNode);
 
-		Constructor Create(Name:StringObject; UsesList:UnitListNode; Decls:DeclarationListNode; Body:BlockStatementNode);
+    Published
+  		Section:ProgramSectionNode;
   End;
 
 	UnitNode = Class(SourceNode)
-		Interfaces:InterfaceSectionNode;
-		Implements:ImplementationSectionNode;
-		Inits:BlockStatementNode;
-		Final:BlockStatementNode;
+    Public
+  		Constructor Create(Const Name:ASTString; Interfce:InterfaceSectionNode; Impl:ImplementationSectionNode;  Init:BlockStatementNode = Nil; Final:BlockStatementNode = Nil);
 
-		Constructor Create(Name:StringObject; Interfce:InterfaceSectionNode; Impl:ImplementationSectionNode;  Init:BlockStatementNode = Nil; Final:BlockStatementNode = Nil);
+    Published
+		  Interfaces:InterfaceSectionNode;
+	  	Implements:ImplementationSectionNode;
+  		Inits:BlockStatementNode;
+  		Final:BlockStatementNode;
   End;
 
   PackageNode = Class(SourceNode)
-		Requires:UnitListNode;
-		Contains:UnitListNode;
+    Public
+  		Constructor Create(Const Name:ASTString; requires, contains:UnitListNode);
 
-		Constructor Create(Name:StringObject; requires, contains:UnitListNode);
+    Published
+  		Requires:UnitListNode;
+	  	Contains:UnitListNode;
   End;
 
   StructuredConstantNode = Class(ConstExpressionNode)
-    ExprList:ExpressionListNode;
+    Public
+  		Constructor Create(ExprList:ExpressionListNode);
 
-		Constructor Create(ExprList:ExpressionListNode);
+    Published
+      ExprList:ExpressionListNode;
   End;
 
 	ArrayConstNode = Class(StructuredConstantNode)
-    Constructor Create(ExprList:ExpressionListNode); Overload;
-		Constructor Create(ArrayElems:StringObject); Overload;
+    Public
+      Constructor Create(ExprList:ExpressionListNode); Overload;
+	  	Constructor Create(Const ArrayElems:ASTString); Overload;
 			//: base(new ExpressionList(arrayElems.ToCharArray().Select(x => new CharLiteral(x)))){ }
 	End;
 
   FieldInitNode = Class(ConstExpressionNode)
-	  FieldName:StringObject;
-    Expr:ExpressionNode;
+    Public
+  	  FieldName:ASTString;
 
-    Constructor Create(Name:StringObject; Expr:ExpressionNode);
+      Constructor Create(Const Name:ASTString; Expr:ExpressionNode);
+
+    Published
+      Expr:ExpressionNode;
   End;
 
   FieldInitListNode = Class(ExpressionListNode)
@@ -354,9 +406,10 @@ Type
   End;
 
   ConstIdentifierNode = Class(ConstExpressionNode)
-    Name:StringObject;
+    Public
+      Name:ASTString;
 
-    Constructor Create(Name:StringObject);
+      Constructor Create(Const Name:ASTString);
   End;
 
   ScalarTypeNode = Class(TypeNode)
@@ -440,151 +493,172 @@ Type
   End;
 
 	StringTypeNode = Class(ScalarTypeNode)
-    Length:ExpressionNode;
+    Public
+      Constructor Create(Len:ExpressionNode = Nil);
 
-    Constructor Create(Len:ExpressionNode = Nil);
+    Published
+      Length:ExpressionNode;
 	End;
 
 	FixedStringTypeNode = Class(StringTypeNode)
-		Expr:ExpressionNode;
-		Len:Integer;
+    Public
+  		Len:Integer;
 
-		Constructor Create(Expr:ExpressionNode);
+	  	Constructor Create(Expr:ExpressionNode);
+
+    Published
+  		Expr:ExpressionNode;
   End;
 
 	RangeTypeNode = Class(TypeNode)
-		Min:ExpressionNode;
-		Max:ExpressionNode;
+    Public
+  		Constructor Create(Min, Max:ExpressionNode);
 
-		Constructor Create(Min, Max:ExpressionNode);
+    Published
+  		Min:ExpressionNode;
+	  	Max:ExpressionNode;
   End;
 
   EnumValueNode = Class;
+
   EnumValueListNode = Class(ListNode)
     Public
-      Function Get(Index:Integer):EnumValueNode;
+      Function GetEnum(Index:Integer):EnumValueNode;
   End;
 
 	EnumTypeNode = Class(TypeNode)
-    List:EnumValueListNode;
+    Public
+  		Constructor Create(EnumVals:EnumValueListNode);
 
-		Constructor Create(EnumVals:EnumValueListNode);
+    Published
+      List:EnumValueListNode;
   End;
 
 	/// Variants can hold values of any type except records, sets, static arrays, files, classes, class references, and pointers.
 	/// I.e. can hold anything but structured types and pointers.
 	/// They can hold interfaces, dynamic arrays, variant arrays
 	VariantTypeNode = Class(TypeNode)
-		actualtype:TypeNode ;
+    Published
+  		ActualType:TypeNode;
   End;
 
 	/// PointedType may be any type.
 	/// It may be a not yet declared type (forward declaration)
 	PointerTypeNode = Class(ScalarTypeNode)
-		PointedType:TypeNode;
+    Public
+  		Constructor Create(PointedType:TypeNode);
 
-		Constructor Create(PointedType:TypeNode);
+    Published
+  		PointedType:TypeNode;
   End;
 
 
 	PropertySpecifiersNode = Class(ASTNode)
 		Public
+		  Read:ASTString;
+		  Write:ASTString;
+		  Impl:ASTString;
+
+		  Constructor Create(Const Read, Write:ASTString); Overload;
+		  Constructor Create(Index:IntLiteralNode; Const Read, Write:ASTString; Stored:ConstExpressionNode; Default:LiteralNode; Const Impl:ASTString =''); Overload;
+
+    Published
       Index:IntLiteralNode;
-		  Read:StringObject;
-		  Write:StringObject;
       Stored:ConstExpressionNode;
 		  Default:LiteralNode;	// nodefault == Int32.MaxValue
-		  Impl:StringObject;
-
-		  Constructor Create(Read, Write:StringObject); Overload;
-		  Constructor Create(Index:IntLiteralNode; Read, Write:StringObject; Stored:ConstExpressionNode; Default:LiteralNode; Impl:StringObject = Nil); Overload;
   End;
 
 
   ObjectSectionNode = Class;
+
   CompositeTypeNode = Class(TypeNode)
-		Heritage:IdentifierListNode;
+    Public
+  		IsPacked:Boolean;
+  		// optional
+	  	Name:ASTString;
 
-		Section:ObjectSectionNode;
+      //TODO
+      Ancestors:Array Of CompositeTypeNode;
+      AncestorCount:Integer;
 
-		Decl:CompositeDeclarationNode;
+  		//public List<CompositeType> ancestors;
 
-		IsPacked:Boolean;
+	  	Function IsForward:Boolean;
 
-		// optional
-		Name:StringObject;
-
-
-    Ancestors:Array Of CompositeTypeNode;
-    AncestorCount:Integer;
-
-		//public List<CompositeType> ancestors;
-
-		Function IsForward:Boolean;
+    Published
+  		Heritage:IdentifierListNode;
+	  	Section:ObjectSectionNode;
+  		Decl:CompositeDeclarationNode;
   End;
 
 	FieldDeclarationNode = Class(ValueDeclarationNode)
-		isStatic:Boolean;
-		Scope:ScopeEnum;
-		DeclaringObject:CompositeTypeNode;
+    Public
+  		isStatic:Boolean;
+	  	Scope:ScopeEnum;
 
-		Constructor FieldDeclaration(Id:StringObject; T:TypeNode = Nil; IsStatic:Boolean = False);
+  		Constructor FieldDeclaration(Const Name:ASTString; T:TypeNode = Nil; IsStatic:Boolean = False);
+
+    Published
+  		DeclaringObject:CompositeTypeNode;
   End;
 
 	PropertyDeclarationNode = Class(FieldDeclarationNode)
     Public
-  		Specifiers:PropertySpecifiersNode;
-
 		  IsStatic:Boolean;
 
-		  Constructor Create(ID:StringObject; T:TypeNode; Specs:PropertySpecifiersNode = Nil);
+		  Constructor Create(Const Name:ASTString; T:TypeNode; Specs:PropertySpecifiersNode = Nil);
+
+    Published
+  		Specifiers:PropertySpecifiersNode;
   End;
 
 	ProceduralTypeNode = Class(TypeNode)
-		Params:ParametersSectionNode;
+    Public
+  		Constructor Create(Params:ParametersSectionNode; ret:TypeNode = Nil; Dirs:FunctionDirectiveListNode = Nil);
 
-		/// Function's return type. Must be null for every non-function routine.
-		FuncRet:TypeNode ;
+    Published
+  		Params:ParametersSectionNode;
 
-		Directives:FunctionDirectiveListNode ;
+  		/// Function's return type. Must be null for every non-function routine.
+	  	FuncRet:TypeNode;
 
-		Constructor Create(Params:ParametersSectionNode; ret:TypeNode = Nil; Dirs:FunctionDirectiveListNode = Nil);
+		  Directives:FunctionDirectiveListNode;
   End;
 
 	MethodTypeNode = Class(ProceduralTypeNode)
-		Kind:MethodKindEnum;
+    Public
+  		Kind:MethodKindEnum;
   End;
 
 	/// Declaration of a Method
 	MethodDeclarationNode = Class(CallableDeclarationNode)
-		isStatic:Boolean;
-		Objname:StringObject;
-		Name:StringObject;
-    Scope:ScopeEnum;
-		DeclaringObject:CompositeTypeNode;
-    Kind:MethodKindEnum;
+    Public
+  		isStatic:Boolean;
+  		Objname:ASTString;
+  		Name:ASTString;
+      Scope:ScopeEnum;
+      Kind:MethodKindEnum;
 
-		Constructor Create(objname:StringObject; name:StringObject; params:ParametersSectionNode; ret:TypeNode = Nil; dirs:FunctionDirectiveListNode  = Nil; kind:MethodKindEnum  = method_Default);
+	  	Constructor Create(Const Objname, Name:ASTString; params:ParametersSectionNode; ret:TypeNode = Nil; dirs:FunctionDirectiveListNode  = Nil; kind:MethodKindEnum  = method_Default);
+
+    Published
+	  	DeclaringObject:CompositeTypeNode;
 	End;
 
 	ObjectSectionNode = Class(SectionNode)
-		Fields:DeclarationListNode;
-		Properties:DeclarationListNode;
-    //Methods:DeclarationList;
-		DeclaringObject:CompositeTypeNode;
+    Public
+  		Constructor Create(Fields:DeclarationListNode = Nil; Decls:DeclarationListNode = Nil; Scope:ScopeEnum = Scope_Published);
 
-		Constructor Create(Fields:DeclarationListNode = Nil; Decls:DeclarationListNode = Nil; Scope:ScopeEnum = Scope_Published);
+  		Procedure Add(Sec:ObjectSectionNode);
 
-		Procedure Add(Sec:ObjectSectionNode);
+	  	Procedure AddFields(Fields:DeclarationListNode; Scope:ScopeEnum);
 
-		Procedure AddFields(Fields:DeclarationListNode; Scope:ScopeEnum);
+  		Procedure AddMethods(Methods:DeclarationListNode; Scope:ScopeEnum);
 
-		Procedure AddMethods(Methods:DeclarationListNode; Scope:ScopeEnum);
+	  	Procedure AddProperties(Properties:DeclarationListNode; Scope:ScopeEnum);
 
-		Procedure AddProperties(Properties:DeclarationListNode; Scope:ScopeEnum);
-
-		/// Add unknown-type declarations
-		Procedure AddDecls(Decls:DeclarationListNode; Scope:ScopeEnum);
+  		/// Add unknown-type declarations
+	  	Procedure AddDecls(Decls:DeclarationListNode; Scope:ScopeEnum);
 
 		/// Fields, Methods and Properties
 		{
@@ -598,46 +672,61 @@ Type
 		}
 
 
-		/// Returns a member with the given name
-		Function GetMember(id:AnsiString):DeclarationNode;
+		  /// Returns a member with the given name
+  		Function GetMember(id:AnsiString):DeclarationNode;
 
-		/// Returns a method with the given name
-		Function GetMethod(id:AnsiString):MethodDeclarationNode;
+	  	/// Returns a method with the given name
+		  Function GetMethod(id:AnsiString):MethodDeclarationNode;
 
-		/// Returns a field with the given name
-		Function GetField(id:AnsiString):FieldDeclarationNode;
+  		/// Returns a field with the given name
+	  	Function GetField(id:AnsiString):FieldDeclarationNode;
 
-		/// Returns a property with the given name
-		Function GetProperty(id:AnsiString):PropertyDeclarationNode;
+  		/// Returns a property with the given name
+	  	Function GetProperty(id:AnsiString):PropertyDeclarationNode;
+
+    Published
+		  Fields:DeclarationListNode;
+		  Properties:DeclarationListNode;
+      //Methods:DeclarationList;
+  		DeclaringObject:CompositeTypeNode;
   End;
 
 
 	ArrayPropertyNode = Class(PropertyDeclarationNode)
-		Indexes:DeclarationListNode;
-		IsDefault:Boolean;
+    Public
+  		IsDefault:Boolean;
 
-		Constructor Create(Id:StringObject; T:TypeNode; Indexes:DeclarationListNode; Specs:PropertySpecifiersNode; Def:Boolean);
+	  	Constructor Create(Const Name:ASTString; T:TypeNode; Indexes:DeclarationListNode; Specs:PropertySpecifiersNode; Def:Boolean);
+
+    Published
+  		Indexes:DeclarationListNode;
 	End;
 
   ClassTypeNode = Class(CompositeTypeNode)
-		_self:FieldDeclarationNode;
-
     Public
 		  Constructor Create(Heritage:IdentifierListNode; Sec:ObjectSectionNode  = Nil);
+
+    Published
+  		_Self:FieldDeclarationNode;
   End;
 
 	ClassRefTypeNode = Class(ClassTypeNode)
-		QualifID:StringObject;
-		RefType:ClassTypeNode;
+    Public
+  		QualifID:ASTString;
 
-		Constructor Create(reftype:ClassTypeNode); Overload;
-		Constructor Create(qualifid:StringObject; reftype:ClassTypeNode = Nil); Overload;
+	  	Constructor Create(reftype:ClassTypeNode); Overload;
+		  Constructor Create(Const Name:ASTString; reftype:ClassTypeNode = Nil); Overload;
+
+    Published
+  		RefType:ClassTypeNode;
   End;
 
 	MetaClassTypeNode = Class(ScalarTypeNode)
-		BaseType:TypeNode;
+    Public
+  		Constructor Create(baseType:TypeNode);
 
-		Constructor Create(baseType:TypeNode);
+    Published
+  		BaseType:TypeNode;
   End;
 
   LiteralNode = Class(ConstExpressionNode)
@@ -649,66 +738,80 @@ Type
   End;
 
 	IntLiteralNode = Class(OrdinalLiteralNode)
-    Value:Int64;
+    Public
+      Value:Int64;
 
-    Constructor Create(Value:Int64);
+      Constructor Create(Value:Int64);
   End;
 
 	CharLiteralNode = Class(OrdinalLiteralNode)
-    Value:AnsiChar;
+    Public
+      Value:AnsiChar;
 
-    Constructor Create(Value:AnsiChar);
+      Constructor Create(Value:AnsiChar);
   End;
 
 	BoolLiteralNode = Class(OrdinalLiteralNode)
-    Value:Boolean;
+    Public
+      Value:Boolean;
 
-    Constructor Create(Value:Boolean);
+      Constructor Create(Value:Boolean);
   End;
 
 	StringLiteralNode = Class(LiteralNode)
-    Value:StringObject;
+    Public
+      Value:ASTString;
 
-    Constructor Create(Value:StringObject);
+      Constructor Create(Const Value:ASTString);
   End;
 
 	RealLiteralNode = Class(LiteralNode)
-    Value:Double;
+    Public
+      Value:Double;
 
-    Constructor Create(Value:Double);
+      Constructor Create(Value:Double);
   End;
 
 	NullLiteralNode = Class(LiteralNode)
-    Constructor Create();
+    Public
+      Constructor Create();
   End;
 
 	BinaryExpressionNode = Class(ExpressionNode)
-		Left:ExpressionNode;
-		Right:ExpressionNode;
+    Public
+      Constructor Create(A, B:ExpressionNode);
 
-    Constructor Create(A, B:ExpressionNode);
+    Published
+	  	Left:ExpressionNode;
+  		Right:ExpressionNode;
   End;
 
   // eg: if (A in B) then
 	InExpressionNode = Class(BinaryExpressionNode)
-		Expr:ExpressionNode;
-		_Set:ExpressionNode;		// enforce that 'set' is in fact a set
+    Public
+  		Constructor Create(A, B:ExpressionNode);
 
-		Constructor Create(A, B:ExpressionNode);
+    Published
+  		Expr:ExpressionNode;
+	  	_Set:ExpressionNode;		// enforce that 'set' is in fact a set
   End;
 
 	SetRangeNode = Class(BinaryExpressionNode)
-    Range:RangeTypeNode;
+    Public
 
-		Constructor Create(_type:RangeTypeNode);
-		{
-			this.ForcedType = this.Type = type;
-			this.EnforceConst = true;
-		}
+  		Constructor Create(_type:RangeTypeNode);
+  		{
+	  		this.ForcedType = this.Type = type;
+		  	this.EnforceConst = true;
+  		}
+
+    Published
+      Range:RangeTypeNode;
   End;
 
 	ArithmeticBinaryExpressionNode  = Class(BinaryExpressionNode)
-    Op:ArithmeticBinaryOp;
+    Public
+      Op:ArithmeticBinaryOp;
   End;
 
 	SubtractionNode = Class(ArithmeticBinaryExpressionNode)
@@ -736,13 +839,14 @@ Type
 	ShiftLeftNode = Class(ArithmeticBinaryExpressionNode)
   End;
 
-
 	LogicalBinaryExpressionNode = Class(BinaryExpressionNode)
-		  op:LogicalBinaryOp;
+    Public
+		  Op:LogicalBinaryOp;
   End;
 
 	ComparisonBinaryExpressionNode = Class(BinaryExpressionNode)
-		op:ComparisonBinaryOp;
+    Public
+  		Op:ComparisonBinaryOp;
   End;
 
   LogicalAndNode = Class(LogicalBinaryExpressionNode)
@@ -780,10 +884,12 @@ Type
   End;
 
 	TypeBinaryExpressionNode = Class(BinaryExpressionNode)
-		Expr:ExpressionNode;
-		Types:TypeNode;
+    Public
+  		Constructor Create(Expr:ExpressionNode; ExprType:TypeNode);
 
-		Constructor Create(Expr:ExpressionNode; ExprType:TypeNode);
+    Published
+  		Expr:ExpressionNode;
+  		Types:TypeNode;
   End;
 
   // eg: if A is B Then
@@ -797,9 +903,11 @@ Type
   End;
 
 	SimpleUnaryExpressionNode = Class(ExpressionNode)
-		Expr:ExpressionNode;
+    Public
+  		Constructor Create(Expr:ExpressionNode);
 
-		Constructor Create(Expr:ExpressionNode);
+    Published
+  		Expr:ExpressionNode;
   End;
 
 	UnaryPlusNode = Class(SimpleUnaryExpressionNode)
@@ -815,20 +923,24 @@ Type
   End;
 
 	SetExpressionNode = Class(UnaryExpressionNode)
-		Elements:ExpressionListNode;
+    Public
+  		Constructor Create(Elements:ExpressionListNode = Nil);
 
-		Constructor Create(Elements:ExpressionListNode = Nil);
+    Published
+  		Elements:ExpressionListNode;
   End;
 
 //Pretty simply, an rvalue is when the expression result will not survive past the end of said expression. An lvalue will.
-// This basic principle is what enables move semantics and rvalue references- that you can modify them without issue, because you know that object's life is over.  
+// This basic principle is what enables move semantics and rvalue references- that you can modify them without issue, because you know that object's life is over.
   LvalueExpressionNode = Class;
 
 	/// Cast an lvalue to an rvalue (Expr)
 	LValueAsExprNode = Class(UnaryExpressionNode)
-		lval:LvalueExpressionNode;
+    Public
+  		Constructor Create(lval:LvalueExpressionNode);
 
-		Constructor Create(lval:LvalueExpressionNode);
+    Published
+  		lval:LvalueExpressionNode;
   End;
 
 	LvalueExpressionNode = Class(UnaryExpressionNode)
@@ -836,72 +948,90 @@ Type
 
 	/// Cast an rvalue (Expr) to an lvalue
 	ExprAsLvalueNode = Class(LvalueExpressionNode)
-		Expr:ExpressionNode;
+    Public
+  		Constructor Create(Expr:ExpressionNode);
 
-		Constructor Create(Expr:ExpressionNode);
+    Published
+  		Expr:ExpressionNode;
   End;
 
 	/// eg: VarType(expr)
 	StaticCastNode = Class(LvalueExpressionNode)
-		CastType:TypeNode;
-    CastPrimitive:TypeClassNode;
-		Expr:ExpressionNode;
+    Public
+      CastPrimitive:TypeClassNode;
 
-		Constructor Create(T:TypeNode; Expr:ExpressionNode); Overload;
-    Constructor Create(T:TypeClassNode; Expr:ExpressionNode); Overload;
+  		Constructor Create(T:TypeNode; Expr:ExpressionNode); Overload;
+      Constructor Create(T:TypeClassNode; Expr:ExpressionNode); Overload;
+
+    Published
+  		CastType:TypeNode;
+	  	Expr:ExpressionNode;
   End;
 
 	ArrayAccessNode = Class(LvalueExpressionNode)
-		LValue:LvalueExpressionNode;
-		Acessors:ExpressionListNode;
-		// object alternative to lvalue
-		_Array:ArrayConstNode;
+    Public
+  		Constructor Create(_array:ArrayConstNode; Acessors:ExpressionListNode); Overload;
+	  	Constructor Create(lvalue:LvalueExpressionNode; Acessors:ExpressionListNode); Overload;
 
-		Constructor Create(_array:ArrayConstNode; Acessors:ExpressionListNode); Overload;
-		Constructor Create(lvalue:LvalueExpressionNode; Acessors:ExpressionListNode); Overload;
+    Published
+  		LValue:LvalueExpressionNode;
+  		Acessors:ExpressionListNode;
+  		// object alternative to lvalue
+  		_Array:ArrayConstNode;
   End;
 
 	PointerDereferenceNode = Class(LvalueExpressionNode)
-		Expr:ExpressionNode;
+    Public
+  		Constructor Create(Expr:ExpressionNode);
 
-		Constructor Create(Expr:ExpressionNode);
+    Published
+  		Expr:ExpressionNode;
   End;
 
 	RoutineCallNode = Class(LvalueExpressionNode)
-		Func:LvalueExpressionNode;
-		Args:ExpressionListNode;
+    Public
+  		Constructor Create(Func:LvalueExpressionNode; RetType:TypeNode = Nil);
+	  //RoutineCall(LvalueExpression func, ExpressionList args, TypeNode retType = null)
 
-		Constructor Create(Func:LvalueExpressionNode; RetType:TypeNode = Nil);
-	//RoutineCall(LvalueExpression func, ExpressionList args, TypeNode retType = null)
+    Published
+  		Func:LvalueExpressionNode;
+	  	Args:ExpressionListNode;
   End;
 
 	InheritedCallNode = Class(RoutineCallNode)
-		FuncName:StringObject;
-		// to be set by resolver
-		DeclaringObject:CompositeTypeNode;
+    Public
+  		FuncName:ASTString;
+	  	// to be set by resolver
+  		DeclaringObject:CompositeTypeNode;
 
-		Constructor Create(FuncName:StringObject; Args:ExpressionListNode =Nil);
+	  	Constructor Create(Const FuncName:ASTString = ''; Args:ExpressionListNode =Nil);
   End;
 
 	/// An access to a member in an object (record, class or interface)
 	ObjectAccessNode = Class(LvalueExpressionNode)
-		Obj:LvalueExpressionNode;
-		Field:StringObject;
+    Public
+  		Field:ASTString;
 
-		Constructor Create(Obj:LvalueExpressionNode; Field:StringObject);
+	  	Constructor Create(Obj:LvalueExpressionNode; Const Field:ASTString);
+
+    Published
+  		Obj:LvalueExpressionNode;
   End;
 
 	/// Identifier that refers to a named declaration
 	IdentifierNode = Class(LvalueExpressionNode)
-    Name:StringObject;
-		Decl:DeclarationNode;
+    Public
+      Name:ASTString;
 
-		Constructor Create(Name:StringObject; T:TypeNode = Nil);
+	  	Constructor Create(Const Name:ASTString; T:TypeNode = Nil);
+
+    Published
+  		Decl:DeclarationNode;
   End;
 
   IdentifierListNode = Class(ListNode)
     Public
-      Function Get(Index:Integer):IdentifierNode;
+      Function GetIdentifier(Index:Integer):IdentifierNode;
   End;
 
 	/// Identifier that refers to a named class. Static access
@@ -912,29 +1042,35 @@ Type
 	End;
 
 	UnresolvedIdNode = Class(UnresolvedLvalueNode)
-		ID:IdentifierNode;
+    Public
+  		Constructor Create(ID:IdentifierNode);
 
-		Constructor Create(ID:IdentifierNode);
+    Published
+  		ID:IdentifierNode;
   End;
 
 	/// Call, to be resolver after parsing
 	UnresolvedCallNode = Class(UnresolvedLvalueNode)
-		Func:LvalueExpressionNode;
-		Args:ExpressionListNode;
+    Public
+  		Constructor Create(lval:LvalueExpressionNode; Args:ExpressionListNode = Nil);
 
-		Constructor Create(lval:LvalueExpressionNode; Args:ExpressionListNode = Nil);
+    Published
+  		Func:LvalueExpressionNode;
+	  	Args:ExpressionListNode;
   End;
 
 
 	/// TODO!! Must Derive type
 	ConstDeclarationNode = Class(ValueDeclarationNode)
-		Init:ExpressionNode;
+		Public
+  		Constructor Create(Const Name:ASTString; Init:ExpressionNode; T:TypeNode = Nil);
 
-		Constructor Create(Name:StringObject; Init:ExpressionNode; T:TypeNode = Nil);
+    Published
+      Init:ExpressionNode;
   End;
 
 	EnumValueNode = Class(ConstDeclarationNode)
-    Constructor Create(Name:StringObject; Init:ExpressionNode = Nil);
+    Constructor Create(Const Name:ASTString; Init:ExpressionNode = Nil);
   End;
 
 	/// Creates a custom, user-defined name for some Type
@@ -943,33 +1079,38 @@ Type
 
 	/// Declaration of a global Routine
 	RoutineDeclarationNode = Class(CallableDeclarationNode)
-		Constructor Create(Name:StringObject; Params:ParametersSectionNode; Ret:TypeNode = Nil; Dirs:FunctionDirectiveListNode = Nil);
+		Constructor Create(Const Name:ASTString; Params:ParametersSectionNode; Ret:TypeNode = Nil; Dirs:FunctionDirectiveListNode = Nil);
   End;
 
 	/// Routine definition (implementation)
 	RoutineDefinitionNode = Class(RoutineDeclarationNode)
-		Body:RoutineSectionNode;
+    Public
+  		Constructor Create(Const name:ASTString; params:ParametersSectionNode; ret:TypeNode = Nil; dirs:FunctionDirectiveListNode = Nil; body:RoutineSectionNode = Nil); Overload;
+      Constructor Create(Const name:ASTString; signatureType:ProceduralTypeNode; dirs:FunctionDirectiveListNode = Nil; body:RoutineSectionNode = Nil); Overload;
 
-		Constructor Create(name:StringObject; params:ParametersSectionNode; ret:TypeNode = Nil; dirs:FunctionDirectiveListNode = Nil; body:RoutineSectionNode = Nil); Overload;
-    Constructor Create(name:StringObject; signatureType:ProceduralTypeNode; dirs:FunctionDirectiveListNode = Nil; body:RoutineSectionNode = Nil); Overload;
+    Published
+  		Body:RoutineSectionNode;
   End;
 
 	/// Method definition (implementation)
 	MethodDefinitionNode = Class(MethodDeclarationNode)
-		Body:RoutineSectionNode;
+		Public
+  		Constructor Create(Const objname, Name:ASTString; Params:ParametersSectionNode; Ret:TypeNode = Nil; Dirs:FunctionDirectiveListNode = Nil; Kind:MethodKindEnum  = Method_Default; Body:RoutineSectionNode = Nil);
 
-		Constructor Create(objname:StringObject; Name:StringObject; Params:ParametersSectionNode; Ret:TypeNode = Nil; Dirs:FunctionDirectiveListNode = Nil; Kind:MethodKindEnum  = Method_Default; Body:RoutineSectionNode = Nil);
+    Published
+      Body:RoutineSectionNode;
   End;
 
 	CompositeDeclarationNode = Class(TypeDeclarationNode)
 
-		Constructor Create(Name:StringObject; ctype:CompositeTypeNode);
+		Constructor Create(Const Name:ASTString; ctype:CompositeTypeNode);
   End;
 
 	ClassDeclarationNode = Class(CompositeDeclarationNode)
   End;
 
   InterfaceTypeNode = Class;
+
 	InterfaceDeclarationNode = Class(CompositeDeclarationNode)
   End;
 
@@ -984,36 +1125,44 @@ Type
   End;}
 
 	ExternalDirectiveNode = Class(ASTNode)
-		_File:ExpressionNode;
-		Name:ExpressionNode;
+    Public
+  		Constructor Create(_file:ExpressionNode; Name:ExpressionNode = Nil);
 
-		Constructor Create(_file:ExpressionNode; Name:ExpressionNode = Nil);
+    Published
+  		_File:ExpressionNode;
+	  	Name:ExpressionNode;
   End;
 
 	ImportDirectivesNode = Class(FunctionDirectiveListNode)
-		ImportDir:FunctionAttributeNode;
-		_external:ExternalDirectiveNode;
+    Public
+      Constructor Create(ImportDir:FunctionAttributeNode);
 
-    Constructor Create(ImportDir:FunctionAttributeNode);
+    Published
+  		ImportDir:FunctionAttributeNode;
+	  	_external:ExternalDirectiveNode;
   End;
 
 	LabelStatementNode = Class(StatementNode)
-		Name:StringObject;
-		Statement:StatementNode;
+    Public
+  		Name:ASTString;
 
-		// to be set by the resolver
-		Decl:LabelDeclarationNode;
+	  	// to be set by the resolver
+		  Decl:LabelDeclarationNode;
 
-		Constructor Create(Name:StringObject; Statement:StatementNode);
+  		Constructor Create(Const Name:ASTString; Statement:StatementNode);
+
+    Published
+      Statement:StatementNode;
   End;
 
 	GotoStatementNode = Class(StatementNode)
-		GotoLabel:StringObject;
+    Public
+  		GotoLabel:ASTString;
 
-		// to be set by the resolver
-		Decl:LabelDeclarationNode;
+	  	// to be set by the resolver
+		  Decl:LabelDeclarationNode;
 
-		Constructor Create(LabelName:StringObject);
+  		Constructor Create(Const LabelName:ASTString);
   End;
 
 	EmptyStatementNode = Class(StatementNode)
@@ -1026,46 +1175,58 @@ Type
   End;
 
 	AssignmentNode = Class(StatementNode)
-		lvalue:LvalueExpressionNode;
-		Expr:ExpressionNode;
+    Public
+  		Constructor Create(lvalue:LvalueExpressionNode; Expr:ExpressionNode);
 
-		Constructor Create(lvalue:LvalueExpressionNode; Expr:ExpressionNode);
+    Published
+  		lvalue:LvalueExpressionNode;
+	  	Expr:ExpressionNode;
   End;
 
 	IfStatementNode = Class(StatementNode)
-		Condition:ExpressionNode;
-		ThenBlock:StatementNode;
-		ElseBlock:StatementNode;
+    Public
+  		Constructor Create(condition:ExpressionNode ; ifTrue:StatementNode; ifFalse:StatementNode=Nil);
 
-		Constructor Create(condition:ExpressionNode ; ifTrue:StatementNode; ifFalse:StatementNode=Nil);
+    Published
+		  Condition:ExpressionNode;
+	  	ThenBlock:StatementNode;
+  		ElseBlock:StatementNode;
   End;
 
 	ExpressionStatementNode = Class(StatementNode)
-		Expr:ExpressionNode;
+    Public
+  		Constructor Create(Expr:ExpressionNode);
 
-		Constructor Create(Expr:ExpressionNode);
+    Published
+  		Expr:ExpressionNode;
   End;
 
 	CaseSelectorNode = Class(StatementNode)
-		List:ExpressionListNode;
-		Body:StatementNode;
+    Public
+  		Constructor Create(List:ExpressionListNode; Body:StatementNode);
 
-		Constructor Create(List:ExpressionListNode; Body:StatementNode);
+    Published
+	  	List:ExpressionListNode;
+  		Body:StatementNode;
   End;
 
 	CaseStatementNode = Class(StatementNode)
-		Condition:ExpressionNode;
-		Selectors:StatementListNode;
-		CaseElse:StatementNode;
+    Public
+  		Constructor Create(Condition:ExpressionNode; Selectors:StatementListNode; CaseElse:StatementNode);
 
-		Constructor Create(Condition:ExpressionNode; Selectors:StatementListNode; CaseElse:StatementNode);
+    Published
+  		Condition:ExpressionNode;
+  		Selectors:StatementListNode;
+	  	CaseElse:StatementNode;
   End;
 
 	LoopStatementNode = Class(StatementNode)
-		Condition:ExpressionNode;
-		Body:StatementNode;
+    Public
+  		Constructor Create(Body:StatementNode; Condition:ExpressionNode);
 
-		Constructor Create(Body:StatementNode; Condition:ExpressionNode);
+    Published
+  		Condition:ExpressionNode;
+  		Body:StatementNode;
   End;
 
 	RepeatLoopNode = Class(LoopStatementNode)
@@ -1075,67 +1236,86 @@ Type
   End;
 
 	ForLoopNode = Class(LoopStatementNode)
-		_var:IdentifierNode;
-		Start:ExpressionNode;
-		_End:ExpressionNode;
-		Direction:Integer;
+    Public
+  		Direction:Integer;
 
-		Constructor Create(_var:IdentifierNode; start:ExpressionNode; _End:ExpressionNode; Body:StatementNode; Dir:Integer);
+	  	Constructor Create(_var:IdentifierNode; start:ExpressionNode; _End:ExpressionNode; Body:StatementNode; Dir:Integer);
+
+    Published
+		  _var:IdentifierNode;
+	  	Start:ExpressionNode;
+  		_End:ExpressionNode;
   End;
 
 	WithStatementNode = Class(StatementNode)
-		_With:ExpressionListNode;
-		Body:StatementNode;
+    Public
+  		Constructor Create(_with:ExpressionListNode; Body:StatementNode);
 
-		Constructor Create(_with:ExpressionListNode; Body:StatementNode);
+    Published
+	  	_With:ExpressionListNode;
+  		Body:StatementNode;
   End;
 
 	TryFinallyStatementNode = Class(StatementNode)
-		Body:BlockStatementNode;
-		Final:BlockStatementNode;
+    Public
+  		Constructor Create(Body, Final:BlockStatementNode);
 
-		Constructor Create(Body, Final:BlockStatementNode);
+    Published
+  		Body:BlockStatementNode;
+	  	Final:BlockStatementNode;
   End;
 
 	ExceptionBlockNode = Class(StatementNode)
-  	onList:StatementListNode;
-		Default:BlockStatementNode;	// else or default, same semantics
+    Public
+  		Constructor Create(onList:StatementListNode; Default:BlockStatementNode = Nil);
 
-		Constructor Create(onList:StatementListNode; Default:BlockStatementNode = Nil);
+    Published
+    	onList:StatementListNode;
+	  	Default:BlockStatementNode;	// else or default, same semantics
   End;
 
 	TryExceptStatementNode = Class(StatementNode)
-		Body:BlockStatementNode;
-		Final:ExceptionBlockNode;
+    Public
+  		Constructor Create(Body:BlockStatementNode; Final:ExceptionBlockNode);
 
-		Constructor Create(Body:BlockStatementNode; Final:ExceptionBlockNode);
+    Published
+  		Body:BlockStatementNode;
+	  	Final:ExceptionBlockNode;
   End;
 
 
 	RaiseStatementNode = Class(StatementNode)
-		LValue:LvalueExpressionNode;
-		Expr:ExpressionNode;
+    Public
+  		Constructor Create(lvalue:LvalueExpressionNode; Expr:ExpressionNode);
 
-		Constructor Create(lvalue:LvalueExpressionNode; Expr:ExpressionNode);
+    Published
+  		LValue:LvalueExpressionNode;
+	  	Expr:ExpressionNode;
   End;
 
 	OnStatementNode = Class(StatementNode)
-		Ident:StringObject;
-		_type:StringObject;
-		Body:StatementNode;
+    Public
+  		Ident:ASTString;
+  		_type:ASTString;
 
-		Constructor Create(Ident, _type:StringObject; Body:StatementNode);
+  		Constructor Create(Const Ident, _type:ASTString; Body:StatementNode);
+
+    Published
+  		Body:StatementNode;
   End;
 
 	AssemblerBlockNode = Class(BlockStatementNode)
-		Constructor AssemblerBlock(Body:StatementListNode);
+    Public
+  		Constructor AssemblerBlock(Body:StatementListNode);
   End;
 
 	InterfaceTypeNode = Class(CompositeTypeNode)
-    Ssec:ObjectSectionNode;
-		Guid:StringLiteralNode;
+    Public
+  		Constructor Create(Heritage:IdentifierListNode; Ssec:ObjectSectionNode = Nil; guid:StringLiteralNode  = Nil);
 
-		Constructor Create(Heritage:IdentifierListNode; Ssec:ObjectSectionNode = Nil; guid:StringLiteralNode  = Nil);
+    Published
+      Ssec:ObjectSectionNode;
+	  	Guid:StringLiteralNode;
   End;
 
 
@@ -1146,8 +1326,8 @@ Type
 	///		 		Record > TypeNode ...
 
 	StructuredTypeNode = Class(TypeNode)
-		BaseType:TypeNode;
-		IsPacked:Boolean;
+    Public
+  		IsPacked:Boolean;
 		{
 		public override bool Equals(Object o)
 			if (!(o is StructuredType))
@@ -1159,63 +1339,78 @@ Type
 
 			return basetype.Equals(otype.basetype);
 		}
+    Published
+  		BaseType:TypeNode;
   End;
 
 	RecordTypeNode = Class(StructuredTypeNode)
-		CompTypes:DeclarationListNode;
+    Public
+  		Constructor Create(compTypes:DeclarationListNode);
 
-		Constructor Create(compTypes:DeclarationListNode);
+    Published
+  		CompTypes:DeclarationListNode;
   End;
 
 	RecordFieldDeclarationNode = Class(ValueDeclarationNode)
   End;
 
   ArrayTypeNode = Class(StructuredTypeNode)
-  	Dimensions:Array Of Integer;
-    DimensionCount:Integer;
+    Public
+    	Dimensions:Array Of Integer;
+      DimensionCount:Integer;
 
-  	Constructor Create(baseType:TypeNode; Dims:TypeListNode); Overload;
-	  Constructor Create(baseType, SizeType:TypeNode); Overload;
-    Constructor Create(sizeType:TypeNode); Overload;
+    	Constructor Create(baseType:TypeNode; Dims:TypeListNode); Overload;
+  	  Constructor Create(baseType, SizeType:TypeNode); Overload;
+      Constructor Create(sizeType:TypeNode); Overload;
 
-  	Procedure AddDimension(size:Integer);
+    	Procedure AddDimension(size:Integer);
   End;
 
   SetTypeNode = Class(StructuredTypeNode)
-    Constructor Create(T:TypeNode);
+    Public
+      Constructor Create(T:TypeNode);
   End;
 
   FileTypeNode = Class(StructuredTypeNode)
-    Constructor Create(T:TypeNode);
+    Public
+      Constructor Create(T:TypeNode);
   End;
 
 	VariantDeclarationNode = Class(RecordFieldDeclarationNode)
-		Fields:DeclarationListNode;
+    Public
+  		Constructor Create(Const Name:ASTString; T:TypeNode; Fields:DeclarationListNode);
 
-		Constructor Create(ID:StringObject; T:TypeNode; Fields:DeclarationListNode);
+    Published
+  		Fields:DeclarationListNode;
   End;
 
 	/// Variant case entry declaration
 	VarEntryDeclarationNode = Class(RecordFieldDeclarationNode)
-		TagValue:ExpressionNode;
-		Fields:RecordTypeNode;
+    Public
+  		Constructor Create(TagValue:ExpressionNode; Fields:DeclarationListNode);	// type must be later set to the variant type
 
-		Constructor Create(TagValue:ExpressionNode; Fields:DeclarationListNode);	// type must be later set to the variant type
+    Published
+  		TagValue:ExpressionNode;
+  		Fields:RecordTypeNode;
 	End;
 
   ExportItemNode = Class(UnitItemNode)
-		FormalParams:ParametersSectionNode;
-		ExportName:StringObject;
-		Index:Integer;
+    Public
+  		ExportName:ASTString;
+  		Index:Integer;
 
-		Constructor Create(Name:StringObject; pars:ParametersSectionNode; ExportName:StringObject = Nil); Overload;
-    Constructor Create(Name:StringObject; pars:ParametersSectionNode; Index:Integer); Overload;
+	  	Constructor Create(Const Name:ASTString; pars:ParametersSectionNode; ExportName:ASTString = ''); Overload;
+      Constructor Create(Const Name:ASTString; pars:ParametersSectionNode; Index:Integer); Overload;
+
+    Published
+  		FormalParams:ParametersSectionNode;
   End;
 
 	UnresolvedNode = Class(TypeNode)
-		ID:StringObject;
+    Public
+  		ID:ASTString;
 
-		Constructor Create(ID:StringObject);
+	  	Constructor Create(Const Name:ASTString);
   End;
 
 	UnresolvedTypeNode = Class(UnresolvedNode)
@@ -1236,38 +1431,35 @@ Implementation
 Uses TERRA_Error;
 
 { ASTNode }
-Procedure ASTNode.LinkChild(Child: ASTNode);
-Var
-  Count, I: Integer;
-  List: TPropList;
-  PropName:AnsiString;
+Function ASTNode.Level: Integer;
 Begin
-  Child.Owner := Self;
-  // loop through all node published properties
-  (*Count := GetPropList(Child.ClassInfo, tkAny, @List);
-  For I:=0 To Pred(Count) Do
-  Begin
-    PropName := List[I].Name;
+  If Assigned(Owner) Then
+    Result := Succ(Owner.Level)
+  Else
+    Result := 0;
+End;
 
-    If (PropName = 'Owner') Then
-    Begin
-      List[I].SetProc
-    End;
-  End;*)
+
+Procedure ASTNode.Assign(Target:PASTNode; Child:ASTNode);
+Begin
+  If Assigned(Child) Then
+    Child.Owner := Self;
+    
+  Target^ := Child;
 End;
 
 
 { MetaType }
-Constructor MetaTypeNode.Create(TypeClass: MetaTypeClass);
+Constructor MetaTypeNode.Create(TypeName:ASTString);
 Begin
-  Self.Value := TypeClass;
+  Self.Value := TypeName;
 End;
 
 { Declaration }
-Constructor DeclarationNode.Create(Name: StringObject; T: TypeNode);
+Constructor DeclarationNode.Create(Const Name: ASTString; T: TypeNode);
 Begin
   Self.Name := Name;
-  Self.DeclType := T;
+  Assign(@DeclType, T);
 End;
 
 { ListNode }
@@ -1282,14 +1474,18 @@ Begin
   If Element = Nil Then
     Exit;
 
+  If (Element Is ListNode) Then
+  Begin
+    Self.AddList(ListNode(Element));
+    Exit;
+  End;
+
   Inc(Count);
   SetLength(Elements, Count);
-  Elements[Pred(Count)] := Element;
-
-  LinkChild(Element);
+  Assign(@Elements[Pred(Count)], Element);
 End;
 
-Procedure ListNode.Add(List: ListNode);
+Procedure ListNode.AddList(List: ListNode);
 Var
   I:Integer;
 Begin
@@ -1300,7 +1496,7 @@ Begin
     Self.Add(List.Elements[I]);
 End;
 
-Procedure ListNode.InsertAt(Index:Integer; List:ListNode);
+Procedure ListNode.InsertListAt(Index:Integer; List:ListNode);
 Var
   I, Prev:Integer;
 Begin
@@ -1321,7 +1517,7 @@ Begin
     Elements[I + List.Count] := Elements[I];
 
   For I:=0 To Pred(List.Count) Do
-    Elements[I+Prev] := List.Elements[I];
+    Assign(@Elements[I+Prev], List.Elements[I]);
 End;
 
 Procedure ListNode.InsertAt(Index:Integer; Element:ASTNode);
@@ -1330,6 +1526,12 @@ Var
 Begin
   If List = Nil Then
     Exit;
+
+  If (Element Is ListNode) Then
+  Begin
+    Self.InsertListAt(Index, ListNode(Element));
+    Exit;
+  End;
 
   If (Index>=Count) Then
   Begin
@@ -1343,7 +1545,7 @@ Begin
   For I:=Index To (Count - 2) Do
     Elements[I + 1] := Elements[I];
 
-  Elements[I+Pred(Count)] := Element;
+  Assign(@Elements[I+Pred(Count)], Element);
 End;
 
 Function ListNode.Get(Index: Integer): ASTNode;
@@ -1355,23 +1557,18 @@ Begin
 End;
 
 { UnitItemNode }
-Constructor UnitItemNode.Create(Name, Location: StringObject);
+Constructor UnitItemNode.Create(Const Name, Location: ASTString);
 Begin
   Self.Name := Name;
   Self.Location := Location;
   Self.DeclType := Nil;
 End;
 
-Constructor UnitItemNode.Create(Name: StringObject);
-Begin
-  Self.Create(Name, Nil);
-End;
-
 { ProgramNode }
-Constructor ProgramNode.Create(Name:StringObject; UsesList:UnitListNode; Decls:DeclarationListNode; Body:BlockStatementNode);
+Constructor ProgramNode.Create(Const Name:ASTString; UsesList:UnitListNode; Decls:DeclarationListNode; Body:BlockStatementNode);
 Begin
   Self.Name := Name;
-  Self.Section := ProgramSectionNode.Create(UsesList, Decls, Body);
+  Assign(@Self.Section, ProgramSectionNode.Create(UsesList, Decls, Body));
 End;
 
 { CompositeTypeNode }
@@ -1383,28 +1580,28 @@ End;
 { SectionNode }
 Constructor SectionNode.Create(Decls: DeclarationListNode);
 Begin
-  Self.Decls := Decls;
+  Assign(@Self.Decls, Decls);
 End;
 
 { TopLevelDeclarationSectionNode }
 Constructor TopLevelDeclarationSectionNode.Create(UsesList:UnitListNode; Decls:DeclarationListNode);
 Begin
-  Self.Useslist := UsesList;
-  Self.Decls := Decls;
+  Assign(@Self.Useslist, UsesList);
+  Assign(@Self.Decls, Decls);
 End;
 
 { BlockStatementNode }
 Constructor BlockStatementNode.Create(List: StatementListNode);
 Begin
-  Self.List := List;
+  Assign(@Self.List, List);
 End;
 
 { ProgramSectionNode }
 Constructor ProgramSectionNode.Create(UsesList: UnitListNode; Decls: DeclarationListNode; Code: BlockStatementNode);
 Begin
-  Self.Block := Code;
-  Self.Useslist := UsesList;
-  Self.Decls := Decls;
+  Assign(@Self.Block, Code);
+  Assign(@Self.Useslist, UsesList);
+  Assign(@Self.Decls, Decls);
 End;
 
 { ConstExpressionNode }
@@ -1414,60 +1611,50 @@ Begin
 End;
 
 { VarDeclarationNode }
-Constructor VarDeclarationNode.Create(Name:StringObject; VarType:TypeNode; Init:ExpressionNode; AbsoluteId:StringObject);
+Constructor VarDeclarationNode.Create(Const Name:ASTString; VarType:TypeNode; Const AbsoluteId:ASTString; Init:ExpressionNode);
 Begin
   Self.Name := Name;
-  Self.DeclType := VarType;
-  Self.Init := Init;
   Self.AbsoluteID := AbsoluteID;
-
-  LinkChild(VarType);
+  Assign(@Self.DeclType, VarType);
+  Assign(@Self.Init, Init);
 End;
 
 
 { ParamDeclarationNode }
-Constructor ParamDeclarationNode.Create(Name:StringObject; ParamType:TypeNode; Init:ExpressionNode; Kind:ParameterKindEnum);
+Constructor ParamDeclarationNode.Create(Const Name:ASTString; ParamType:TypeNode; Init:ExpressionNode; Kind:ParameterKindEnum);
 Begin
   Self.Name := Name;
-  Self.DeclType := ParamType;
-  Self.Init := Init;
+  Assign(@Self.DeclType, ParamType);
+  Assign(@Self.Init, Init);
   Self.Kind := Kind;
-
-  LinkChild(ParamType);
 End;
 
 { VarParamDeclarationNode }
-Constructor VarParamDeclarationNode.Create(Name:StringObject; VarType:TypeNode);
+Constructor VarParamDeclarationNode.Create(Const Name:ASTString; VarType:TypeNode);
 Begin
   Self.Name := Name;
-  Self.DeclType := VarType;
-
-  LinkChild(VarType);
+  Assign(@Self.DeclType, VarType);
 End;
 
 { ConstParamDeclarationNode }
-Constructor ConstParamDeclarationNode.Create(Name:StringObject; ConstType:TypeNode; Init:ExpressionNode);
+Constructor ConstParamDeclarationNode.Create(Const Name:ASTString; ConstType:TypeNode; Init:ExpressionNode);
 Begin
   Self.Name := Name;
-  Self.DeclType := ConstType;
-  Self.Init := Init;
-
-  LinkChild(ConstType);
+  Assign(@Self.DeclType, ConstType);
+  Assign(@Self.Init, Init);
 End;
 
 { OutParamDeclarationNode }
-Constructor OutParamDeclarationNode.Create(Name:StringObject; VarType:TypeNode);
+Constructor OutParamDeclarationNode.Create(Const Name:ASTString; VarType:TypeNode);
 Begin
   Self.Name := Name;
-  Self.DeclType := VarType;
-
-  LinkChild(VarType);
+  Assign(@Self.DeclType, VarType);
 End;
 
 { ParametersSectionNode }
 Constructor ParametersSectionNode.Create(Decls: DeclarationListNode);
 Begin
-  Self.Decls := Decls;
+  Assign(@Self.Decls, Decls);
 End;
 
 { FunctionDirectiveListNode }
@@ -1478,70 +1665,70 @@ End;
 
 { CallableDeclarationNode }
 
-Constructor CallableDeclarationNode.Create(Name: StringObject; Params: ParametersSectionNode; RetType:TypeNode; Dirs: FunctionDirectiveListNode);
+Constructor CallableDeclarationNode.Create(Const Name:ASTString; Params:ParametersSectionNode; RetType:TypeNode; Dirs:FunctionDirectiveListNode);
 Begin
   Self.Name := Name;
-  Self.DeclaringSection := Params;
-  Self.ResultType := RetType;
-  Self.Directives := Dirs;
+  Assign(@Self.DeclaringSection, Params);
+  Assign(@Self.ResultType, RetType);
+  Assign(@Self.Directives, Dirs);
 End;
 
 { RoutineSectionNode }
 
 Constructor RoutineSectionNode.Create(Decls: DeclarationListNode; Block: StatementNode);
 Begin
-  Self.Decls := Decls;
-  Self.Block := Block;
+  Assign(@Self.Decls, Decls);
+  Assign(@Self.Block, Block);
 End;
 
 { LibraryNode }
-Constructor LibraryNode.Create(Name:StringObject; UsesList:UnitListNode; Decls:DeclarationListNode; Body:BlockStatementNode);
+Constructor LibraryNode.Create(Const Name:ASTString; UsesList:UnitListNode; Decls:DeclarationListNode; Body:BlockStatementNode);
 Begin
   Self.Name := Name;
-  Self.Section := ProgramSectionNode.Create(UsesList, Decls, Body);
+  Assign(@Self.Section, ProgramSectionNode.Create(UsesList, Decls, Body));
 End;
 
 { UnitNode }
-Constructor UnitNode.Create(Name: StringObject; Interfce:InterfaceSectionNode; Impl:ImplementationSectionNode; Init, Final: BlockStatementNode);
+Constructor UnitNode.Create(Const Name:ASTString; Interfce:InterfaceSectionNode; Impl:ImplementationSectionNode; Init, Final: BlockStatementNode);
 Begin
   Self.Name := Name;
-  Self.Interfaces := Interfce;
-  Self.Implements := Impl;
-  Self.Inits := Init;
-  Self.Final := Final;
+  Assign(@Self.Interfaces, Interfce);
+  Assign(@Self.Implements, Impl);
+  Assign(@Self.Inits, Init);
+  Assign(@Self.Final, Final);
 End;
 
 { PackageNode }
-Constructor PackageNode.Create(Name: StringObject; Requires, Contains: UnitListNode);
+Constructor PackageNode.Create(Const Name:ASTString; Requires, Contains: UnitListNode);
 Begin
   Self.Name := Name;
-  Self.Requires := Requires;
-  Self.Contains := Contains;
+  Assign(@Self.Requires, Requires);
+  Assign(@Self.Contains, Contains);
 End;
 
 { StructuredConstantNode }
 
 Constructor StructuredConstantNode.Create(ExprList: ExpressionListNode);
 Begin
-  Self.ExprList := ExprList;
+  Assign(@Self.ExprList, ExprList);
 End;
 
 { ArrayConstNode }
 Constructor ArrayConstNode.Create(ExprList: ExpressionListNode);
 Begin
-  Self.ExprList := ExprList;
+  Assign(@Self.ExprList, ExprList);
 End;
 
-Constructor ArrayConstNode.Create(ArrayElems: StringObject);
+Constructor ArrayConstNode.Create(Const ArrayElems: ASTString);
 Begin
   RaiseError('TODO');
 End;
 
 { FieldInitNode }
-Constructor FieldInitNode.Create(Name: StringObject; Expr: ExpressionNode);
+Constructor FieldInitNode.Create(Const Name:ASTString; Expr: ExpressionNode);
 Begin
   Self.FieldName := Name;
-  Self.Expr := Expr;
+  Assign(@Self.Expr, Expr);
 End;
 
 { FieldInitListNode }
@@ -1553,12 +1740,12 @@ End;
 { RecordConstNode }
 Constructor RecordConstNode.Create(ExprList: FieldInitListNode);
 Begin
-  Self.ExprList := ExprList;
+  Assign(@Self.ExprList, ExprList);
 End;
 
 { ConstIdentifierNode }
 
-Constructor ConstIdentifierNode.Create(Name: StringObject);
+Constructor ConstIdentifierNode.Create(Const Name:ASTString);
 Begin
   Self.Name := Name;
 End;
@@ -1660,20 +1847,20 @@ End;*)
 { StringTypeNode }
 Constructor StringTypeNode.Create(Len: ExpressionNode);
 Begin
-  Self.Length := Len;
+  Assign(@Self.Length, Len);
 End;
 
 { FixedStringTypeNode }
 Constructor FixedStringTypeNode.Create(Expr: ExpressionNode);
 Begin
-  Self.Expr := Expr;
+  Assign(@Self.Expr, Expr);
 End;
 
 { RangeTypeNode }
 Constructor RangeTypeNode.Create(Min, Max: ExpressionNode);
 Begin
-  Self.Min := Min;
-  Self.Max := Max;
+  Assign(@Self.Min, Min);
+  Assign(@Self.Max, Max);
 End;
 
 { EnumTypeNode }
@@ -1689,79 +1876,80 @@ Begin
 End;
 
 { FieldDeclarationNode }
-Constructor FieldDeclarationNode.FieldDeclaration(Id: StringObject; T: TypeNode; IsStatic: Boolean);
+Constructor FieldDeclarationNode.FieldDeclaration(Const Name:ASTString; T:TypeNode; IsStatic:Boolean);
 Begin
-  Self.Name := Id;
-  Self.DeclType := T;
+  Self.Name := Name;
+  Assign(@Self.DeclType, T);
   Self.isStatic := isStatic;
 End;
 
 { PropertySpecifiersNode }
 
-Constructor PropertySpecifiersNode.Create(Read, Write: StringObject);
+Constructor PropertySpecifiersNode.Create(Const Read, Write: ASTString);
 Begin
-
+  Self.Read := Read;
+  Self.Write := Write;
 End;
 
-Constructor PropertySpecifiersNode.Create(Index: IntLiteralNode; Read, Write: StringObject; Stored: ConstExpressionNode; Default: LiteralNode; Impl: StringObject);
+Constructor PropertySpecifiersNode.Create(Index: IntLiteralNode; Const Read, Write: ASTString; Stored: ConstExpressionNode; Default: LiteralNode; Const Impl: ASTString);
 Begin
   Self.Index := Index;
   Self.Read := Read;
   Self.Write := Write;
   Self.Stored := Stored;
   Self.Default := Default;
-  Self.Impl := Impl; 
+  Self.Impl := Impl;
 End;
 
 { PropertyDeclarationNode }
-Constructor PropertyDeclarationNode.Create(ID: StringObject; T: TypeNode; Specs: PropertySpecifiersNode);
+Constructor PropertyDeclarationNode.Create(Const Name:ASTString; T:TypeNode; Specs:PropertySpecifiersNode);
 Begin
-  Self.Name := ID;
-  Self.DeclType := T;
-  Self.Specifiers := Specs;
+  Self.Name := Name;
+  Assign(@Self.DeclType, T);
+  Assign(@Self.Specifiers, Specs);
 End;
 
 { ArrayPropertyNode }
-Constructor ArrayPropertyNode.Create(Id:StringObject; T:TypeNode; Indexes:DeclarationListNode; Specs:PropertySpecifiersNode; Def:Boolean);
+Constructor ArrayPropertyNode.Create(Const Name:ASTString; T:TypeNode; Indexes:DeclarationListNode; Specs:PropertySpecifiersNode; Def:Boolean);
 Begin
-  Self.Name := ID;
-  Self.DeclType := T;
-  Self.Indexes := Indexes;
-  Self.Specifiers := Specs;
+  Self.Name := Name;
+  Assign(@Self.DeclType, T);
+  Assign(@Self.Indexes, Indexes);
+  Assign(@Self.Specifiers, Specs);
   Self.IsDefault := Def;
 End;
 
 { ObjectSectionNode }
 Constructor ObjectSectionNode.Create(Fields, Decls:DeclarationListNode; Scope:ScopeEnum);
 Begin
-  Self.Fields := Fields;
-  Self.Decls := Decls;
+  Assign(@Self.Fields, Fields);
+  Assign(@Self.Decls, Decls);
   //SCOPE?
 End;
 
-procedure ObjectSectionNode.Add(Sec:ObjectSectionNode);
+Procedure ObjectSectionNode.Add(Sec:ObjectSectionNode);
 Begin
-RaiseError('TODO');
+  RaiseError('TODO');
 End;
 
 procedure ObjectSectionNode.AddDecls(Decls:DeclarationListNode; Scope:ScopeEnum);
 Begin
-RaiseError('TODO');
+  RaiseError('TODO');
 End;
 
 procedure ObjectSectionNode.AddFields(Fields:DeclarationListNode; Scope:ScopeEnum);
 Begin
-RaiseError('TODO');
+  RaiseError('TODO');
 End;
 
-procedure ObjectSectionNode.AddMethods(Methods:DeclarationListNode; Scope:ScopeEnum);
+Procedure ObjectSectionNode.AddMethods(Methods:DeclarationListNode; Scope:ScopeEnum);
 Begin
-RaiseError('TODO');
+  RaiseError('TODO');
 End;
 
 procedure ObjectSectionNode.AddProperties(Properties:DeclarationListNode; Scope:ScopeEnum);
 Begin
-RaiseError('TODO');
+  RaiseError('TODO');
 End;
 
 function ObjectSectionNode.GetField(id:AnsiString): FieldDeclarationNode;
@@ -1799,19 +1987,19 @@ End;
 { ClassRefTypeNode }
 Constructor ClassRefTypeNode.Create(reftype: ClassTypeNode);
 Begin
-  Self.RefType := RefType;
+  Assign(@Self.RefType, RefType);
 End;
 
-Constructor ClassRefTypeNode.Create(Qualifid: StringObject; Reftype:ClassTypeNode);
+Constructor ClassRefTypeNode.Create(Const Name:ASTString; Reftype:ClassTypeNode);
 Begin
-  Self.RefType :=RefType;
-  Self.QualifID := Qualifid;
+  Assign(@Self.RefType, RefType);
+  Self.QualifID := Name;
 End;
 
 { MetaClassTypeNode }
 Constructor MetaClassTypeNode.Create(baseType: TypeNode);
 Begin
-  Self.BaseType := BaseType;
+  Assign(@Self.BaseType, BaseType);
 End;
 
 { IntLiteralNode }
@@ -1827,7 +2015,6 @@ Begin
 End;
 
 { BoolLiteralNode }
-
 Constructor BoolLiteralNode.Create(Value: Boolean);
 Begin
   Self.Value := Value;
@@ -1835,7 +2022,7 @@ End;
 
 { StringLiteralNode }
 
-Constructor StringLiteralNode.Create(Value: StringObject);
+Constructor StringLiteralNode.Create(Const Value:ASTString);
 Begin
   Self.Value := Value;
 End;
@@ -1847,7 +2034,7 @@ Begin
   Self.Value := Value;
 End;
 
-{ PointerLiteralNode }
+{ NullLiteralNode }
 Constructor NullLiteralNode.Create();
 Begin
 End;
@@ -1855,15 +2042,15 @@ End;
 { BinaryExpressionNode }
 Constructor BinaryExpressionNode.Create(A, B: ExpressionNode);
 Begin
-  Self.Left := A;
-  Self.Right := B;
+  Assign(@Self.Left, A);
+  Assign(@Self.Right, B);
 End;
 
 { InExpressionNode }
 Constructor InExpressionNode.Create(A, B: ExpressionNode);
 Begin
-  Self.Expr := A;
-  Self._Set := B;
+  Assign(@Self.Expr, A);
+  Assign(@Self._Set, B);
 End;
 
 { SetRangeNode }
@@ -1871,61 +2058,62 @@ Constructor SetRangeNode.Create(_type: RangeTypeNode);
 Begin
   RaiseError('TODO');
 End;
+
 { TypeBinaryExpressionNode }
 Constructor TypeBinaryExpressionNode.Create(Expr:ExpressionNode; ExprType: TypeNode);
 Begin
-  Self.Expr := Expr;
-  Self.Types := ExprType;
+  Assign(@Self.Expr, Expr);
+  Assign(@Self.Types, ExprType);
 End;
 
 { SimpleUnaryExpressionNode }
 Constructor SimpleUnaryExpressionNode.Create(Expr: ExpressionNode);
 Begin
-  Self.Expr := Expr;
+  Assign(@Self.Expr, Expr);
 End;
 
 { SetExpressionNode }
 Constructor SetExpressionNode.Create(Elements: ExpressionListNode);
 Begin
-  Self.Elements := Elements;
+  Assign(@Self.Elements, Elements);
 End;
 
 { LvalueAsExprNode }
 Constructor LvalueAsExprNode.Create(lval: LvalueExpressionNode);
 Begin
-  Self.lval := LVal;
+  Assign(@Self.lval, LVal);
 End;
 
 { ExprAsLvalueNode }
 Constructor ExprAsLvalueNode.Create(Expr: ExpressionNode);
 Begin
-  Self.Expr := Expr;
+  Assign(@Self.Expr, Expr);
 End;
 
 { StaticCastNode }
 Constructor StaticCastNode.Create(T:TypeNode; Expr:ExpressionNode);
 Begin
-  Self.CastType := T;
-  Self.Expr := Expr;
+  Assign(@Self.CastType, T);
+  Assign(@Self.Expr, Expr);
 End;
 
 Constructor StaticCastNode.Create(T:TypeClassNode; Expr:ExpressionNode);
 Begin
   Self.CastPrimitive := T;
-  Self.Expr := Expr;
+  Assign(@Self.Expr, Expr);
 End;
 
 { ArrayAccessNode }
 Constructor ArrayAccessNode.Create(_array:ArrayConstNode; Acessors:ExpressionListNode);
 Begin
-  Self._Array := _Array;
-  Self.Acessors := Acessors;
+  Assign(@Self._Array, _Array);
+  Assign(@Self.Acessors, Acessors);
 End;
 
 Constructor ArrayAccessNode.Create(lvalue:LvalueExpressionNode; Acessors:ExpressionListNode);
 Begin
-  Self.LValue := LValue;
-  Self.Acessors := Acessors;
+  Assign(@Self.LValue, LValue);
+  Assign(@Self.Acessors, Acessors);
 End;
 
 { PointerDereferenceNode }
@@ -1942,21 +2130,21 @@ Begin
 End;
 
 { InheritedCallNode }
-Constructor InheritedCallNode.Create(FuncName: StringObject; Args: ExpressionListNode);
+Constructor InheritedCallNode.Create(Const FuncName:ASTString; Args:ExpressionListNode);
 Begin
   Self.FuncName := FuncName;
   Self.Args := Args;
 End;
 
 { ObjectAccessNode }
-Constructor ObjectAccessNode.Create(Obj: LvalueExpressionNode; Field:StringObject);
+Constructor ObjectAccessNode.Create(Obj:LvalueExpressionNode; Const Field:ASTString);
 Begin
   Self.Obj := Obj;
   Self.Field := Field;
 End;
 
 { IdentifierNode }
-Constructor IdentifierNode.Create(Name: StringObject; T: TypeNode);
+Constructor IdentifierNode.Create(Const Name:ASTString; T: TypeNode);
 Begin
   Self.Name := Name;
   Self.ForcedType := T;
@@ -1976,7 +2164,7 @@ Begin
 End;
 
 { ConstDeclarationNode }
-Constructor ConstDeclarationNode.Create(Name:StringObject; Init:ExpressionNode; T:TypeNode);
+Constructor ConstDeclarationNode.Create(Const Name:ASTString; Init:ExpressionNode; T:TypeNode);
 Begin
   Self.Name := Name;
   Self.Init := Init;
@@ -1984,7 +2172,7 @@ Begin
 End;
 
 { EnumValueNode }
-Constructor EnumValueNode.Create(Name:StringObject; Init:ExpressionNode);
+Constructor EnumValueNode.Create(Const Name:ASTString; Init:ExpressionNode);
 Begin
   Self.Name := Name;
   Self.Init := Init;
@@ -1999,7 +2187,7 @@ Begin
 End;
 
 { RoutineDeclarationNode }
-Constructor RoutineDeclarationNode.Create(Name: StringObject; Params: ParametersSectionNode; Ret: TypeNode; Dirs: FunctionDirectiveListNode);
+Constructor RoutineDeclarationNode.Create(Const Name:ASTString; Params: ParametersSectionNode; Ret: TypeNode; Dirs: FunctionDirectiveListNode);
 Begin
   Self.Name := Name;
   Self.DeclaringSection := Params;
@@ -2008,7 +2196,7 @@ Begin
 End;
 
 { MethodDeclarationNode }
-Constructor MethodDeclarationNode.Create(objname, name:StringObject; Params:ParametersSectionNode; Ret:TypeNode; Dirs:FunctionDirectiveListNode; Kind:MethodKindEnum);
+Constructor MethodDeclarationNode.Create(Const objname, name:ASTString; Params:ParametersSectionNode; Ret:TypeNode; Dirs:FunctionDirectiveListNode; Kind:MethodKindEnum);
 Begin
   Self.Objname := ObjName;
   Self.Name := Name;
@@ -2019,12 +2207,12 @@ Begin
 End;
 
 { RoutineDefinitionNode }
-Constructor RoutineDefinitionNode.Create(Name:StringObject; Params:ParametersSectionNode; Ret:TypeNode; Dirs:FunctionDirectiveListNode; Body: RoutineSectionNode);
+Constructor RoutineDefinitionNode.Create(Const Name:ASTString; Params:ParametersSectionNode; Ret:TypeNode; Dirs:FunctionDirectiveListNode; Body: RoutineSectionNode);
 Begin
 
 End;
 
-Constructor RoutineDefinitionNode.Create(Name:StringObject; SignatureType:ProceduralTypeNode; Dirs:FunctionDirectiveListNode; Body:RoutineSectionNode);
+Constructor RoutineDefinitionNode.Create(Const Name:ASTString; SignatureType:ProceduralTypeNode; Dirs:FunctionDirectiveListNode; Body:RoutineSectionNode);
 Begin
   Self.Name := Name;
   Self.SignatureType := SignatureType;
@@ -2033,7 +2221,7 @@ Begin
 End;
 
 { MethodDefinitionNode }
-Constructor MethodDefinitionNode.Create(objname, name: StringObject; Params:ParametersSectionNode; Ret:TypeNode; Dirs:FunctionDirectiveListNode; Kind: MethodKindEnum; Body:RoutineSectionNode);
+Constructor MethodDefinitionNode.Create(Const objname, name: ASTString; Params:ParametersSectionNode; Ret:TypeNode; Dirs:FunctionDirectiveListNode; Kind: MethodKindEnum; Body:RoutineSectionNode);
 Begin
   Self.Objname := ObjName;
   Self.Name := Name;
@@ -2045,7 +2233,7 @@ Begin
 End;
 
 { CompositeDeclarationNode }
-Constructor CompositeDeclarationNode.Create(Name: StringObject; Ctype:CompositeTypeNode);
+Constructor CompositeDeclarationNode.Create(Const Name:ASTString; Ctype:CompositeTypeNode);
 Begin
   Self.Name := Name;
   Self.DeclType := Ctype;
@@ -2066,14 +2254,14 @@ Begin
 End;
 
 { LabelStatementNode }
-Constructor LabelStatementNode.Create(Name: StringObject; Statement:StatementNode);
+Constructor LabelStatementNode.Create(Const Name:ASTString; Statement:StatementNode);
 Begin
   Self.Name := Name;
   Self.Statement := Statement;
 End;
 
 { GotoStatementNode }
-Constructor GotoStatementNode.Create(LabelName: StringObject);
+Constructor GotoStatementNode.Create(Const LabelName: ASTString);
 Begin
   Self.GotoLabel := LabelName;
 End;
@@ -2170,7 +2358,7 @@ End;
 
 { OnStatementNode }
 
-Constructor OnStatementNode.Create(Ident, _type: StringObject; Body:StatementNode);
+Constructor OnStatementNode.Create(Const Ident, _type: ASTString; Body:StatementNode);
 Begin
   Self.Ident := Ident;
   Self._type := _Type;
@@ -2236,7 +2424,7 @@ Begin
 End;
 
 { VariantDeclarationNode }
-Constructor VariantDeclarationNode.Create(ID: StringObject; T: TypeNode; Fields: DeclarationListNode);
+Constructor VariantDeclarationNode.Create(Const Name:ASTString; T: TypeNode; Fields: DeclarationListNode);
 Begin
   Self.Name := Name;
   Self.DeclType := T;
@@ -2252,14 +2440,14 @@ Begin
 End;
 
 { ExportItemNode }
-Constructor ExportItemNode.Create(name: StringObject; pars: ParametersSectionNode; exportname: StringObject);
+Constructor ExportItemNode.Create(Const Name:ASTString; pars: ParametersSectionNode; exportname: ASTString);
 Begin
   Self.Name := Name;
   Self.FormalParams := Pars;
   Self.ExportName := ExportName;
 End;
 
-Constructor ExportItemNode.Create(name: StringObject; pars: ParametersSectionNode; Index: Integer);
+Constructor ExportItemNode.Create(Const Name:ASTString; pars: ParametersSectionNode; Index: Integer);
 Begin
   Self.Name := Name;
   Self.FormalParams := Pars;
@@ -2267,25 +2455,25 @@ Begin
 End;
 
 { UnresolvedNode }
-Constructor UnresolvedNode.Create(ID: StringObject);
+Constructor UnresolvedNode.Create(Const Name:ASTString);
 Begin
   Self.ID := ID;
 End;
 
 { TypeListNode }
-Function TypeListNode.Get(Index: Integer): TypeNode;
+Function TypeListNode.GetType(Index: Integer): TypeNode;
 Begin
   Result := TypeNode(Self.Get(Index));
 End;
 
 { DeclarationListNode }
-Function DeclarationListNode.Get(Index: Integer): DeclarationNode;
+Function DeclarationListNode.GetDeclaration(Index: Integer): DeclarationNode;
 Begin
   Result := DeclarationNode(Self.Get(Index));
 End;
 
 { UnitListNode }
-Function UnitListNode.Get(Index: Integer): UnitItemNode;
+Function UnitListNode.GetUnit(Index: Integer): UnitItemNode;
 Begin
   Result := UnitItemNode(Self.Get(Index));
 End;
@@ -2293,7 +2481,7 @@ End;
 { StatementListNode }
 Constructor StatementListNode.Create(St: StatementNode);
 Begin
-  Self.List := ListNode.Create(St);
+  Assign(@Self.List, ListNode.Create(St));
 End;
 
 Procedure StatementListNode.Add(St: StatementNode);
@@ -2301,27 +2489,26 @@ Begin
   Self.List.Add(St);
 End;
 
-Function StatementListNode.Get(Index: Integer): StatementNode;
+Function StatementListNode.GetStatement(Index: Integer): StatementNode;
 Begin
   Result := StatementNode(List.Get(Index));
 End;
 
 
 { ExpressionListNode }
-Function ExpressionListNode.Get(Index: Integer): ExpressionNode;
+Function ExpressionListNode.GetExpression(Index: Integer): ExpressionNode;
 Begin
   Result := ExpressionNode(Self.Get(Index));
 End;
 
 { EnumValueListNode }
-Function EnumValueListNode.Get(Index: Integer): EnumValueNode;
+Function EnumValueListNode.GetEnum(Index: Integer): EnumValueNode;
 Begin
   Result := EnumValueNode(Self.Get(Index));
 End;
 
 { IdentifierListNode }
-
-Function IdentifierListNode.Get(Index: Integer): IdentifierNode;
+Function IdentifierListNode.GetIdentifier(Index: Integer): IdentifierNode;
 Begin
   Result := IdentifierNode(Self.Get(Index));
 End;
