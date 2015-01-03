@@ -12,10 +12,10 @@ Uses XPC_Lexer, TERRA_Utils, TERRA_OS, TERRA_IO, TERRA_Error, TERRA_FileIO, TERR
 Type
   PascalLexer = Class(CustomLexer)
     Protected
-        Procedure yyaction(yyruleno : Integer ); Override;   
+        Procedure yyaction(yyruleno:Integer; Values:Pointer); Override;   
         
     Public
-        Function Parse: integer; Override;
+        Function Parse(Values:Pointer):Integer; Override;
   End;
 
 Implementation
@@ -34,25 +34,30 @@ End;
 
 { PascalLexer }
  
-Procedure PascalLexer.yyaction(yyruleno : Integer );
+Procedure PascalLexer.yyaction(yyruleno:Integer; Values:Pointer); 
   (* local definitions: *)
 %%
-begin
+
+Var
+    yylval:YYSType;
+Begin
+    yylval := YYSType(Values);
   (* actions: *)
-  case yyruleno of
+  Case yyruleno Of
 %%
-  end;
-end(*yyaction*);
+  End;
+End;
 
 (* DFA table: *)
 %%
 
-Function PascalLexer.Parse():Integer;
-var yyn : Integer;
+Function PascalLexer.Parse(Values:Pointer):Integer;
+Var 
+    yyn : Integer;
 
 label start, scan, action;
 
-begin
+Begin
 
 start:
 
@@ -90,21 +95,23 @@ action:
 
   (* execute action: *)
 
-  if yyfind(yyrule) then
-    begin
-      yyaction(yyrule);
-      if yyreject then goto action;
-    end
-  else if not yydefault and yywrap then
-    begin
-      yyclear;
-      return(0);
-    end;
+  If yyfind(yyrule) Then
+  Begin
+    yyaction(yyrule, Values);
+    If yyreject Then 
+        Goto Action;
+  End Else 
+  If Not yydefault And yywrap Then
+  Begin
+    yyclear();
+    return(0);
+  End;
 
-  if not yydone then goto start;
+  If (Not yydone) Then 
+    Goto Start;
 
   Result := yyretval;
 
-end(*yylex*);
+End;
 
 End.

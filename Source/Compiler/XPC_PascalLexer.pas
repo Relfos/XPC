@@ -1,3 +1,21 @@
+{
+	XPC_PascalLexer.pas
+  Copyright (c) 2015 by Sergio Flores <relfos@gmail.com>
+
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation; either
+  version 2.1 of the License, or (at your option) any later version.
+
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+
+  You should have received a copy of the GNU Lesser General Public
+  License along with this library; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+}
 Unit XPC_PascalLexer;
 
 {$I terra.inc}
@@ -23,10 +41,10 @@ const SCLASS = 16;
 Type
   PascalLexer = Class(CustomLexer)
     Protected
-        Procedure yyaction(yyruleno : Integer ); Override;   
+        Procedure yyaction(yyruleno:Integer; Values:Pointer); Override;   
         
     Public
-        Function Parse: integer; Override;
+        Function Parse(Values:Pointer):Integer; Override;
   End;
 
 Implementation
@@ -45,457 +63,294 @@ End;
 
 { PascalLexer }
  
-Procedure PascalLexer.yyaction(yyruleno : Integer );
+Procedure PascalLexer.yyaction(yyruleno:Integer; Values:Pointer); 
   (* local definitions: *)
 
-begin
+
+Var
+    yylval:YYSType;
+Begin
+    yylval := YYSType(Values);
   (* actions: *)
-  case yyruleno of
-  1:
-       		Begin Return(KW_LIBRARY); End;
-  2:
-    		Begin Return(KW_UNIT); End;
-  3:
-       		Begin Return(KW_PROGRAM); End;
+  Case yyruleno Of
+  1:		Begin Return(KW_LIBRARY); End;
+  2:		Begin Return(KW_UNIT); End;
+  3:		Begin Return(KW_PROGRAM); End;
 
-  4:
-    		Begin Return(KW_USES); End;
-  5:
-       		Begin Return(KW_EXPORTS); End;
+  4:		Begin Return(KW_USES); End;
+  5:		Begin Return(KW_EXPORTS); End;
 
-  6:
-         		Begin Return(KW_INTERF); End;
-  7:
-              	Begin Return(KW_IMPL); End;
-  8:
-            	Begin Return(KW_FINALIZ); End;
-  9:
-              	Begin Return(KW_INIT); End;
+  6:		Begin Return(KW_INTERF); End;
+  7:	Begin Return(KW_IMPL); End;
+  8:	Begin Return(KW_FINALIZ); End;
+  9:	Begin Return(KW_INIT); End;
 
-  10:
-     		Begin pushstate(SCLASS); Return(KW_CLASS); End;
-  11:
-      		Begin pushstate(SCLASS); Return(KW_OBJECT); End;
-  12:
-      		Begin Return(KW_RECORD); End;
-  13:
-      		Begin Return(KW_PACKED); End;		
-  14:
-  			Begin Return(KW_OF); End;			
-  15:
-   			Begin Return(KW_OUT); End;			
-  16:
-        	Begin Return(KW_ABSOLUTE); End;		
-  17:
-        	Begin pushstate(SPROPSPECS); Return(KW_PROPERTY); End;
-  18:
-         	Begin Return(KW_INHERITED); End;	
+  10:		Begin pushstate(SCLASS); Return(KW_CLASS); End;
+  11:		Begin pushstate(SCLASS); Return(KW_OBJECT); End;
+  12:		Begin Return(KW_RECORD); End;
+  13:		Begin Return(KW_PACKED); End;		
+  14:			Begin Return(KW_OF); End;			
+  15:			Begin Return(KW_OUT); End;			
+  16:	Begin Return(KW_ABSOLUTE); End;		
+  17:	Begin pushstate(SPROPSPECS); Return(KW_PROPERTY); End;
+  18:	Begin Return(KW_INHERITED); End;	
 
 
-  19:
-        	Begin pushstate(XFUNCDECL); Return(KW_FUNCTION); End;
-  20:
-         	Begin pushstate(XFUNCDECL); Return(KW_PROCEDURE); End;
-  21:
-           	Begin pushstate(XFUNCDECL); Return(KW_CONSTRUCTOR); End;
-  22:
-          	Begin pushstate(XFUNCDECL); Return(KW_DESTRUCTOR); End;
+  19:	Begin pushstate(XFUNCDECL); Return(KW_FUNCTION); End;
+  20:	Begin pushstate(XFUNCDECL); Return(KW_PROCEDURE); End;
+  21:	Begin pushstate(XFUNCDECL); Return(KW_CONSTRUCTOR); End;
+  22:	Begin pushstate(XFUNCDECL); Return(KW_DESTRUCTOR); End;
 
-  23:
-     		Begin Return(KW_CONST); End;
-  24:
-   			Begin Return(KW_VAR); End;
-  25:
-         	Begin Return(KW_THRVAR); End;
-  26:
-    		Begin Return(KW_TYPE); End;
-  27:
-              	Begin Return(TYPE_RSCSTR); End;
+  23:		Begin Return(KW_CONST); End;
+  24:			Begin Return(KW_VAR); End;
+  25:	Begin Return(KW_THRVAR); End;
+  26:		Begin Return(KW_TYPE); End;
+  27:	Begin Return(TYPE_RSCSTR); End;
 
-  28:
-     		Begin Return(KW_Begin); End;
-  29:
-    		Begin Return(KW_WITH); End; 	
-  30:
-  			Begin Return(KW_DO); End;
+  28:		Begin Return(KW_Begin); End;
+  29:		Begin Return(KW_WITH); End; 	
+  30:			Begin Return(KW_DO); End;
 
-  31:
-   			Begin Return(KW_FOR); End;
-  32:
-  			Begin Return(KW_TO); End;
-  33:
-      		Begin Return(KW_DOWNTO); End;
-  34:
-      		Begin Return(KW_REPEAT); End;
-  35:
-     		Begin Return(KW_UNTIL); End;
-  36:
-     		Begin Return(KW_WHILE); End;
-  37:
-     		Begin Return(KW_BREAK); End;
-  38:
-        	Begin Return(KW_CONTINUE); End;
+  31:			Begin Return(KW_FOR); End;
+  32:			Begin Return(KW_TO); End;
+  33:		Begin Return(KW_DOWNTO); End;
+  34:		Begin Return(KW_REPEAT); End;
+  35:		Begin Return(KW_UNTIL); End;
+  36:		Begin Return(KW_WHILE); End;
+  37:		Begin Return(KW_BREAK); End;
+  38:	Begin Return(KW_CONTINUE); End;
 
-  39:
-  			Begin Return(KW_IF); End;
-  40:
-    		Begin Return(KW_THEN); End;
-  41:
-    		Begin Return(KW_ELSE); End;
-  42:
-    		Begin Return(KW_CASE); End;
-  43:
-    		Begin Return(KW_GOTO); End;
-  44:
-     		Begin Return(KW_LABEL); End;
+  39:			Begin Return(KW_IF); End;
+  40:		Begin Return(KW_THEN); End;
+  41:		Begin Return(KW_ELSE); End;
+  42:		Begin Return(KW_CASE); End;
+  43:		Begin Return(KW_GOTO); End;
+  44:		Begin Return(KW_LABEL); End;
 
-  45:
-     		Begin Return(KW_RAISE); End;
-  46:
-  			Begin Return(KW_AT); End;	
-  47:
-   			Begin Return(KW_TRY); End;
-  48:
-      		Begin Return(KW_EXCEPT); End;
-  49:
-       		Begin Return(KW_FINALLY); End;
-  50:
-  			Begin Return(KW_ON); End;
+  45:		Begin Return(KW_RAISE); End;
+  46:			Begin Return(KW_AT); End;	
+  47:			Begin Return(KW_TRY); End;
+  48:		Begin Return(KW_EXCEPT); End;
+  49:		Begin Return(KW_FINALLY); End;
+  50:			Begin Return(KW_ON); End;
 
-  51:
-               	    Begin 
+  51:	    Begin 
                         Return(ProcessIdentifier(yytext)); 
 						End;
-  52:
-              		Begin 
+  52:		Begin 
 						Return(KW_DOT); 
 					End;
 	
-  53:
-              		Begin
+  53:		Begin
 						switchcallback(XFUNCPARAMS, INITIAL);
 						Return(LPAR);
 					End;
-  54:
-              		Begin
+  54:		Begin
 						switchstate(XFUNCDIRECTS);
 						Return(SCOL);
 					End;
-  55:
-              		Begin
+  55:		Begin
 						switchcallback(XFUNCDIRECTS, INITIAL);
 						Return(COLON);
 					End;
-  56:
-                     	Begin
+  56:	Begin
 						End;
-  57:
-             			Begin
+  57: 			Begin
 							popstate();
 							yypushback(1);
 						End;
 						
-  58:
-                	Begin
+  58:	Begin
 						switchcallback(XFUNCDIRECTS, INITIAL);
 						Return(COLON);
 					End;
 	
-  59:
-                	Begin
+  59:	Begin
 						switchstate(XFUNCDIRECTS);
 						Return(SCOL);
 					End;
 				
-  60:
-                       	Begin
+  60:	Begin
 						End;
-  61:
-               			Begin
+  61: 			Begin
 							popstate();
 							yypushback(1);
 						End;
 	
-  62:
-                   		Begin Return(KW_CDECL); End;
-  63:
-                    	Begin Return(KW_PASCAL); End;
-  64:
-                      	Begin Return(KW_PASCAL); End;
-  65:
-                      	Begin Return(KW_REGISTER); End;
-  66:
-                      	Begin Return(KW_SAFECALL); End;
-  67:
-                     	Begin Return(KW_STDCALL); End;
+  62:		Begin Return(KW_CDECL); End;
+  63:	Begin Return(KW_PASCAL); End;
+  64:	Begin Return(KW_PASCAL); End;
+  65:	Begin Return(KW_REGISTER); End;
+  66:	Begin Return(KW_SAFECALL); End;
+  67:	Begin Return(KW_STDCALL); End;
 
-  68:
-                      	Begin Return(KW_ABSTRACT); End;
-  69:
-                       	Begin Return(KW_ASSEMBLER); End;
-  70:
-                     		Begin Return(KW_DYNAMIC); End;
-  71:
-                    		Begin Return(KW_EXPORT); End;
-  72:
-                     		Begin Return(KW_FORWARD); End;
-  73:
-                    		Begin Return(KW_INLINE); End;
-  74:
-                      	Begin Return(KW_OVERRIDE); End;
-  75:
-                      	Begin Return(KW_OVERLOAD); End;
-  76:
-                         	Begin Return(KW_REINTRODUCE); End;
-  77:
-                     		Begin Return(KW_VIRTUAL); End;
-  78:
-                     		Begin Return(KW_VARARGS); End;
+  68:	Begin Return(KW_ABSTRACT); End;
+  69:	Begin Return(KW_ASSEMBLER); End;
+  70:		Begin Return(KW_DYNAMIC); End;
+  71:		Begin Return(KW_EXPORT); End;
+  72:		Begin Return(KW_FORWARD); End;
+  73:		Begin Return(KW_INLINE); End;
+  74:	Begin Return(KW_OVERRIDE); End;
+  75:	Begin Return(KW_OVERLOAD); End;
+  76:	Begin Return(KW_REINTRODUCE); End;
+  77:		Begin Return(KW_VIRTUAL); End;
+  78:		Begin Return(KW_VARARGS); End;
 	
-  79:
-                 			Begin Return(KW_FAR); End;
-  80:
-                  		Begin Return(KW_NEAR); End;
-  81:
-                      	Begin Return(KW_RESIDENT); End;
+  79:			Begin Return(KW_FAR); End;
+  80:		Begin Return(KW_NEAR); End;
+  81:	Begin Return(KW_RESIDENT); End;
 		
-  82:
-                      	Begin pushstate(XFUNCEXTERN); Return(KW_EXTERNAL); End;
+  82:	Begin pushstate(XFUNCEXTERN); Return(KW_EXTERNAL); End;
 
-  83:
-                 			Begin Return(SCOL); End;
-  84:
-                        	Begin End;
+  83:			Begin Return(SCOL); End;
+  84:	Begin End;
 
-  85:
-                 			Begin popstate(); Return(KW_EQ); End;
+  85:			Begin popstate(); Return(KW_EQ); End;
 
 	
-  86:
-                  	Begin 
+  86:	Begin 
                                 popstate(); 
                                 yypushback(yylength()); 
                             End;
 			
-  87:
-                Begin 
+  87: Begin 
 					popstate();	
 					yypushback(1); 
 				End;
 
-  88:
-                  		Begin Return(KW_NAME); End;
-  89:
-                    		Begin yylval.yyStringObject := StringObject.Create(Copy(yytext, 2, yylength()-2)); Return(CONST_STR); End;
-  90:
-                			Begin Return(KW_DOT); End;
-  91:
-                 		Begin Return(ProcessIdentifier(yytext)); End;
+  88: 		Begin Return(KW_NAME); End;
+  89:		Begin yylval.yyStringObject := StringObject.Create(Copy(yytext, 2, yylength()-2)); Return(CONST_STR); End;
+  90:			Begin Return(KW_DOT); End;
+  91:		Begin Return(ProcessIdentifier(yytext)); End;
 	
-  92:
-                			Begin popstate(); Return(SCOL); End;
-  93:
-                       	Begin End;
-  94:
-              			Begin yyerror('Invalid char in external args: ' + yytext); End;	
+  92:			Begin popstate(); Return(SCOL); End;
+  93:	Begin End;
+  94:			Begin yyerror('Invalid char in external args: ' + yytext); End;	
 
-  95:
-                   		Begin Return(KW_DEFAULT); End;
-  96:
-                 		Begin Return(KW_INDEX); End;
-  97:
-                      	Begin Return(KW_IMPLEMENTS); End;
-  98:
-                     	Begin Return(KW_NODEFAULT); End;
-  99:
-                		Begin Return(KW_READ); End;
-  100:
-                  		Begin Return(KW_STORED); End;
-  101:
-                 		Begin Return(KW_WRITE); End;
+  95:		Begin Return(KW_DEFAULT); End;
+  96:		Begin Return(KW_INDEX); End;
+  97:	Begin Return(KW_IMPLEMENTS); End;
+  98:	Begin Return(KW_NODEFAULT); End;
+  99:		Begin Return(KW_READ); End;
+  100:		Begin Return(KW_STORED); End;
+  101:		Begin Return(KW_WRITE); End;
 
-  102:
-                	Begin
+  102: 	Begin
 						popstate();
 						Return(SCOL);
 					End;
 							
-  103:
-               		Begin	
+  103:		Begin	
 						pushstate(INITIAL); 
 						Return(LBRAC); 
 					End;
 
-  104:
-                 	Begin Return(KW_PROTECTED);	End;
-  105:
-              		Begin Return(KW_PUBLIC);		End;
-  106:
-                 	Begin Return(KW_PUBLISHED);	End;
-  107:
-               		Begin Return(KW_PRIVATE);	End;
+  104:	Begin Return(KW_PROTECTED);	End;
+  105:		Begin Return(KW_PUBLIC);		End;
+  106:	Begin Return(KW_PUBLISHED);	End;
+  107:		Begin Return(KW_PRIVATE);	End;
 
-  108:
-           			Begin
+  108:			Begin
 						popstate();
 						Return(KW_END);
 					End;
 
-  109:
-   				Begin Return(KW_END); End;
+  109:				Begin Return(KW_END); End;
 
-  110:
-      		Begin Return(TYPE_STR); End;
-  111:
-     		Begin Return(TYPE_ARRAY); End;
-  112:
-       		Begin Return(TYPE_PTR); End;
-  113:
-    		Begin Return(TYPE_FILE); End;
-  114:
-   			Begin Return(TYPE_SET); End;
+  110:		Begin Return(TYPE_STR); End;
+  111:		Begin Return(TYPE_ARRAY); End;
+  112:		Begin Return(TYPE_PTR); End;
+  113:		Begin Return(TYPE_FILE); End;
+  114:			Begin Return(TYPE_SET); End;
 		
 
-  115:
-   					Begin
+  115:					Begin
 						pushstate(XASMCODESEC);
 						Return(KW_ASM);
 					End;
-  116:
-                     	Begin 
+  116:	Begin 
 						End;
 					
-  117:
-                	Begin
+  117:	Begin
 						popstate();
 						Return(KW_END);
 					End;
 	
-  118:
-                 	    Begin
+  118:	    Begin
                             End;
 
-  119:
-                           	Begin
+  119:	Begin
 							End;
 
 	
-  120:
-      				Begin  yylval.yyInteger := StringToInt(yytext); Return(CONST_INT); End;
-  121:
-            				Begin yylval.yyInteger := HexStrToInt(Copy(yytext, 2, MaxInt)); Return(CONST_INT); End;
-  122:
-   					Begin Return(CONST_NIL); End;
-  123:
-              		Begin yylval.yyDouble := StringToFloat(yytext); Return(CONST_REAL); End;
-  124:
-                  	Begin yylval.yyDouble := StringToFloat(yytext); Return(CONST_REAL); End;
-  125:
-                          	Begin yylval.yyDouble := StringToFloat(yytext); Return(CONST_REAL); End;
+  120:				Begin  yylval.yyInteger := StringToInt(yytext); Return(CONST_INT); End;
+  121:				Begin yylval.yyInteger := HexStrToInt(Copy(yytext, 2, MaxInt)); Return(CONST_INT); End;
+  122:					Begin Return(CONST_NIL); End;
+  123:		Begin yylval.yyDouble := StringToFloat(yytext); Return(CONST_REAL); End;
+  124:	Begin yylval.yyDouble := StringToFloat(yytext); Return(CONST_REAL); End;
+  125:	Begin yylval.yyDouble := StringToFloat(yytext); Return(CONST_REAL); End;
 	
 	
-  126:
-   					Begin yylval.yyAnsiChar := yytext[1]; Return(CONST_CHAR); End;
+  126:					Begin yylval.yyAnsiChar := yytext[1]; Return(CONST_CHAR); End;
 					
-  127:
-        			Begin yylval.yyAnsiChar := AnsiChar(StringToInt(Copy(yytext, 2, MaxInt))); Return(CONST_CHAR); End;
-  128:
-               			Begin yylval.yyAnsiChar := AnsiChar(HexStrToInt(Copy(yytext, 2, MaxInt))); Return(CONST_CHAR); End;
+  127:			Begin yylval.yyAnsiChar := AnsiChar(StringToInt(Copy(yytext, 2, MaxInt))); Return(CONST_CHAR); End;
+  128:			Begin yylval.yyAnsiChar := AnsiChar(HexStrToInt(Copy(yytext, 2, MaxInt))); Return(CONST_CHAR); End;
 					
-  129:
-       				Begin yylval.yyStringObject := StringObject.Create(Copy(yytext, 2, yylength-2)); Return(CONST_STR); End;
+  129:				Begin yylval.yyStringObject := StringObject.Create(Copy(yytext, 2, yylength-2)); Return(CONST_STR); End;
 
-  130:
-    				Begin yylval.yyBoolean := true;  Return(CONST_BOOL); End;
-  131:
-     				Begin yylval.yyBoolean := false; Return(CONST_BOOL); End;
+  130:				Begin yylval.yyBoolean := true;  Return(CONST_BOOL); End;
+  131:				Begin yylval.yyBoolean := false; Return(CONST_BOOL); End;
 
-  132:
-   			Begin Return(COLON); End;
-  133:
-   			Begin Return(COMMA); End;
-  134:
-   			Begin Return(LBRAC); End;
-  135:
-   			Begin Return(LPAR ); End;
+  132:			Begin Return(COLON); End;
+  133:			Begin Return(COMMA); End;
+  134:			Begin Return(LBRAC); End;
+  135:			Begin Return(LPAR ); End;
 
-  136:
-   			Begin if (yylaststate() = SPROPSPECS  ) Then popstate(); Return(RBRAC); End;
-  137:
-   			Begin if (yylaststate() = XFUNCDIRECTS) Then popstate(); Return(SCOL); End;
-  138:
-   			Begin if (yylaststate() = XFUNCPARAMS ) Then popstate(); Return(RPAR); End;
+  136:			Begin if (yylaststate() = SPROPSPECS  ) Then popstate(); Return(RBRAC); End;
+  137:			Begin if (yylaststate() = XFUNCDIRECTS) Then popstate(); Return(SCOL); End;
+  138:			Begin if (yylaststate() = XFUNCPARAMS ) Then popstate(); Return(RPAR); End;
 
-  139:
-    		Begin Return(KW_ASSIGN); End;
-  140:
-    		Begin Return(KW_RANGE); End;
-  141:
-  			Begin Return(KW_AS); End;	
+  139:		Begin Return(KW_ASSIGN); End;
+  140:		Begin Return(KW_RANGE); End;
+  141:			Begin Return(KW_AS); End;	
 
-  142:
-   			Begin Return(KW_DOT); End;
-  143:
-   			Begin Return(KW_ADDR); End;
-  144:
-   			Begin Return(KW_DEREF); End;
+  142:			Begin Return(KW_DOT); End;
+  143:			Begin Return(KW_ADDR); End;
+  144:			Begin Return(KW_DEREF); End;
 
-  145:
-   			Begin Return(KW_SUB); End;
-  146:
-   			Begin Return(KW_SUM); End;
-  147:
-   			Begin Return(KW_DIV); End;
-  148:
-   			Begin Return(KW_MUL); End;
-  149:
-   			Begin Return(KW_QUOT); End;
-  150:
-   			Begin Return(KW_MOD); End;
+  145:			Begin Return(KW_SUB); End;
+  146:			Begin Return(KW_SUM); End;
+  147:			Begin Return(KW_DIV); End;
+  148:			Begin Return(KW_MUL); End;
+  149:			Begin Return(KW_QUOT); End;
+  150:			Begin Return(KW_MOD); End;
 
-  151:
-   			Begin Return(KW_AND); End;
-  152:
-  			Begin Return(KW_OR);	End;
-  153:
-   			Begin Return(KW_XOR); End;
-  154:
-   			Begin Return(KW_SHL); End;
-  155:
-   			Begin Return(KW_SHR); End;
-  156:
-   			Begin Return(KW_NOT); End;
+  151:			Begin Return(KW_AND); End;
+  152:			Begin Return(KW_OR);	End;
+  153:			Begin Return(KW_XOR); End;
+  154:			Begin Return(KW_SHL); End;
+  155:			Begin Return(KW_SHR); End;
+  156:			Begin Return(KW_NOT); End;
 
-  157:
-   			Begin Return(KW_LT); End;
-  158:
-   			Begin Return(KW_GT); End;
-  159:
-    		Begin Return(KW_GE); End;
-  160:
-    		Begin Return(KW_LE); End;
-  161:
-   			Begin Return(KW_EQ); End;
-  162:
-    		Begin Return(KW_NE); End;
-  163:
-  			Begin Return(KW_IS); End;	
-  164:
-  			Begin Return(KW_IN); End;	
+  157:			Begin Return(KW_LT); End;
+  158:			Begin Return(KW_GT); End;
+  159:		Begin Return(KW_GE); End;
+  160:		Begin Return(KW_LE); End;
+  161:			Begin Return(KW_EQ); End;
+  162:		Begin Return(KW_NE); End;
+  163:			Begin Return(KW_IS); End;	
+  164:			Begin Return(KW_IN); End;	
 
-  165:
-        Begin Return(ProcessIdentifier(yytext)); End;
+  165:    Begin Return(ProcessIdentifier(yytext)); End;
 
-  166:
-        	Begin
+  166:	Begin
 			End;
 
-  167:
- 		    Begin
+  167:		    Begin
 				yyerror('Unknown char: ' + yytext ); 
 			End;
-  end;
-end(*yyaction*);
+  End;
+End;
 
 (* DFA table: *)
 
@@ -30165,12 +30020,13 @@ yyth : array [0..yynstates-1] of Integer = (
 );
 
 
-Function PascalLexer.Parse():Integer;
-var yyn : Integer;
+Function PascalLexer.Parse(Values:Pointer):Integer;
+Var 
+    yyn : Integer;
 
 label start, scan, action;
 
-begin
+Begin
 
 start:
 
@@ -30208,21 +30064,23 @@ action:
 
   (* execute action: *)
 
-  if yyfind(yyrule) then
-    begin
-      yyaction(yyrule);
-      if yyreject then goto action;
-    end
-  else if not yydefault and yywrap then
-    begin
-      yyclear;
-      return(0);
-    end;
+  If yyfind(yyrule) Then
+  Begin
+    yyaction(yyrule, Values);
+    If yyreject Then 
+        Goto Action;
+  End Else 
+  If Not yydefault And yywrap Then
+  Begin
+    yyclear();
+    return(0);
+  End;
 
-  if not yydone then goto start;
+  If (Not yydone) Then 
+    Goto Start;
 
   Result := yyretval;
 
-end(*yylex*);
+End;
 
 End.

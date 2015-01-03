@@ -1,1659 +1,307 @@
-// source: delphi_parser.cod line# 1
+{
+	XPC_PascalParser.pas
+  Copyright (c) 2015 by Sergio Flores <relfos@gmail.com>
+
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation; either
+  version 2.1 of the License, or (at your option) any later version.
+
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+
+  You should have received a copy of the GNU Lesser General Public
+  License along with this library; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+}
 Unit XPC_PascalParser;
 
 {$I terra.inc}
 
 Interface
-Uses XPC_Parser, XPC_PascalLexer, TERRA_Utils, TERRA_IO, TERRA_Error, TERRA_FileIO, TERRA_Collections;
+Uses TERRA_Utils, TERRA_IO, TERRA_Collections, TERRA_Error, 
+    XPC_Parser, XPC_PascalLexer, XPC_ASTNodes, XPC_ASTUtils;
 
 //    | LBRAC lvalue RBRAC                { $$ := $2; }
 
 Type
-  PascalParser = Class(CustomParser)
-    Protected
-      _Lexer:PascalLexer;
-      _lastObjName:StringObject;
+    YYSType = Class;
+    
+    PascalParser = Class(CustomParser)
+        Protected
+            _Lexer:PascalLexer;
+            _lastObjName:StringObject;
+            _CurrentValue:YYSType;
+              
+            Procedure yyaction ( yyruleno : Integer ); Override;
+             
+            Function yyact(state, sym : Integer; var act : Integer) : Boolean;
+            Function yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
+            Function yycharsym(i : Integer) : String;
       
-      procedure yyaction ( yyruleno : Integer );
+        Public
+            Constructor Create(Source:Stream);
+            Destructor Destroy(); Override;
 
-      function yyact(state, sym : Integer; var act : Integer) : Boolean;
+            Function Parse:ASTNode; Override;
 
-      function yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
-
-      function yycharsym(i : Integer) : String;
-     
-    Public
-        Constructor Create(Source:Stream);
-        Destructor Destroy(); Override;
-
-      Function Parse: integer; Override;
-
-      Property Lexer:PascalLexer Read _Lexer;
-  End;
-
-
-Const
-  functionDirective_Assembler = 1;
-  functionDirective_Export    = 2;
-  functionDirective_Inline    = 3;
-  functionDirective_VarArgs   = 4;
-  functionDirective_Far       = 5;
-  functionDirective_Near      = 6;
-  functionDirective_Resident  = 7;
-  functionDirective_Overload  = 8;
-
-  methodDirective_Abstract  = 9;
-  methodDirective_Override = 10;
-  methodDirective_Virtual = 11;
-  methodDirective_Dynamic = 12;
-  methodDirective_Reintroduce = 13;
-
-  callConvention_Pascal = 0;
-  callConvention_SafeCall = 1;
-  callConvention_StdCall = 2;
-  callConvention_CDecl = 3;
-  callConvention_Register = 4;
-
-	importDirective_Default = 0;
-  importDirective_External = 1;
-  importDirective_Forward = 2;
-
-  scope_Public    = 0;
-  scope_Protected = 1;
-  scope_Private   = 2;
-  scope_Published = 3;
-
-Type
-  PascalNode = Class(ListObject)
-  End;
-
-	SourceNode = Class(PascalNode)
-    Name:StringObject;
-  End;
-
-  ProgramSection = Class;
-  NodeList = List;
-
-  TypeNode = Class(PascalNode)
-		// TODO each derive should set the typesize
-		typeSize:Integer;
-  End;
-
-  MetaTypeClass = Class Of TypeNode;
-
-  MetaType = Class(TypeNode)
-    Value:MetaTypeClass;
-
-    Constructor Create(TypeClass:MetaTypeClass);
-  End;
-
-  Declaration = Class(PascalNode)
-		Name:StringObject;
-		DeclType:TypeNode;
-
-		Constructor Create(Name:StringObject; T:TypeNode = Nil);
-  End;
-
-  DeclarationList = Class(PascalNode)
-    Declarations:Array Of Declaration;
-    Count:Integer;
-
-    Constructor Create(Decl:Declaration = Nil);
-    Procedure Add(Decl:Declaration); Overload;
-    Procedure Add(DeclList:DeclarationList); Overload;
-
-    Procedure InsertAt(Index:Integer; DeclList:DeclarationList);
-  End;
-
-  UnitItem = Class(Declaration)
-    Location:StringObject;
-
-    Constructor Create(Name:StringObject; Location:StringObject); Overload;
-    Constructor Create(Name:StringObject); Overload;
-  End;
-
-	Statement = Class(PascalNode)
-  End;
-
-  BlockStatement = Class;
-
-	ProgramNode = Class(SourceNode)
-    Section:ProgramSection;
-
-    Constructor Create(Name:StringObject; UsesList:NodeList; Decls:DeclarationList; Body:BlockStatement);
-  End;
-
-  ObjectSection = Class;
-  CompositeDeclaration = Class;
-  CompositeType = Class(TypeNode)
-		//heritage:StringList;
-
-		section:ObjectSection ;
-
-		decl:CompositeDeclaration;
-
-		IsPacked:Boolean;
-
-		// optional
-		Name:StringObject;
-
-
-    Ancestors:Array Of CompositeType;
-    AncestorCount:Integer;
-
-		//public List<CompositeType> ancestors;
-
-		Function IsForward:Boolean;  
-  End;
-
-	Section = Class(PascalNode)
-		Decls:DeclarationList;
-
-		Constructor Create(Decls:DeclarationList);
-  End;
-
-  TopLevelDeclarationSection = Class(Section)
-    Useslist:NodeList;
-
-		Constructor Create(UsesList:NodeList; Decls:DeclarationList);
-  End;
-
-
-	InterfaceSection = Class(TopLevelDeclarationSection)
-  End;
-
-	ImplementationSection = Class(TopLevelDeclarationSection)
-  End;
-
-  StatementList = Class(Statement)
-    Statements:Array Of Statement;
-    Count:Integer;
-
-    Constructor Create(St:Statement);
-    Procedure Add(St:Statement);
-  End;
-
-	BlockStatement = Class(Statement)
-		List:StatementList;
-
-		Constructor Create(List:StatementList);
-  End;
-
-	ProgramSection = Class(TopLevelDeclarationSection)
-    Block:BlockStatement;
-
-    Constructor Create(UsesList:NodeList; Decls:DeclarationList; Code:BlockStatement);
-  End;
-
-	ConstantValue = Class(PascalNode)
-  End;
-
-  Expression = Class(PascalNode)
-		ForcedType:TypeNode;
-    EnforceConst:Boolean;
-  End;
-
-  ExpressionList = Class(PascalNode)
-    Expressions:Array Of Expression;
-    Count:Integer;
-
-    Constructor Create(Exp:Expression = Nil);
-    Procedure Add(Exp:Expression);
-
-    Procedure InsertAt(Index:Integer; Exp:Expression);
-  End;
-
-  Literal = Class;
-  IntLiteral = Class;
-  
-  ConstExpression = Class(Expression)
-    Function ResolveToLiteral():Literal;
-  End;
-
-	LabelDeclaration = Class(Declaration)
-  End;
-
-	ValueDeclaration = Class(Declaration)
-  End;
-
-	VarDeclaration = Class(ValueDeclaration)
-		Init:Expression;
-		AbsoluteID:StringObject;
-		IsThrVar:Boolean;
-
-		Constructor Create(Name:StringObject; VarType:TypeNode; Init:Expression; AbsoluteId:StringObject);  Overload;
-		Constructor Create(Name:StringObject; VarType:TypeNode; Init:Expression = Nil);  Overload;
-  End;
-
-  ParameterKind = (param_Default, param_Var, param_Out, param_Const);
-
-	/// Routine parameters. May be value (default), variable, constant, or out.
-	/// Param types must be an id, string or open array (array of paramtype)
-	ParamDeclaration = Class(ValueDeclaration)
-		Init:Expression;
-    Kind:ParameterKind;
-
-		Constructor Create(Name:StringObject; ParamType:TypeNode; Init:Expression; Kind:ParameterKind);
-  End;
-
-	VarParamDeclaration = Class(ParamDeclaration)
-		Constructor Create(Name:StringObject; VarType:TypeNode);
-  End;
-
-	ConstParamDeclaration = Class(ParamDeclaration)
-		Constructor Create(Name:StringObject; ConstType:TypeNode; Init:Expression = Nil);
-  End;
-
-	OutParamDeclaration = Class(ParamDeclaration)
-		Constructor Create(Name:StringObject; VarType:TypeNode);
-  End;
-
-
-  ParametersSection = Class(Section)
-		  ReturnVar:ParamDeclaration; //TODO
-
-		  Constructor Create(Decls:DeclarationList=Nil);
-		//public override bool Equals(object obj)
-		{
-			ParametersSection sec = obj as ParametersSection;
-			return sec != null && returnVar.Equals(sec.returnVar) && decls.SequenceEqual(sec.decls);
-		}
-  End;
-
-
-	/// Directives constraints:
-	///		Override | Abstract
-	///		Abstract => virtual
-	///		varargs => cdecl
-  FunctionDirective = Integer;
-
-	FunctionDirectiveList  = Class(PascalNode)
-		CallConv:Integer;
-		Directives:Array Of FunctionDirective;
-    Count:Integer;
-
-    Constructor Create(Dir:FunctionDirective);
-		Procedure Add(Dir:FunctionDirective); Overload;
-		Procedure Add(Dirs:FunctionDirectiveList); Overload;
-
-		//public virtual void Add(int dir)
-		Function Contains(Dir:FunctionDirective ):Boolean;
-		/// Checks the immediate coherence between function directives.
-		/// Must be called after all directives are added
-		Function CheckDirectives():Boolean;
-  End;
-
-  ProceduralType = Class;
-
-	/// Declaration of a Callable unit, i.e. a global routine or method
-	CallableDeclaration = Class(Declaration)
-		/// Gets the fully qualified name of this callable
-		/// (obj+metname for methods, plus parameter types for overloads)
-		/// To be set by the Resolver
-		QualifiedName:StringObject;
-
-		/// Section that declares this callable.
-		/// To be set by resolver
-		DeclaringSection:Section;
-
-    SignatureType:ProceduralType;
-    ResultType:TypeNode;
-
-    Directives:FunctionDirectiveList;
-
-		Constructor Create(Name:StringObject; Params:ParametersSection; RetType:TypeNode = Nil; Dirs:FunctionDirectiveList = Nil);
-  End;
-
-
-	RoutineSection = Class(Section)
-    Block:Statement;
-
-		 // to be set by resolver
-		DeclaringCallable:CallableDeclaration;
-
-		Constructor Create(Decls:DeclarationList; Block:Statement);
-  End;
-
-	LibraryNode = Class(SourceNode)
-		Section:ProgramSection;
-
-		Constructor Create(Name:StringObject; UsesList:NodeList; Decls:DeclarationList; Body:BlockStatement);
-  End;
-
-	UnitNode = Class(SourceNode)
-		Interfaces:InterfaceSection;
-		Implements:ImplementationSection;
-		Inits:BlockStatement;
-		Final:BlockStatement;
-
-		Constructor Create(Name:StringObject; Interfce:InterfaceSection; Impl:ImplementationSection;  Init:BlockStatement = Nil; Final:BlockStatement = Nil);
-  End;
-
-  PackageNode = Class(SourceNode)
-		Requires:NodeList;
-		Contains:NodeList;
-
-		Constructor Create(Name:StringObject; requires, contains:NodeList);
-  End;
-
-  StructuredConstant = Class(ConstExpression)
-    ExprList:ExpressionList;
-
-		Constructor Create(ExprList:ExpressionList);
-  End;
-
-	ArrayConst = Class(StructuredConstant)
-    Constructor Create(ExprList:ExpressionList); Overload;
-		Constructor Create(ArrayElems:StringObject); Overload;
-			//: base(new ExpressionList(arrayElems.ToCharArray().Select(x => new CharLiteral(x)))){ }
-	End;
-
-  FieldInit = Class(ConstExpression)
-	  FieldName:StringObject;
-    Expr:Expression;
-
-    Constructor Create(Name:StringObject; Expr:Expression);
-  End;
-
-  FieldInitList = Class(ExpressionList)
-    Constructor Create(F:FieldInit = Nil);
-    //Procedure Add(F:FieldInit);
-  End;
-
-  RecordConst = Class(StructuredConstant)
-    Constructor Create(ExprList:FieldInitList);
-  End;
-
-  ConstIdentifier = Class(ConstExpression)
-    Name:StringObject;
-
-    Constructor Create(Name:StringObject);
-  End;
-
-  ScalarType = Class(TypeNode)
-  End;
-
-  TypeClass = Class Of ScalarType;
-
-  IntegralType = Class(ScalarType)
-    Function GetMinValue():Int64 ; Virtual; Abstract;
-    Function GetMaxValue():Int64 ; Virtual; Abstract;
-  End;
-
-	IntegerType = Class(IntegralType)
-  End;
-
-	SignedIntegerType = Class(IntegerType)
-  End;
-
-	UnsignedIntegerType = Class(IntegerType)
-  End;
-
-	UnsignedInt8Type = Class(UnsignedIntegerType)		// byte
-    Function GetMinValue():Int64 ; Override;
-    Function GetMaxValue():Int64 ; Override;
-	End;
-
-	UnsignedInt16Type = Class(UnsignedIntegerType)	// word
-    Function GetMinValue():Int64 ; Override;
-    Function GetMaxValue():Int64 ; Override;
-	End;
-
-	UnsignedInt32Type = Class(UnsignedIntegerType)	// cardinal
-    Function GetMinValue():Int64 ; Override;
-    Function GetMaxValue():Int64 ; Override;
-	End;
-
-	UnsignedInt64Type = Class(UnsignedIntegerType)	// uint64
-    Function GetMinValue():Int64 ; Override;
-    Function GetMaxValue():Int64 ; Override;
-	End;
-
-	SignedInt8Type = Class(SignedIntegerType)			// smallint
-    Function GetMinValue():Int64 ; Override;
-    Function GetMaxValue():Int64 ; Override;
-	End;
-
-	SignedInt16Type = Class(SignedIntegerType)		// smallint
-    Function GetMinValue():Int64 ; Override;
-    Function GetMaxValue():Int64 ; Override;
-	End;
-
-	SignedInt32Type = Class(SignedIntegerType)		// integer
-    Function GetMinValue():Int64 ; Override;
-    Function GetMaxValue():Int64 ; Override;
-	End;
-
-	SignedInt64Type = Class(IntegerType)				// int64
-    Function GetMinValue():Int64 ; Override;
-    Function GetMaxValue():Int64 ; Override;
-	End;
-
-	BoolType = Class(IntegralType)
-	End;
-
-	CharType = Class(IntegralType)
-	End;
-
-	RealType = Class(ScalarType)
-  End;
-
-	FloatType = Class(RealType)
-  End;
-
-	DoubleType = Class(RealType)
-  End;
-
-	ExtEndedType = Class(RealType)
-  End;
-
-	CurrencyType = Class(RealType)
-  End;
-
-	StringType = Class(ScalarType)
-    Length:Expression;
-
-    Constructor Create(Len:Expression = Nil);
-	End;
-
-	FixedStringType = Class(StringType)
-		Expr:Expression;
-		Len:Integer;
-
-		Constructor Create(Expr:Expression);
-  End;
-
-	RangeType = Class(TypeNode)
-		Min:Expression;
-		Max:Expression;
-
-		Constructor Create(Min, Max:Expression);
-  End;
-
-  EnumValue = Class;
-  EnumValueList = Class(PascalNode)
-		Values:Array Of EnumValue;
-    Count:Integer;
-
-    Constructor Create(Val:EnumValue);
-    Procedure Add(Val:EnumValue);
-  End;
-
-	EnumType = Class(TypeNode)
-    List:EnumValueList;
-
-		Constructor Create(enumVals:EnumValueList);
-  End;
-
-	/// Variants can hold values of any type except records, sets, static arrays, files, classes, class references, and pointers.
-	/// I.e. can hold anything but structured types and pointers.
-	/// They can hold interfaces, dynamic arrays, variant arrays
-	VariantType = Class(TypeNode)
-		actualtype:TypeNode ;
-  End;
-
-	/// PointedType may be any type.
-	/// It may be a not yet declared type (forward declaration)
-	PointerType = Class(ScalarType)
-		PointedType:TypeNode;
-
-		Constructor Create(PointedType:TypeNode);
-  End;
-
-
-	FieldDeclaration = Class(ValueDeclaration)
-		isStatic:Boolean;
-		Scope:Integer;
-		DeclaringObject:CompositeType;
-
-		Constructor FieldDeclaration(Id:StringObject; T:TypeNode = Nil; IsStatic:Boolean = False);
-  End;
-
-	PropertySpecifiers  = Class(PascalNode)
-		Public
-      Index:IntLiteral;
-		  Read:StringObject;
-		  Write:StringObject;
-      Stored:ConstExpression;
-		  Default:Literal;	// nodefault == Int32.MaxValue
-		  Impl:StringObject;
-
-		  Constructor Create(Read, Write:StringObject); Overload;
-		  Constructor Create(Index:IntLiteral; Read, Write:StringObject; Stored:ConstExpression; Default:Literal; Impl:StringObject = Nil); Overload;
-  End;
-
-	PropertyDeclaration = Class(FieldDeclaration)
-    Public
-  		Specifiers:PropertySpecifiers;
-
-		  IsStatic:Boolean;
-
-		  Constructor Create(ID:StringObject; T:TypeNode; Specs:PropertySpecifiers = Nil);
-  End;
-
-	ArrayProperty = Class(PropertyDeclaration)
-		Indexes:DeclarationList;
-		IsDefault:Boolean;
-
-		Constructor Create(Id:StringObject; T:TypeNode; Indexes:DeclarationList; Specs:PropertySpecifiers; Def:Boolean);
-	End;
-
-
-  MethodDeclaration = Class;
-
-	ObjectSection = Class(Section)
-		Fields:DeclarationList;
-		Properties:DeclarationList;
-    //Methods:DeclarationList;
-		DeclaringObject:CompositeType;
-
-		Constructor Create(Fields:DeclarationList = Nil; Decls:DeclarationList = Nil; Scope:Integer = Scope_Published);
-
-		Procedure Add(Sec:ObjectSection);
-
-		Procedure AddFields(Fields:DeclarationList; Scope:Integer);
-
-		Procedure AddMethods(Methods:DeclarationList; Scope:Integer);
-
-		Procedure AddProperties(Properties:DeclarationList; Scope:Integer);
-
-		/// Add unknown-type declarations
-		Procedure AddDecls(Decls:DeclarationList; Scope:Integer);
-
-		/// Fields, Methods and Properties
-		{
-		public IEnumerable<Declaration> Decls(Scope s = (Scope) 0xffffff)
-			foreach (var f in fields.Cast<FieldDeclaration>().Where(f => (f.scope & s) != 0))
-				yield return f;
-			foreach (var d in decls.Cast<MethodDeclaration>().Where(d => (d.scope & s) != 0))
-				yield return d;
-			foreach (var p in properties.Cast<PropertyDeclaration>().Where(p => (p.scope & s) != 0))
-				yield return p;
-		}
-
-
-		/// Returns a member with the given name
-		Function GetMember(id:AnsiString):Declaration;
-
-		/// Returns a method with the given name
-		Function GetMethod(id:AnsiString):MethodDeclaration;
-
-		/// Returns a field with the given name
-		Function GetField(id:AnsiString):FieldDeclaration;
-
-		/// Returns a property with the given name
-		Function GetProperty(id:AnsiString):PropertyDeclaration;
-  End;
-
-  ClassTypeNode = Class(CompositeType)
-		_self:FieldDeclaration;
-
-    Public
-		  Constructor Create(Heritage:NodeList; Sec:ObjectSection  = Nil);
-  End;
-
-	ClassRefType = Class(ClassTypeNode)
-		QualifID:StringObject;
-		RefType:ClassTypeNode;
-
-		Constructor Create(reftype:ClassTypeNode); Overload;
-		Constructor Create(qualifid:StringObject; reftype:ClassTypeNode = Nil); Overload;
-  End;
-
-	MetaClassType = Class(ScalarType)
-		BaseType:TypeNode;
-
-		Constructor Create(baseType:TypeNode);
-  End;
-
-  Literal = Class(ConstExpression)
-    //Constructor Create(Val:ConstantValue; T:TypeNode);
-  End;
-
-	OrdinalLiteral = Class(Literal)
-    //Constructor Create(V:Cardinal; T:IntegralType);
-  End;
-
-	IntLiteral = Class(OrdinalLiteral)
-    Value:Int64;
-
-    Constructor Create(Value:Int64);
-  End;
-
-	CharLiteral = Class(OrdinalLiteral)
-    Value:AnsiChar;
-
-    Constructor Create(Value:AnsiChar);
-  End;
-
-	BoolLiteral = Class(OrdinalLiteral)
-    Value:Boolean;
-
-    Constructor Create(Value:Boolean);
-  End;
-
-	StringLiteral = Class(Literal)
-    Value:StringObject;
-
-    Constructor Create(Value:StringObject);
-  End;
-
-	RealLiteral = Class(Literal)
-    Value:Double;
-
-    Constructor Create(Value:Double);
-  End;
-
-	PointerLiteral = Class(Literal)
-    Value:Int64;
-
-    Constructor Create(val:Int64);
-  End;
-
-	BinaryExpression = Class(Expression)
-		Left:Expression;
-		Right:Expression;
-
-    Constructor Create(A, B:Expression);
-  End;
-
-	SetIn = Class(BinaryExpression)
-		Expr:Expression;
-		_Set:Expression;		// enforce that 'set' is in fact a set
-
-		Constructor Create(A, B:Expression );
-  End;
-
-	SetRange = Class(BinaryExpression)
-    Range:RangeType;
-
-		Constructor Create(_type:RangeType);
-		{
-			this.ForcedType = this.Type = type;
-			this.EnforceConst = true;
-		}
-  End;
-
-  ArithmeticBinaryOp = (op_ADD, op_SUB, op_DIV, op_MUL, op_QUOT, op_MOD, op_SHR, op_SHL);
-
-	ArithmeticBinaryExpression  = Class(BinaryExpression)
-    Op:ArithmeticBinaryOp;
-  End;
-
-	Subtraction = Class(ArithmeticBinaryExpression)
-  End;
-
-	Addition = Class(ArithmeticBinaryExpression)
-	End;
-
-	Product = Class(ArithmeticBinaryExpression)
-  End;
-
-	Division = Class(ArithmeticBinaryExpression)
-  End;
-
-	// Integer division
-	Quotient = Class(ArithmeticBinaryExpression)
-  End;
-
-	Modulus = Class(ArithmeticBinaryExpression)
-  End;
-
-	ShiftRight = Class(ArithmeticBinaryExpression)
-  End;
-
-	ShiftLeft = Class(ArithmeticBinaryExpression)
-  End;
-
-
-	LogicalBinaryOp = (op_AND, op_OR, op_XOR);
-
-	LogicalBinaryExpression = Class(BinaryExpression)
-		  op:LogicalBinaryOp ;
-  End;
-
-	ComparisonBinaryOp = (op_EQ, op_NE, op_LT, op_LE, op_GT, op_GE, op_SGT, op_SGE,op_SLT,op_SLE);
-
-	ComparisonBinaryExpression = Class(BinaryExpression)
-		op:ComparisonBinaryOp;
-  End;
-
-  LogicalAnd = Class(LogicalBinaryExpression)
-  End;
-
-	LogicalOr = Class(LogicalBinaryExpression)
-  End;
-
-
-	LogicalXor = Class(LogicalBinaryExpression)
-  End;
-
-
-	Equal = Class(ComparisonBinaryExpression)
-  End;
-
-
-	NotEqual = Class(ComparisonBinaryExpression)
-  End;
-
-
-	LessThan = Class(ComparisonBinaryExpression)
-  End;
-
-
-	LessOrEqual = Class(ComparisonBinaryExpression)
-  End;
-
-
-	GreaterThan = Class(ComparisonBinaryExpression)
-  End;
-
-
-	GreaterOrEqual = Class(ComparisonBinaryExpression)
-  End;
-
-	TypeBinaryExpression = Class(BinaryExpression)
-		Expr:Expression;
-		Types:TypeNode;
-
-		Constructor Create(Expr:Expression; ExprType:TypeNode);
-  End;
-
-	TypeIs = Class(TypeBinaryExpression)
-  End;
-
-	RuntimeCast = Class(TypeBinaryExpression)
-  End;
-
-	UnaryExpression = Class(Expression)
-  End;
-
-	SimpleUnaryExpression = Class(Expression)
-		Expr:Expression;
-
-		Constructor Create(Expr:Expression);
-  End;
-
-	UnaryPlus = Class(SimpleUnaryExpression)
-  End;
-
-	UnaryMinus = Class(SimpleUnaryExpression)
-  End;
-
-	LogicalNot = Class(SimpleUnaryExpression)
-  End;
-
-	AddressLvalue = Class(SimpleUnaryExpression)
-  End;
-
-
-	SetExpression = Class(UnaryExpression)
-		Elements:ExpressionList;
-
-		Constructor Create(Elements:ExpressionList = Nil);
-  End;
-
-  LvalueExpression = Class;
-
-	/// Cast an lvalue to an rvalue (Expr)
-	LvalueAsExpr = Class(UnaryExpression)
-		lval:LvalueExpression;
-
-		Constructor Create(lval:LvalueExpression);
-  End;
-
-	LvalueExpression = Class(UnaryExpression)
-  End;
-
-	/// Cast an rvalue (Expr) to an lvalue
-	ExprAsLvalue = Class(LvalueExpression)
-		Expr:Expression;
-
-		Constructor Create(Expr:Expression);
-  End;
-
-	/// VarType(expr)
-	StaticCast = Class(LvalueExpression)
-		CastType:TypeNode;
-    CastPrimitive:TypeClass;
-		Expr:Expression;
-
-		Constructor Create(t:TypeNode; e:Expression); Overload;
-    Constructor Create(t:TypeClass; e:Expression); Overload;
-  End;
-
-	ArrayAccess = Class(LvalueExpression)
-		LValue:LvalueExpression;
-		Acessors:ExpressionList;
-		// object alternative to lvalue
-		_Array:ArrayConst;
-
-		Constructor Create(_array:ArrayConst; acessors:ExpressionList); Overload;
-		Constructor Create(lvalue:LvalueExpression; acessors:ExpressionList ); Overload;
-  End;
-
-	PointerDereference = Class(LvalueExpression)
-		Expr:Expression;
-
-		Constructor Create(Expr:Expression);
-  End;
-
-	RoutineCall = Class(LvalueExpression)
-		Func:LvalueExpression;
-		Args:ExpressionList;
-
-		Constructor Create(Func:LvalueExpression; RetType:TypeNode = Nil);
-	//RoutineCall(LvalueExpression func, ExpressionList args, TypeNode retType = null)
-  End;
-
-	InheritedCall = Class(RoutineCall)
-		FuncName:StringObject;
-		// to be set by resolver
-		DeclaringObject:CompositeType;
-
-		Constructor Create(FuncName:StringObject; Args:ExpressionList =Nil);
-  End;
-
-	/// An access to a member in an object (record, class or interface)
-	ObjectAccess = Class(LvalueExpression)
-		Obj:LvalueExpression;
-		Field:StringObject;
-
-		Constructor Create(Obj:LvalueExpression; Field:StringObject);
-  End;
-
-	/// Identifier that refers to a named declaration
-	Identifier = Class(LvalueExpression)
-    Name:StringObject;
-		Decl:Declaration;
-
-		Constructor Create(Name:StringObject; T:TypeNode = Nil);
-  End;
-
-	/// Identifier that refers to a named class. Static access
-	IdentifierStatic = Class(Identifier)
-  End;
-
-	UnresolvedLvalue = Class(LvalueExpression)
-	End;
-
-	UnresolvedId = Class(UnresolvedLvalue)
-		ID:Identifier;
-
-		Constructor Create(ID:Identifier);
-  End;
-
-	/// Call, to be resolver after parsing
-	UnresolvedCall = Class(UnresolvedLvalue)
-		Func:LvalueExpression;
-		Args:ExpressionList;
-
-		Constructor Create(lval:LvalueExpression; Args:ExpressionList = Nil);
-  End;
-
-
-	/// TODO!! Must Derive type
-	ConstDeclaration = Class(ValueDeclaration)
-		Init:Expression;
-
-		Constructor Create(Name:StringObject; Init:Expression; T:TypeNode = Nil);
-  End;
-
-	EnumValue = Class(ConstDeclaration)
-    Constructor Create(Name:StringObject; Init:Expression = Nil);
-  End;
-
-	/// Creates a custom, user-defined name for some Type
-	TypeDeclaration  = Class(Declaration)
-  End;
-
-	ProceduralType  = Class(TypeNode)
-		Params:ParametersSection;
-
-		/// Function's return type. Must be null for every non-function routine.
-		FuncRet:TypeNode ;
-
-		Directives:FunctionDirectiveList ;
-
-		Constructor Create(Params:ParametersSection; ret:TypeNode = Nil; Dirs:FunctionDirectiveList = Nil);
-  End;
-
-	MethodKind = (method_Default,	method_Constructor, method_Destructor);
-
-	MethodType = Class(ProceduralType)
-		Kind:MethodKind;
-  End;
-
-	/// Declaration of a global Routine
-	RoutineDeclaration = Class(CallableDeclaration)
-		Constructor Create(Name:StringObject; Params:ParametersSection; Ret:TypeNode = Nil; Dirs:FunctionDirectiveList = Nil);
-  End;
-
-	/// Declaration of a Method
-	MethodDeclaration = Class(CallableDeclaration)
-		isStatic:Boolean;
-		Objname:StringObject;
-		Name:StringObject;
-    Scope:Integer;
-		DeclaringObject:CompositeType;
-    Kind:MethodKind;
-
-		Constructor Create(objname:StringObject; name:StringObject; params:ParametersSection; ret:TypeNode = Nil; dirs:FunctionDirectiveList  = Nil; kind:MethodKind  = method_Default);
-	End;
-
-	/// Routine definition (implementation)
-	RoutineDefinition = Class(RoutineDeclaration)
-		Body:RoutineSection;
-
-		Constructor Create(name:StringObject; params:ParametersSection; ret:TypeNode  = Nil; dirs:FunctionDirectiveList  = nil; body:RoutineSection  = Nil); Overload;
-    Constructor Create(name:StringObject; signatureType:ProceduralType; dirs:FunctionDirectiveList  = nil; body:RoutineSection  = Nil); Overload;
-  End;
-
-	/// Method definition (implementation)
-	MethodDefinition = Class(MethodDeclaration)
-		Body:RoutineSection;
-
-		Constructor Create(objname:StringObject; name:StringObject; params:ParametersSection; ret:TypeNode  = Nil; dirs:FunctionDirectiveList = Nil; kind:MethodKind  = Method_Default; body:RoutineSection  = Nil);
-  End;
-
-	CompositeDeclaration = Class(TypeDeclaration)
-
-		Constructor Create(Name:StringObject; ctype:CompositeType);
-  End;
-
-	ClassDeclaration = Class(CompositeDeclaration)
-  End;
-
-  InterfaceType = Class;
-	InterfaceDeclaration = Class(CompositeDeclaration)
-  End;
-
-	/// Routine Directives
-
- {	MethodDirectives = Class(FunctionDirectiveList)
-		methoddirs:Array Of FunctionDirective;
-
-		Procedure Add(dir:FunctionDirective);
-		Function Contains(dir:FunctionDirective):Boolean;
-		Function CheckDirectives():Boolean;
-  End;}
-
-	ExternalDirective = Class(PascalNode)
-		_File:Expression;
-		Name:Expression;
-
-		Constructor Create(_file:Expression; name:Expression = Nil);
-  End;
-
-	ImportDirectives = Class(FunctionDirectiveList)
-		Importdir:FunctionDirective;
-		_external:ExternalDirective;
-
-    Constructor Create(ImportDir:FunctionDirective);
-  End;
-
-
-	LabelStatement = Class(Statement)
-		Name:StringObject;
-		Stmt:Statement;
-
-		// to be set by the resolver
-		decl:LabelDeclaration;
-
-		Constructor Create(Name:StringObject; stmt:Statement);
-  End;
-
-	GotoStatement = Class(Statement)
-		GotoLabel:StringObject;
-
-		// to be set by the resolver
-		Decl:LabelDeclaration;
-
-		Constructor Create(LabelName:StringObject);
-  End;
-
-	EmptyStatement = Class(Statement)
-  End;
-
-	BreakStatement = Class(Statement)
-  End;
-
-	ContinueStatement = Class(Statement)
-  End;
-
-	Assignment = Class(Statement)
-		lvalue:LvalueExpression;
-		Expr:Expression;
-
-		Constructor Create(lvalue:LvalueExpression; expr:Expression);
-  End;
-
-	IfStatement = Class(Statement)
-		Condition:Expression;
-		ThenBlock:Statement;
-		ElseBlock:Statement;
-
-		Constructor Create(condition:Expression ; ifTrue:Statement; ifFalse:Statement=Nil);
-  End;
-
-	ExpressionStatement = Class(Statement)
-		Expr:Expression;
-
-		Constructor Create(Expr:Expression);
-  End;
-
-	CaseSelector = Class(Statement)
-		List:ExpressionList;
-		Stmt:Statement;
-
-		Constructor Create(list:ExpressionList; stmt:Statement);
-  End;
-
-	CaseStatement = Class(Statement)
-		Condition:Expression;
-		Selectors:StatementList;
-		CaseElse:Statement;
-
-		Constructor Create(condition:Expression ; selectors:StatementList ; caseelse:Statement );
-  End;
-
-	LoopStatement = Class(Statement)
-		Condition:Expression;
-		Block:Statement;
-
-		Constructor Create(Block:Statement; Condition:Expression);
-  End;
-
-	RepeatLoop = Class(LoopStatement)
-  End;
-
-	WhileLoop = Class(LoopStatement)
-  End;
-
-	ForLoop = Class(LoopStatement)
-		_var:Identifier;
-		Start:Expression;
-		_End:Expression;
-		Direction:Integer;
-
-		Constructor Create(_var:Identifier; start:Expression; _End:Expression; body:Statement; dir:Integer);
-  End;
-
-	WithStatement = Class(Statement)
-		_With:ExpressionList;
-		Body:Statement;
-
-		Constructor Create(_with:ExpressionList; Body:Statement);
-  End;
-
-	TryFinallyStatement = Class(Statement)
-		Body:BlockStatement;
-		Final:BlockStatement;
-
-		Constructor Create(Body, Final:BlockStatement);
-  End;
-
-	ExceptionBlock = Class(Statement)
-  	onList:StatementList;
-		Default:BlockStatement;	// else or default, same semantics
-
-		Constructor Create(onList:StatementList; default:BlockStatement = Nil);
-  End;
-
-	TryExceptStatement = Class(Statement)
-		Body:BlockStatement;
-		Final:ExceptionBlock;
-
-		Constructor Create(Body:BlockStatement; Final:ExceptionBlock);
-  End;
-
-
-	RaiseStatement = Class(Statement)
-		LValue:LvalueExpression;
-		Expr:Expression;
-
-		Constructor Create(lvalue:LvalueExpression; Expr:Expression);
-  End;
-
-	OnStatement = Class(Statement)
-		Ident:StringObject;
-		_type:StringObject;
-		Body:Statement;
-
-		Constructor Create(Ident, _type:StringObject; Body:Statement);
-  End;
-
-	AssemblerBlock = Class(BlockStatement)
-		Constructor AssemblerBlock(asmInstrs:StatementList );
-  End;
-
-  InterfaceList = List;
-
-	InterfaceType = Class(CompositeType)
-    Heritage:InterfaceList;
-    Ssec:ObjectSection;
-		Guid:StringLiteral;
-
-		Constructor Create(Heritage:InterfaceList; Ssec:ObjectSection = Nil; guid:StringLiteral  = Nil);
-  End;
-
-
-	///			StructuredType > Type
-	///				Array > Type
-	///				Set	  > OrdinalType 
-	///				File  > VariableType
-	///		 		Record > TypeNode ...
-
-	StructuredType = Class(TypeNode)
-		BaseType:TypeNode;
-		IsPacked:Boolean;
-		{
-		public override bool Equals(Object o)
-			if (!(o is StructuredType))
-				return false;
-
-			StructuredType otype = (StructuredType) o;
-			if (IsPacked != otype.IsPacked)
-				return false;
-
-			return basetype.Equals(otype.basetype);
-		}
-  End;
-
-	RecordType = Class(StructuredType)
-		CompTypes:DeclarationList;
-
-		Constructor Create(compTypes:DeclarationList);
-  End;
-
-	RecordFieldDeclaration = Class(ValueDeclaration)
-  End;
-
-  ArrayType = Class(StructuredType)
-  	Dimensions:Array Of Integer;
-    DimensionCount:Integer;
-
-  	Constructor Create(baseType:TypeNode; dims:List); Overload;
-	  Constructor Create(baseType, sizeType:TypeNode); Overload;
-    Constructor Create(sizeType:TypeNode); Overload;
-
-  	Procedure AddDimension(size:Integer);
-  End;
-
-  SetType = Class(StructuredType)
-    Constructor Create(T:TypeNode);
-  End;
-
-  FileType = Class(StructuredType)
-    Constructor Create(T:TypeNode);
-  End;
-
-	VariantDeclaration = Class(RecordFieldDeclaration)
-		Fields:DeclarationList;
-
-		Constructor Create(ID:StringObject; T:TypeNode; Fields:DeclarationList);
-  End;
-
-	/// Variant case entry declaration
-	VarEntryDeclaration = Class(RecordFieldDeclaration)
-		TagValue:Expression;
-		Fields:RecordType;
-
-		Constructor Create(TagValue:Expression; Fields:DeclarationList);	// type must be later set to the variant type
-	End;
-
-  ExportItem = Class(UnitItem)
-		FormalParams:ParametersSection;
-		ExportName:StringObject;
-		Index:Integer;
-
-		Constructor Create(name:StringObject; pars:ParametersSection; exportname:StringObject = Nil); Overload;
-    Constructor Create(name:StringObject; pars:ParametersSection; Index:Integer); Overload;
-  End;
-
-	UnresolvedType = Class(TypeNode)
-		ID:StringObject;
-
-		Constructor Create(ID:StringObject);
-  End;
-
-	UnresolvedVariableType = Class(TypeNode)
-		ID:StringObject;
-
-		Constructor Create(ID:StringObject);
-  End;
-
-	UnresolvedIntegralType = Class(IntegralType)
-		ID:StringObject;
-
-		Constructor Create(ID:StringObject);
-  End;
-
-
-	UnresolvedOrdinalType = Class(TypeNode)
-		ID:StringObject;
-
-		Constructor Create(ID:StringObject);
-  End;
-
-  StringList = List;
-  TypeList = List;
+            Property Lexer:PascalLexer Read _Lexer;
+    End;
 
   
 {$DEFINE YYDEBUG}
 {$DEFINE YYEXTRADEBUG}
-const KW_LIBRARY = 257;
-const KW_UNIT = 258;
-const KW_PROGRAM = 259;
-const KW_PACKAGE = 260;
-const KW_REQUIRES = 261;
-const KW_CONTAINS = 262;
-const KW_USES = 263;
-const KW_EXPORTS = 264;
-const KW_PLATFORM = 265;
-const KW_DEPRECATED = 266;
-const KW_INTERF = 267;
-const KW_IMPL = 268;
-const KW_FINALIZ = 269;
-const KW_INIT = 270;
-const KW_OBJECT = 271;
-const KW_RECORD = 272;
-const KW_CLASS = 273;
-const KW_FUNCTION = 274;
-const KW_PROCEDURE = 275;
-const KW_PROPERTY = 276;
-const KW_OF = 277;
-const KW_OUT = 278;
-const KW_PACKED = 279;
-const KW_INHERITED = 280;
-const KW_PROTECTED = 281;
-const KW_PUBLIC = 282;
-const KW_PUBLISHED = 283;
-const KW_PRIVATE = 284;
-const KW_CONST = 285;
-const KW_VAR = 286;
-const KW_THRVAR = 287;
-const KW_TYPE = 288;
-const KW_CONSTRUCTOR = 289;
-const KW_DESTRUCTOR = 290;
-const KW_ASM = 291;
-const KW_BEGIN = 292;
-const KW_END = 293;
-const KW_WITH = 294;
-const KW_DO = 295;
-const KW_FOR = 296;
-const KW_TO = 297;
-const KW_DOWNTO = 298;
-const KW_REPEAT = 299;
-const KW_UNTIL = 300;
-const KW_WHILE = 301;
-const KW_IF = 302;
-const KW_THEN = 303;
-const KW_ELSE = 304;
-const KW_CASE = 305;
-const KW_GOTO = 306;
-const KW_LABEL = 307;
-const KW_BREAK = 308;
-const KW_CONTINUE = 309;
-const KW_RAISE = 310;
-const KW_AT = 311;
-const KW_TRY = 312;
-const KW_EXCEPT = 313;
-const KW_FINALLY = 314;
-const KW_ON = 315;
-const KW_ABSOLUTE = 316;
-const KW_ABSTRACT = 317;
-const KW_ASSEMBLER = 318;
-const KW_DYNAMIC = 319;
-const KW_EXPORT = 320;
-const KW_EXTERNAL = 321;
-const KW_FORWARD = 322;
-const KW_INLINE = 323;
-const KW_OVERRIDE = 324;
-const KW_OVERLOAD = 325;
-const KW_REINTRODUCE = 326;
-const KW_VIRTUAL = 327;
-const KW_VARARGS = 328;
-const KW_PASCAL = 329;
-const KW_SAFECALL = 330;
-const KW_STDCALL = 331;
-const KW_CDECL = 332;
-const KW_REGISTER = 333;
-const TYPE_WIDESTR = 334;
-const TYPE_STR = 335;
-const TYPE_RSCSTR = 336;
-const TYPE_SHORTSTR = 337;
-const TYPE_ARRAY = 338;
-const TYPE_FILE = 339;
-const TYPE_PTR = 340;
-const TYPE_SET = 341;
-const KW_NAME = 342;
-const KW_READ = 343;
-const KW_WRITE = 344;
-const KW_INDEX = 345;
-const KW_STORED = 346;
-const KW_DEFAULT = 347;
-const KW_NODEFAULT = 348;
-const KW_IMPLEMENTS = 349;
-const ASM_OP = 350;
-const WINDOWS_GUID = 351;
-const KW_FAR = 352;
-const KW_NEAR = 353;
-const KW_RESIDENT = 354;
-const TYPE_INT64 = 355;
-const TYPE_INT = 356;
-const TYPE_LONGINT = 357;
-const TYPE_LONGWORD = 358;
-const TYPE_SMALLINT = 359;
-const TYPE_SHORTINT = 360;
-const TYPE_WORD = 361;
-const TYPE_BYTE = 362;
-const TYPE_CARDINAL = 363;
-const TYPE_UINT64 = 364;
-const TYPE_CHAR = 365;
-const TYPE_PCHAR = 366;
-const TYPE_WIDECHAR = 367;
-const TYPE_FLOAT = 368;
-const TYPE_REAL48 = 369;
-const TYPE_DOUBLE = 370;
-const TYPE_EXTENDED = 371;
-const TYPE_BOOL = 372;
-const TYPE_COMP = 373;
-const TYPE_CURRENCY = 374;
-const TYPE_OLEVAR = 375;
-const TYPE_VAR = 376;
-const TYPE_CURR = 377;
-const LOWESTPREC = 378;
-const PASCAL_IDENTIFIER = 379;
-const CONST_STR = 380;
-const CONST_INT = 381;
-const CONST_NIL = 382;
-const CONST_REAL = 383;
-const CONST_CHAR = 384;
-const CONST_BOOL = 385;
-const KW_RANGE = 386;
-const COMMA = 387;
-const COLON = 388;
-const SCOL = 389;
-const KW_ASSIGN = 390;
-const KW_EQ = 391;
-const KW_GT = 392;
-const KW_LT = 393;
-const KW_LE = 394;
-const KW_GE = 395;
-const KW_NE = 396;
-const KW_IN = 397;
-const KW_IS = 398;
-const KW_SUM = 399;
-const KW_SUB = 400;
-const KW_OR = 401;
-const KW_XOR = 402;
-const KW_MUL = 403;
-const KW_DIV = 404;
-const KW_QUOT = 405;
-const KW_MOD = 406;
-const KW_SHL = 407;
-const KW_SHR = 408;
-const KW_AS = 409;
-const KW_AND = 410;
-const KW_DEREF = 411;
-const KW_DOT = 412;
-const UNARY = 413;
-const KW_NOT = 414;
-const KW_ADDR = 415;
-const LBRAC = 416;
-const RBRAC = 417;
-const LPAR = 418;
-const RPAR = 419;
-const MAXPREC = 420;
 
-// If you have defined your own YYSType then put an empty  %union { } in
-// your .y file. Or you can put your type definition within the curly braces.
-type YYSType = record
-case byte of
-                 0:  (yyAnsiChar : AnsiChar);
-                 1:  (yyBlockStatement : BlockStatement);
-                 2:  (yyBoolean : Boolean);
-                 3:  (yyCallableDeclaration : CallableDeclaration);
-                 4:  (yyCardinal : Cardinal);
-                 5:  (yyClassTypeNode : ClassTypeNode);
-                 6:  (yyConstDeclaration : ConstDeclaration);
-                 7:  (yyConstExpression : ConstExpression);
-                 8:  (yyDeclaration : Declaration);
-                 9:  (yyDeclarationList : DeclarationList);
-                 10:  (yyDouble : Double);
-                 11:  (yyEnumValue : EnumValue);
-                 12:  (yyEnumValueList : EnumValueList);
-                 13:  (yyExceptionBlock : ExceptionBlock);
-                 14:  (yyExpression : Expression);
-                 15:  (yyExpressionList : ExpressionList);
-                 16:  (yyExternalDirective : ExternalDirective);
-                 17:  (yyFieldInit : FieldInit);
-                 18:  (yyFieldInitList : FieldInitList);
-                 19:  (yyFunctionDirective : FunctionDirective);
-                 20:  (yyFunctionDirectiveList : FunctionDirectiveList);
-                 21:  (yyIdentifier : Identifier);
-                 22:  (yyImplementationSection : ImplementationSection);
-                 23:  (yyInt64 : Int64);
-                 24:  (yyIntLiteral : IntLiteral);
-                 25:  (yyInteger : Integer);
-                 26:  (yyInterfaceSection : InterfaceSection);
-                 27:  (yyInterfaceType : InterfaceType);
-                 28:  (yyLiteral : Literal);
-                 29:  (yyLvalueExpression : LvalueExpression);
-                 30:  (yyMethodDeclaration : MethodDeclaration);
-                 31:  (yyMethodDefinition : MethodDefinition);
-                 32:  (yyMethodKind : MethodKind);
-                 33:  (yyNodeList : NodeList);
-                 34:  (yyObjectSection : ObjectSection);
-                 35:  (yyParametersSection : ParametersSection);
-                 36:  (yyProceduralType : ProceduralType);
-                 37:  (yyPropertySpecifiers : PropertySpecifiers);
-                 38:  (yyRoutineDeclaration : RoutineDeclaration);
-                 39:  (yyRoutineDefinition : RoutineDefinition);
-                 40:  (yyRoutineSection : RoutineSection);
-                 41:  (yySourceNode : SourceNode);
-                 42:  (yyStatement : Statement);
-                 43:  (yyStatementList : StatementList);
-                 44:  (yyStringList : StringList);
-                 45:  (yyStringLiteral : StringLiteral);
-                 46:  (yyStringObject : StringObject);
-                 47:  (yyStructuredType : StructuredType);
-                 48:  (yyTypeDeclaration : TypeDeclaration);
-                 49:  (yyTypeList : TypeList);
-                 50:  (yyTypeNode : TypeNode);
-                 51:  (yyUnitItem : UnitItem);
-               end(*YYSType*);
-// source: delphi_parser.cod line# 1243
+	YYSType = Class
+		yyAnsiChar : AnsiChar;
+		yyBlockStatementNode : BlockStatementNode;
+		yyBoolean : Boolean;
+		yyCallableDeclarationNode : CallableDeclarationNode;
+		yyCardinal : Cardinal;
+		yyClassTypeNode : ClassTypeNode;
+		yyConstDeclarationNode : ConstDeclarationNode;
+		yyConstExpressionNode : ConstExpressionNode;
+		yyDeclarationListNode : DeclarationListNode;
+		yyDeclarationNode : DeclarationNode;
+		yyDouble : Double;
+		yyEnumValueListNode : EnumValueListNode;
+		yyEnumValueNode : EnumValueNode;
+		yyExceptionBlockNode : ExceptionBlockNode;
+		yyExpressionListNode : ExpressionListNode;
+		yyExpressionNode : ExpressionNode;
+		yyExternalDirectiveNode : ExternalDirectiveNode;
+		yyFieldInitListNode : FieldInitListNode;
+		yyFieldInitNode : FieldInitNode;
+		yyFunctionAttributeNode : FunctionAttributeNode;
+		yyFunctionDirectiveListNode : FunctionDirectiveListNode;
+		yyIdentifierListNode : IdentifierListNode;
+		yyIdentifierNode : IdentifierNode;
+		yyImplementationSectionNode : ImplementationSectionNode;
+		yyInt64 : Int64;
+		yyIntLiteralNode : IntLiteralNode;
+		yyInteger : Integer;
+		yyInterfaceSectionNode : InterfaceSectionNode;
+		yyInterfaceTypeNode : InterfaceTypeNode;
+		yyLiteralNode : LiteralNode;
+		yyLvalueExpressionNode : LvalueExpressionNode;
+		yyMethodDeclarationNode : MethodDeclarationNode;
+		yyMethodDefinitionNode : MethodDefinitionNode;
+		yyMethodKindEnum : MethodKindEnum;
+		yyObjectSectionNode : ObjectSectionNode;
+		yyParametersSectionNode : ParametersSectionNode;
+		yyProceduralTypeNode : ProceduralTypeNode;
+		yyPropertySpecifiersNode : PropertySpecifiersNode;
+		yyRoutineDeclarationNode : RoutineDeclarationNode;
+		yyRoutineDefinitionNode : RoutineDefinitionNode;
+		yyRoutineSectionNode : RoutineSectionNode;
+		yyScopeEnum : ScopeEnum;
+		yySourceNode : SourceNode;
+		yyStatementListNode : StatementListNode;
+		yyStatementNode : StatementNode;
+		yyStringLiteralNode : StringLiteralNode;
+		yyStringObject : StringObject;
+		yyStructuredTypeNode : StructuredTypeNode;
+		yyTypeDeclarationNode : TypeDeclarationNode;
+		yyTypeListNode : TypeListNode;
+		yyTypeNode : TypeNode;
+		yyUnitItemNode : UnitItemNode;
+		yyUnitListNode : UnitListNode;
+	End;
 
-Var
-    yylval : YYSType;
-  
+Const
+	KW_LIBRARY = 257;
+	KW_UNIT = 258;
+	KW_PROGRAM = 259;
+	KW_PACKAGE = 260;
+	KW_REQUIRES = 261;
+	KW_CONTAINS = 262;
+	KW_USES = 263;
+	KW_EXPORTS = 264;
+	KW_PLATFORM = 265;
+	KW_DEPRECATED = 266;
+	KW_INTERF = 267;
+	KW_IMPL = 268;
+	KW_FINALIZ = 269;
+	KW_INIT = 270;
+	KW_OBJECT = 271;
+	KW_RECORD = 272;
+	KW_CLASS = 273;
+	KW_FUNCTION = 274;
+	KW_PROCEDURE = 275;
+	KW_PROPERTY = 276;
+	KW_OF = 277;
+	KW_OUT = 278;
+	KW_PACKED = 279;
+	KW_INHERITED = 280;
+	KW_PROTECTED = 281;
+	KW_PUBLIC = 282;
+	KW_PUBLISHED = 283;
+	KW_PRIVATE = 284;
+	KW_CONST = 285;
+	KW_VAR = 286;
+	KW_THRVAR = 287;
+	KW_TYPE = 288;
+	KW_CONSTRUCTOR = 289;
+	KW_DESTRUCTOR = 290;
+	KW_ASM = 291;
+	KW_BEGIN = 292;
+	KW_END = 293;
+	KW_WITH = 294;
+	KW_DO = 295;
+	KW_FOR = 296;
+	KW_TO = 297;
+	KW_DOWNTO = 298;
+	KW_REPEAT = 299;
+	KW_UNTIL = 300;
+	KW_WHILE = 301;
+	KW_IF = 302;
+	KW_THEN = 303;
+	KW_ELSE = 304;
+	KW_CASE = 305;
+	KW_GOTO = 306;
+	KW_LABEL = 307;
+	KW_BREAK = 308;
+	KW_CONTINUE = 309;
+	KW_RAISE = 310;
+	KW_AT = 311;
+	KW_TRY = 312;
+	KW_EXCEPT = 313;
+	KW_FINALLY = 314;
+	KW_ON = 315;
+	KW_ABSOLUTE = 316;
+	KW_ABSTRACT = 317;
+	KW_ASSEMBLER = 318;
+	KW_DYNAMIC = 319;
+	KW_EXPORT = 320;
+	KW_EXTERNAL = 321;
+	KW_FORWARD = 322;
+	KW_INLINE = 323;
+	KW_OVERRIDE = 324;
+	KW_OVERLOAD = 325;
+	KW_REINTRODUCE = 326;
+	KW_VIRTUAL = 327;
+	KW_VARARGS = 328;
+	KW_PASCAL = 329;
+	KW_SAFECALL = 330;
+	KW_STDCALL = 331;
+	KW_CDECL = 332;
+	KW_REGISTER = 333;
+	TYPE_WIDESTR = 334;
+	TYPE_STR = 335;
+	TYPE_RSCSTR = 336;
+	TYPE_SHORTSTR = 337;
+	TYPE_ARRAY = 338;
+	TYPE_FILE = 339;
+	TYPE_PTR = 340;
+	TYPE_SET = 341;
+	KW_NAME = 342;
+	KW_READ = 343;
+	KW_WRITE = 344;
+	KW_INDEX = 345;
+	KW_STORED = 346;
+	KW_DEFAULT = 347;
+	KW_NODEFAULT = 348;
+	KW_IMPLEMENTS = 349;
+	ASM_OP = 350;
+	WINDOWS_GUID = 351;
+	KW_FAR = 352;
+	KW_NEAR = 353;
+	KW_RESIDENT = 354;
+	TYPE_INT64 = 355;
+	TYPE_INT = 356;
+	TYPE_LONGINT = 357;
+	TYPE_LONGWORD = 358;
+	TYPE_SMALLINT = 359;
+	TYPE_SHORTINT = 360;
+	TYPE_WORD = 361;
+	TYPE_BYTE = 362;
+	TYPE_CARDINAL = 363;
+	TYPE_UINT64 = 364;
+	TYPE_CHAR = 365;
+	TYPE_PCHAR = 366;
+	TYPE_WIDECHAR = 367;
+	TYPE_FLOAT = 368;
+	TYPE_REAL48 = 369;
+	TYPE_DOUBLE = 370;
+	TYPE_EXTENDED = 371;
+	TYPE_BOOL = 372;
+	TYPE_COMP = 373;
+	TYPE_CURRENCY = 374;
+	TYPE_OLEVAR = 375;
+	TYPE_VAR = 376;
+	TYPE_CURR = 377;
+	LOWESTPREC = 378;
+	PASCAL_IDENTIFIER = 379;
+	CONST_STR = 380;
+	CONST_INT = 381;
+	CONST_NIL = 382;
+	CONST_REAL = 383;
+	CONST_CHAR = 384;
+	CONST_BOOL = 385;
+	KW_RANGE = 386;
+	COMMA = 387;
+	COLON = 388;
+	SCOL = 389;
+	KW_ASSIGN = 390;
+	KW_EQ = 391;
+	KW_GT = 392;
+	KW_LT = 393;
+	KW_LE = 394;
+	KW_GE = 395;
+	KW_NE = 396;
+	KW_IN = 397;
+	KW_IS = 398;
+	KW_SUM = 399;
+	KW_SUB = 400;
+	KW_OR = 401;
+	KW_XOR = 402;
+	KW_MUL = 403;
+	KW_DIV = 404;
+	KW_QUOT = 405;
+	KW_MOD = 406;
+	KW_SHL = 407;
+	KW_SHR = 408;
+	KW_AS = 409;
+	KW_AND = 410;
+	KW_DEREF = 411;
+	KW_DOT = 412;
+	UNARY = 413;
+	KW_NOT = 414;
+	KW_ADDR = 415;
+	LBRAC = 416;
+	RBRAC = 417;
+	LPAR = 418;
+	RPAR = 419;
+	MAXPREC = 420;
+ 
 Implementation
 
-Function MakeThreadVars(Src:DeclarationList):DeclarationList;
-Var
-  I:Integer;
-  VarDecl:VarDeclaration;
-Begin
-  For I:=0 To Pred(Src.Count) Do
-  Begin
-    VarDeclaration(Src.Declarations[I]).IsThrVar := True;
-  End;
-
-  Result := Src;
-End;
-
-Function CreateDecls(Ids:StringList; VarTypes:TypeNode; Init:Expression; AbsoluteID:StringObject):DeclarationList;
-Var
-  It:Iterator;
-  S:StringObject;
-  V:VarDeclaration;
-Begin
-  Result := DeclarationList.Create();
-  It := Ids.CreateIterator();
-  While It.HasNext Do
-  Begin
-    S := StringObject(It.GetNext());
-    V := VarDeclaration.Create(S, VarTypes, Init, AbsoluteID);
-    Result.Add(V);
-  End;
-  It.Destroy;
-End;
-
-Function CreateLabelDecls(Ids:StringList):DeclarationList;
-Var
-  It:Iterator;
-  S:StringObject;
-  L:LabelDeclaration;
-Begin
-  Result := DeclarationList.Create();
-  It := Ids.CreateIterator();
-  While It.HasNext Do
-  Begin
-    S := StringObject(It.GetNext());
-    L := LabelDeclaration.Create(S, Nil);
-    Result.Add(L);
-  End;
-  It.Destroy;
-End;
-
-Function CreateParamDecls(Ids:StringList; ParamType:TypeNode; Init:Expression; Kind:ParameterKind):DeclarationList;
-Var
-  It:Iterator;
-  S:StringObject;
-  P:ParamDeclaration;
-Begin
-  Result := DeclarationList.Create();
-  It := Ids.CreateIterator();
-  While It.HasNext Do
-  Begin
-    S := StringObject(It.GetNext());
-    P := ParamDeclaration.Create(S, ParamType, Init, Kind);
-    Result.Add(P);
-  End;
-  It.Destroy;
-End;
-
-Function CreateVarParamDecls(Ids:StringList; ParamType:TypeNode):DeclarationList;
-Var
-  It:Iterator;
-  S:StringObject;
-  P:ParamDeclaration;
-Begin
-  Result := DeclarationList.Create();
-  It := Ids.CreateIterator();
-  While It.HasNext Do
-  Begin
-    S := StringObject(It.GetNext());
-    P := VarParamDeclaration.Create(S, ParamType);
-    Result.Add(P);
-  End;
-  It.Destroy;
-End;
-
-Function CreateConstParamDecls(Ids:StringList; ParamType:TypeNode; init:Expression = Nil):DeclarationList;
-Var
-  It:Iterator;
-  S:StringObject;
-  P:ParamDeclaration;
-Begin
-  Result := DeclarationList.Create();
-  It := Ids.CreateIterator();
-  While It.HasNext Do
-  Begin
-    S := StringObject(It.GetNext());
-    P := ConstParamDeclaration.Create(S, ParamType, Init);
-    Result.Add(P);
-  End;
-  It.Destroy;
-End;
-
-Function CreateFieldDecls(Ids:StringList; FieldsType:TypeNode):DeclarationList;
-Var
-  It:Iterator;
-  S:StringObject;
-  P:FieldDeclaration;
-Begin
-  Result := DeclarationList.Create();
-  It := Ids.CreateIterator();
-  While It.HasNext Do
-  Begin
-    S := StringObject(It.GetNext());
-    P := FieldDeclaration.Create(S, FieldsType);
-    Result.Add(P);
-  End;
-  It.Destroy;
-End;
-
-Function JoinImportDirectives(d1, d2:FunctionDirectiveList; i:FunctionDirective):ImportDirectives; Overload;
-Begin
-  Result := ImportDirectives.Create(i);
-  Result.Add(d1);
-	Result.Add(d2);
-End;
-
-Function JoinImportDirectives(d1, d2:FunctionDirectiveList; e:ExternalDirective):ImportDirectives; Overload;
-Begin
-  Result := JoinImportDirectives(d1, d2, importDirective_External);
-  Result._External := e;
-End;
-
-Function CreateRecordUnionField(Src:ExpressionList; Fields:DeclarationList):DeclarationList;
-Var
-  I:Integer;
-Begin
-  Result := DeclarationList.Create();
-  For I:=0 To Pred(Src.Count) Do
-  Begin
-    Result.Add(VarEntryDeclaration.Create(Src.Expressions[I], Fields));
-  End;
-End;
-
-Procedure MakeFieldDeclarationsStatic(DeclList:DeclarationList);
-Var
-  I:Integer;
-Begin
-  For I:=0 To Pred(DeclList.Count) Do
-    FieldDeclaration(DeclList.Declarations[I]).IsStatic := True;
-End;
-
-Function CheckDirectiveId(expected:AnsiString; idtoken:StringObject):Boolean;
-Begin
-  If (expected <> idtoken.Value) Then
-  Begin
-    RaiseError('Invalid directive ' + idtoken.Value + ', expected: ' + expected);
-    Result := False;
-  End Else
-    Result := True;
-End;
-
-Function CreateBinaryExpression(e1:Expression; token:Integer; e2:Expression):BinaryExpression;
-
+Function CreateBinaryExpression(e1:ExpressionNode; token:Integer; e2:ExpressionNode):BinaryExpressionNode;
 Begin
   Case token Of
-				KW_MUL: Result := Product.Create(e1, e2);
-				KW_DIV: Result := Division.Create(e1, e2);
-				KW_QUOT:Result := Quotient.Create(e1, e2);
-				KW_MOD: Result := Modulus.Create(e1, e2);
-				KW_SHR: Result := ShiftRight.Create(e1, e2);
-				KW_SHL: Result := ShiftLeft.Create(e1, e2);
-				KW_AND: Result := LogicalAnd.Create(e1, e2);
-				KW_SUB: Result := Subtraction.Create(e1, e2);
-				KW_SUM: Result := Addition.Create(e1, e2);
-				KW_OR : Result := LogicalOr.Create(e1, e2);
-				KW_XOR: Result := LogicalXor.Create(e1, e2);
-				KW_EQ : Result := Equal.Create(e1, e2);
-				KW_NE : Result := NotEqual.Create(e1, e2);
-				KW_LT : Result := LessThan.Create(e1, e2);
-				KW_LE : Result := LessOrEqual.Create(e1, e2);
-				KW_GT : Result := GreaterThan.Create(e1, e2);
-				KW_GE : Result := GreaterOrEqual.Create(e1, e2);
+				KW_MUL: Result := ProductNode.Create(e1, e2);
+				KW_DIV: Result := DivisionNode.Create(e1, e2);
+				KW_QUOT:Result := QuotientNode.Create(e1, e2);
+				KW_MOD: Result := ModulusNode.Create(e1, e2);
+				KW_SHR: Result := ShiftRightNode.Create(e1, e2);
+				KW_SHL: Result := ShiftLeftNode.Create(e1, e2);
+				KW_AND: Result := LogicalAndNode.Create(e1, e2);
+				KW_SUB: Result := SubtractionNode.Create(e1, e2);
+				KW_SUM: Result := AdditionNode.Create(e1, e2);
+				KW_OR : Result := LogicalOrNode.Create(e1, e2);
+				KW_XOR: Result := LogicalXorNode.Create(e1, e2);
+				KW_EQ : Result := EqualNode.Create(e1, e2);
+				KW_NE : Result := NotEqualNode.Create(e1, e2);
+				KW_LT : Result := LessThanNode.Create(e1, e2);
+				KW_LE : Result := LessOrEqualNode.Create(e1, e2);
+				KW_GT : Result := GreaterThanNode.Create(e1, e2);
+				KW_GE : Result := GreaterOrEqualNode.Create(e1, e2);
     Else
       RaiseError('Invalid Binary Operation token: ' + IntToString(token));
   End;
 End;
-
 
 Constructor PascalParser.Create(Source:Stream);
 Begin
@@ -1673,1946 +321,1944 @@ Var
   
 Procedure PascalParser.yyaction(yyruleno : Integer );
   (* local definitions: *)
-// source: delphi_parser.cod line# 1452
 Begin
   (* actions: *)
   case yyruleno of
-1 : begin
-         // source: delphi.y line#132
-         yyval.yySourceNode := yyv[yysp-1].yySourceNode; yyflag := yyfaccept; 
-       end;
-2 : begin
+1 :		Begin
+         // source: delphi.y line#131
+         _CurrentValue.yySourceNode := yyv[yysp-1].yySourceNode; yyflag := yyfaccept; 
+			End;
+2 :		Begin
+         // source: delphi.y line#135
+         _CurrentValue.yySourceNode := yyv[yysp-0].yySourceNode; 
+			End;
+3 :		Begin
          // source: delphi.y line#136
-         yyval.yySourceNode := yyv[yysp-0].yySourceNode; 
-       end;
-3 : begin
+         _CurrentValue.yySourceNode := yyv[yysp-1].yySourceNode; 
+			End;
+4 :		Begin
          // source: delphi.y line#137
-         yyval.yySourceNode := yyv[yysp-1].yySourceNode; 
-       end;
-4 : begin
+         _CurrentValue.yySourceNode := yyv[yysp-0].yySourceNode; 
+			End;
+5 :		Begin
          // source: delphi.y line#138
-         yyval.yySourceNode := yyv[yysp-0].yySourceNode; 
-       end;
-5 : begin
-         // source: delphi.y line#139
-         yyval.yySourceNode := yyv[yysp-1].yySourceNode; 
-       end;
-6 : begin
-       end;
-7 : begin
-         yyval := yyv[yysp-0];
-       end;
-8 : begin
+         _CurrentValue.yySourceNode := yyv[yysp-1].yySourceNode; 
+			End;
+6 :		Begin
+			End;
+7 :		Begin
+         _CurrentValue := yyv[yysp-0];
+			End;
+8 :		Begin
+         // source: delphi.y line#149
+         _CurrentValue.yySourceNode := ProgramNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-2].yyUnitListNode,   yyv[yysp-1].yyDeclarationListNode, yyv[yysp-0].yyBlockStatementNode); Self._Root := _CurrentValue.yySourceNode; 
+			End;
+9 :		Begin
          // source: delphi.y line#150
-         yyval.yySourceNode := ProgramNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-2].yyNodeList,   yyv[yysp-1].yyDeclarationList, yyv[yysp-0].yyBlockStatement); 
-       end;
-9 : begin
-         // source: delphi.y line#151
-         yyval.yySourceNode := ProgramNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-1].yyNodeList, Nil, yyv[yysp-0].yyBlockStatement); 
-       end;
-10 : begin
+         _CurrentValue.yySourceNode := ProgramNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-1].yyUnitListNode, Nil, yyv[yysp-0].yyBlockStatementNode); Self._Root := _CurrentValue.yySourceNode; 
+			End;
+10 :		Begin
+         // source: delphi.y line#154
+         _CurrentValue.yyStringObject := Nil; 
+			End;
+11 :		Begin
          // source: delphi.y line#155
-         yyval.yyStringObject := Nil; 
-       end;
-11 : begin
-         // source: delphi.y line#156
-         yyval.yyStringObject := yyv[yysp-1].yyStringObject;   
-       end;
-12 : begin
+         _CurrentValue.yyStringObject := yyv[yysp-1].yyStringObject;   
+			End;
+12 :		Begin
+         // source: delphi.y line#159
+         _CurrentValue.yySourceNode := LibraryNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyUnitListNode, yyv[yysp-1].yyDeclarationListNode  , yyv[yysp-0].yyBlockStatementNode); Self._Root := _CurrentValue.yySourceNode; 
+			End;
+13 :		Begin
          // source: delphi.y line#160
-         yyval.yySourceNode := LibraryNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyNodeList, yyv[yysp-1].yyDeclarationList  , yyv[yysp-0].yyBlockStatement); 
-       end;
-13 : begin
-         // source: delphi.y line#161
-         yyval.yySourceNode := LibraryNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyNodeList, Nil, yyv[yysp-0].yyBlockStatement); 
-       end;
-14 : begin
-         // source: delphi.y line#165
-         yyval.yySourceNode := PackageNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyNodeList, yyv[yysp-0].yyNodeList); 
-       end;
-15 : begin
+         _CurrentValue.yySourceNode := LibraryNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyUnitListNode, Nil, yyv[yysp-0].yyBlockStatementNode); Self._Root := _CurrentValue.yySourceNode; 
+			End;
+14 :		Begin
+         // source: delphi.y line#164
+         _CurrentValue.yySourceNode := PackageNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyUnitListNode, yyv[yysp-0].yyUnitListNode);Self ._Root := _CurrentValue.yySourceNode; 
+			End;
+15 :		Begin
+         // source: delphi.y line#168
+         _CurrentValue.yyUnitListNode := UnitListNode.Create(); 
+			End;
+16 :		Begin
          // source: delphi.y line#169
-         yyval.yyNodeList := NodeList.Create(); 
-       end;
-16 : begin
-         // source: delphi.y line#170
-         yyval.yyNodeList := yyv[yysp-1].yyNodeList; 
-       end;
-17 : begin
+         _CurrentValue.yyUnitListNode := yyv[yysp-1].yyUnitListNode; 
+			End;
+17 :		Begin
+         // source: delphi.y line#173
+         _CurrentValue.yyUnitListNode := UnitListNode.Create(); _CurrentValue.yyUnitListNode.Add(UnitItemNode.Create(yyv[yysp-0].yyStringObject)); 
+			End;
+18 :		Begin
          // source: delphi.y line#174
-         yyval.yyNodeList := NodeList.Create(); yyval.yyNodeList.Add(yyv[yysp-0].yyStringObject); 
-       end;
-18 : begin
-         // source: delphi.y line#175
-         yyv[yysp-2].yyNodeList.Add(yyv[yysp-0].yyStringObject); yyval.yyNodeList := yyv[yysp-2].yyNodeList; 
-       end;
-19 : begin
-         // source: delphi.y line#179
-         yyval.yyNodeList := yyv[yysp-1].yyNodeList; 
-       end;
-20 : begin
+         yyv[yysp-2].yyUnitListNode.Add(UnitItemNode.Create(yyv[yysp-0].yyStringObject)); _CurrentValue.yyUnitListNode := yyv[yysp-2].yyUnitListNode; 
+			End;
+19 :		Begin
+         // source: delphi.y line#178
+         _CurrentValue.yyUnitListNode := yyv[yysp-1].yyUnitListNode; 
+			End;
+20 :		Begin
+         // source: delphi.y line#182
+         _CurrentValue.yyUnitListNode := UnitListNode.Create(); _CurrentValue.yyUnitListNode.Add(yyv[yysp-0].yyUnitItemNode); 
+			End;
+21 :		Begin
          // source: delphi.y line#183
-         yyval.yyNodeList := NodeList.Create(); yyval.yyNodeList.Add(yyv[yysp-0].yyUnitItem); 
-       end;
-21 : begin
-         // source: delphi.y line#184
-         yyv[yysp-2].yyNodeList.Add(yyv[yysp-0].yyUnitItem); yyval.yyNodeList := yyv[yysp-2].yyNodeList; 
-       end;
-22 : begin
+         yyv[yysp-2].yyUnitListNode.Add(yyv[yysp-0].yyUnitItemNode); _CurrentValue.yyUnitListNode := yyv[yysp-2].yyUnitListNode; 
+			End;
+22 :		Begin
+         // source: delphi.y line#187
+         _CurrentValue.yyUnitItemNode := UnitItemNode.Create(yyv[yysp-0].yyStringObject); 
+			End;
+23 :		Begin
          // source: delphi.y line#188
-         yyval.yyUnitItem := UnitItem.Create(yyv[yysp-0].yyStringObject); 
-       end;
-23 : begin
-         // source: delphi.y line#189
-         yyval.yyUnitItem := UnitItem.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyStringObject); 
-       end;
-24 : begin
+         _CurrentValue.yyUnitItemNode := UnitItemNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyStringObject); 
+			End;
+24 :		Begin
+         // source: delphi.y line#192
+         _CurrentValue.yyUnitListNode := UnitListNode.Create(); 
+			End;
+25 :		Begin
          // source: delphi.y line#193
-         yyval.yyNodeList := NodeList.Create(); 
-       end;
-25 : begin
-         // source: delphi.y line#194
-         yyval.yyNodeList := yyv[yysp-1].yyNodeList; 
-       end;
-26 : begin
+         _CurrentValue.yyUnitListNode := yyv[yysp-1].yyUnitListNode; 
+			End;
+26 :		Begin
+         // source: delphi.y line#197
+         _CurrentValue.yyUnitListNode := UnitListNode.Create(); _CurrentValue.yyUnitListNode.Add(yyv[yysp-0].yyUnitItemNode); 
+			End;
+27 :		Begin
          // source: delphi.y line#198
-         yyval.yyNodeList := NodeList.Create(); yyval.yyNodeList.Add(yyv[yysp-0].yyUnitItem); 
-       end;
-27 : begin
-         // source: delphi.y line#199
-         yyv[yysp-2].yyNodeList.Add(yyv[yysp-0].yyUnitItem); yyval.yyNodeList := yyv[yysp-2].yyNodeList; 
-       end;
-28 : begin
+         yyv[yysp-2].yyUnitListNode.Add(yyv[yysp-0].yyUnitItemNode); _CurrentValue.yyUnitListNode := yyv[yysp-2].yyUnitListNode; 
+			End;
+28 :		Begin
+         // source: delphi.y line#202
+         _CurrentValue.yyUnitItemNode := UnitItemNode.Create(yyv[yysp-0].yyStringObject); 
+			End;
+29 :		Begin
          // source: delphi.y line#203
-         yyval.yyUnitItem := UnitItem.Create(yyv[yysp-0].yyStringObject); 
-       end;
-29 : begin
-         // source: delphi.y line#204
-         yyval.yyUnitItem := UnitItem.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyStringObject);
-       end;
-30 : begin
+         _CurrentValue.yyUnitItemNode := UnitItemNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyStringObject);
+			End;
+30 :		Begin
+         // source: delphi.y line#207
+         _CurrentValue.yySourceNode := UnitNode.Create(yyv[yysp-5].yyStringObject, yyv[yysp-3].yyInterfaceSectionNode, yyv[yysp-2].yyImplementationSectionNode, yyv[yysp-1].yyBlockStatementNode, yyv[yysp-0].yyBlockStatementNode); Self._Root := _CurrentValue.yySourceNode; 
+			End;
+31 :		Begin
+         // source: delphi.y line#208
+         _CurrentValue.yySourceNode := UnitNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyInterfaceSectionNode, yyv[yysp-1].yyImplementationSectionNode, yyv[yysp-0].yyBlockStatementNode, Nil); Self._Root := _CurrentValue.yySourceNode; 
+			End;
+32 :		Begin
          // source: delphi.y line#209
-         yyval.yySourceNode := UnitNode.Create(yyv[yysp-5].yyStringObject, yyv[yysp-3].yyInterfaceSection, yyv[yysp-2].yyImplementationSection, yyv[yysp-1].yyBlockStatement, yyv[yysp-0].yyBlockStatement); 
-       end;
-31 : begin
+         _CurrentValue.yySourceNode := UnitNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyInterfaceSectionNode, yyv[yysp-1].yyImplementationSectionNode, Nil, yyv[yysp-0].yyBlockStatementNode); Self._Root := _CurrentValue.yySourceNode; 
+			End;
+33 :		Begin
          // source: delphi.y line#210
-         yyval.yySourceNode := UnitNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyInterfaceSection, yyv[yysp-1].yyImplementationSection, yyv[yysp-0].yyBlockStatement, Nil); 
-       end;
-32 : begin
-         // source: delphi.y line#211
-         yyval.yySourceNode := UnitNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyInterfaceSection, yyv[yysp-1].yyImplementationSection, Nil, yyv[yysp-0].yyBlockStatement); 
-       end;
-33 : begin
-         // source: delphi.y line#212
-         yyval.yySourceNode := UnitNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyInterfaceSection, yyv[yysp-0].yyImplementationSection); 
-       end;
-34 : begin
-         // source: delphi.y line#216
-         yyval.yyImplementationSection := ImplementationSection.Create(yyv[yysp-1].yyNodeList, yyv[yysp-0].yyDeclarationList);
-       end;
-35 : begin
-         // source: delphi.y line#217
-         yyval.yyImplementationSection := ImplementationSection.Create(yyv[yysp-0].yyNodeList, Nil);
-       end;
-36 : begin
-         // source: delphi.y line#221
-         yyval.yyInterfaceSection := InterfaceSection.Create(yyv[yysp-1].yyNodeList, yyv[yysp-0].yyDeclarationList); 
-       end;
-37 : begin
-         // source: delphi.y line#225
-         yyval.yyDeclarationList := DeclarationList.Create();
-       end;
-38 : begin
-         // source: delphi.y line#226
-         yyval.yyDeclarationList := yyv[yysp-1].yyDeclarationList; yyv[yysp-1].yyDeclarationList.Add(yyv[yysp-0].yyDeclarationList); 
-       end;
-39 : begin
-         // source: delphi.y line#230
-         yyval.yyBlockStatement := yyv[yysp-0].yyBlockStatement;
-       end;
-40 : begin
-         // source: delphi.y line#231
-         yyval.yyBlockStatement := yyv[yysp-0].yyBlockStatement;
-       end;
-41 : begin
-         // source: delphi.y line#235
-         yyval.yyBlockStatement := yyv[yysp-0].yyBlockStatement;
-       end;
-42 : begin
-         // source: delphi.y line#239
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList; 
-       end;
-43 : begin
-         // source: delphi.y line#240
-         yyval.yyDeclarationList := yyv[yysp-1].yyDeclarationList; yyv[yysp-1].yyDeclarationList.Add(yyv[yysp-0].yyDeclarationList); 
-       end;
-44 : begin
-         // source: delphi.y line#244
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList;
-       end;
-45 : begin
-         // source: delphi.y line#245
-         yyval.yyDeclarationList := yyv[yysp-1].yyDeclarationList; yyv[yysp-1].yyDeclarationList.Add(yyv[yysp-0].yyDeclarationList); 
-       end;
-46 : begin
+         _CurrentValue.yySourceNode := UnitNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyInterfaceSectionNode, yyv[yysp-0].yyImplementationSectionNode); Self._Root := _CurrentValue.yySourceNode; 
+			End;
+34 :		Begin
+         // source: delphi.y line#214
+         _CurrentValue.yyImplementationSectionNode := ImplementationSectionNode.Create(yyv[yysp-1].yyUnitListNode, yyv[yysp-0].yyDeclarationListNode);
+			End;
+35 :		Begin
+         // source: delphi.y line#215
+         _CurrentValue.yyImplementationSectionNode := ImplementationSectionNode.Create(yyv[yysp-0].yyUnitListNode, Nil);
+			End;
+36 :		Begin
+         // source: delphi.y line#219
+         _CurrentValue.yyInterfaceSectionNode := InterfaceSectionNode.Create(yyv[yysp-1].yyUnitListNode, yyv[yysp-0].yyDeclarationListNode); 
+			End;
+37 :		Begin
+         // source: delphi.y line#223
+         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create();
+			End;
+38 :		Begin
+         // source: delphi.y line#224
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
+			End;
+39 :		Begin
+         // source: delphi.y line#228
+         _CurrentValue.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode;
+			End;
+40 :		Begin
+         // source: delphi.y line#229
+         _CurrentValue.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode;
+			End;
+41 :		Begin
+         // source: delphi.y line#233
+         _CurrentValue.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode;
+			End;
+42 :		Begin
+         // source: delphi.y line#237
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+			End;
+43 :		Begin
+         // source: delphi.y line#238
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
+			End;
+44 :		Begin
+         // source: delphi.y line#242
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+			End;
+45 :		Begin
+         // source: delphi.y line#243
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
+			End;
+46 :		Begin
+         // source: delphi.y line#250
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+			End;
+47 :		Begin
+         // source: delphi.y line#251
+         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); _CurrentValue.yyDeclarationListNode.Add(yyv[yysp-0].yyRoutineDeclarationNode);
+			End;
+48 :		Begin
          // source: delphi.y line#252
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList;
-       end;
-47 : begin
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+			End;
+49 :		Begin
          // source: delphi.y line#253
-         yyval.yyDeclarationList := DeclarationList.Create; yyval.yyDeclarationList.Add(yyv[yysp-0].yyRoutineDeclaration);
-       end;
-48 : begin
-         // source: delphi.y line#254
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList;
-       end;
-49 : begin
-         // source: delphi.y line#255
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList;
-       end;
-50 : begin
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+			End;
+50 :		Begin
+         // source: delphi.y line#257
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+			End;
+51 :		Begin
+         // source: delphi.y line#258
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+			End;
+52 :		Begin
          // source: delphi.y line#259
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList;
-       end;
-51 : begin
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+			End;
+53 :		Begin
          // source: delphi.y line#260
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList;
-       end;
-52 : begin
+         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); _CurrentValue.yyDeclarationListNode.Add(yyv[yysp-0].yyCallableDeclarationNode);
+			End;
+54 :		Begin
          // source: delphi.y line#261
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList;
-       end;
-53 : begin
-         // source: delphi.y line#262
-         yyval.yyDeclarationList := DeclarationList.Create(); yyval.yyDeclarationList.Add(yyv[yysp-0].yyCallableDeclaration);
-       end;
-54 : begin
-         // source: delphi.y line#263
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList;
-       end;
-55 : begin
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+			End;
+55 :		Begin
+         // source: delphi.y line#265
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+			End;
+56 :		Begin
+         // source: delphi.y line#266
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+			End;
+57 :		Begin
          // source: delphi.y line#267
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList;
-       end;
-56 : begin
-         // source: delphi.y line#268
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList;
-       end;
-57 : begin
-         // source: delphi.y line#269
-         yyval.yyDeclarationList := DeclarationList.Create(); yyval.yyDeclarationList.Add(yyv[yysp-0].yyRoutineDefinition);
-       end;
-58 : begin
+         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); _CurrentValue.yyDeclarationListNode.Add(yyv[yysp-0].yyRoutineDefinitionNode);
+			End;
+58 :		Begin
+         // source: delphi.y line#271
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+			End;
+59 :		Begin
+         // source: delphi.y line#272
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+			End;
+60 :		Begin
          // source: delphi.y line#273
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList;
-       end;
-59 : begin
-         // source: delphi.y line#274
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList;
-       end;
-60 : begin
-         // source: delphi.y line#275
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList;
-       end;
-61 : begin
-         // source: delphi.y line#279
-         yyval.yyDeclarationList := DeclarationList.Create(); yyval.yyDeclarationList.Add(yyv[yysp-0].yyTypeDeclaration); 
-       end;
-62 : begin
-         // source: delphi.y line#280
-         yyv[yysp-1].yyDeclarationList.Add(yyv[yysp-0].yyTypeDeclaration);  yyval.yyDeclarationList := yyv[yysp-1].yyDeclarationList; 
-       end;
-63 : begin
-         // source: delphi.y line#285
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList; 
-       end;
-64 : begin
-         // source: delphi.y line#286
-         yyval.yyDeclarationList := yyv[yysp-1].yyDeclarationList; yyv[yysp-1].yyDeclarationList.Add(yyv[yysp-0].yyDeclarationList); 
-       end;
-65 : begin
-         // source: delphi.y line#290
-         yyval.yyDeclarationList := MakeThreadVars(yyv[yysp-0].yyDeclarationList); 
-       end;
-66 : begin
-         // source: delphi.y line#291
-         yyval.yyDeclarationList := yyv[yysp-1].yyDeclarationList; yyv[yysp-1].yyDeclarationList.Add(yyv[yysp-0].yyDeclarationList); MakeThreadVars(yyval.yyDeclarationList); 
-       end;
-67 : begin
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode;
+			End;
+61 :		Begin
+         // source: delphi.y line#277
+         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); _CurrentValue.yyDeclarationListNode.Add(yyv[yysp-0].yyTypeDeclarationNode); 
+			End;
+62 :		Begin
+         // source: delphi.y line#278
+         yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyTypeDeclarationNode);  _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
+			End;
+63 :		Begin
+         // source: delphi.y line#283
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+			End;
+64 :		Begin
+         // source: delphi.y line#284
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
+			End;
+65 :		Begin
+         // source: delphi.y line#288
+         _CurrentValue.yyDeclarationListNode := MakeThreadVars(yyv[yysp-0].yyDeclarationListNode); 
+			End;
+66 :		Begin
+         // source: delphi.y line#289
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); MakeThreadVars(_CurrentValue.yyDeclarationListNode); 
+			End;
+67 :		Begin
+         // source: delphi.y line#293
+         _CurrentValue.yyDeclarationListNode := CreateDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-1].yyTypeNode, Nil, Nil); 
+			End;
+68 :		Begin
+         // source: delphi.y line#294
+         _CurrentValue.yyDeclarationListNode := CreateDecls(yyv[yysp-4].yyIdentifierListNode, yyv[yysp-3].yyTypeNode, yyv[yysp-1].yyExpressionNode, Nil); 
+			End;
+69 :		Begin
          // source: delphi.y line#295
-         yyval.yyDeclarationList := CreateDecls(yyv[yysp-2].yyStringList, yyv[yysp-1].yyTypeNode, Nil, Nil); 
-       end;
-68 : begin
+         _CurrentValue.yyDeclarationListNode := CreateDecls(yyv[yysp-4].yyIdentifierListNode, yyv[yysp-3].yyTypeNode, Nil, yyv[yysp-1].yyStringObject); 
+			End;
+70 :		Begin
          // source: delphi.y line#296
-         yyval.yyDeclarationList := CreateDecls(yyv[yysp-4].yyStringList, yyv[yysp-3].yyTypeNode, yyv[yysp-1].yyExpression, Nil); 
-       end;
-69 : begin
+         _CurrentValue.yyDeclarationListNode := CreateDecls(yyv[yysp-1].yyIdentifierListNode, yyv[yysp-0].yyProceduralTypeNode, Nil, Nil); 
+			End;
+71 :		Begin
          // source: delphi.y line#297
-         yyval.yyDeclarationList := CreateDecls(yyv[yysp-4].yyStringList, yyv[yysp-3].yyTypeNode, Nil, yyv[yysp-1].yyStringObject); 
-       end;
-70 : begin
-         // source: delphi.y line#298
-         yyval.yyDeclarationList := CreateDecls(yyv[yysp-1].yyStringList, yyv[yysp-0].yyProceduralType, Nil, Nil); 
-       end;
-71 : begin
-         // source: delphi.y line#299
-         RaiseError('TODO'); (*yyval.yyDeclarationList := CreateDecls(yyv[yysp-5].yyStringList, yyv[yysp-4].yyProceduralType, yyv[yysp-1].yyConstExpression))); yyv[yysp-4].yyProceduralType.Directives := yyv[yysp-2].yyFunctionDirectiveList;*) 
-       end;
-72 : begin
-         // source: delphi.y line#303
-         yyval.yyStringList := yyv[yysp-1].yyStringList; 
-       end;
-73 : begin
-         // source: delphi.y line#307
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList; 
-       end;
-74 : begin
-         // source: delphi.y line#311
-         yyval.yyDeclarationList := DeclarationList.Create(); yyval.yyDeclarationList.Add(yyv[yysp-0].yyConstDeclaration); 
-       end;
-75 : begin
-         // source: delphi.y line#312
-         yyv[yysp-1].yyDeclarationList.Add(yyv[yysp-0].yyConstDeclaration); yyval.yyDeclarationList := yyv[yysp-1].yyDeclarationList; 
-       end;
-76 : begin
-         // source: delphi.y line#316
-         yyval.yyConstDeclaration := ConstDeclaration.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyStringLiteral); 
-       end;
-77 : begin
-         // source: delphi.y line#321
-         yyval.yyDeclarationList := CreateLabelDecls(yyv[yysp-1].yyStringList); 
-       end;
-78 : begin
-         // source: delphi.y line#325
-         yyval.yyStringList := StringList.Create(); yyval.yyStringList.Add(yyv[yysp-0].yyStringObject); 
-       end;
-79 : begin
-         // source: delphi.y line#326
-         yyval.yyStringList := yyv[yysp-2].yyStringList; yyv[yysp-2].yyStringList.Add(yyv[yysp-0].yyStringObject); 
-       end;
-80 : begin
-         // source: delphi.y line#330
+         RaiseError('TODO'); (*_CurrentValue.yyDeclarationListNode := CreateDecls(yyv[yysp-5].yyIdentifierListNode, yyv[yysp-4].yyProceduralTypeNode, yyv[yysp-1].yyConstExpressionNode))); yyv[yysp-4].yyProceduralTypeNode.Directives := yyv[yysp-2].yyFunctionDirectiveListNode;*) 
+			End;
+72 :		Begin
+         // source: delphi.y line#301
+         _CurrentValue.yyIdentifierListNode := yyv[yysp-1].yyIdentifierListNode; 
+			End;
+73 :		Begin
+         // source: delphi.y line#305
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+			End;
+74 :		Begin
+         // source: delphi.y line#309
+         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); _CurrentValue.yyDeclarationListNode.Add(yyv[yysp-0].yyConstDeclarationNode); 
+			End;
+75 :		Begin
+         // source: delphi.y line#310
+         yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyConstDeclarationNode); _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
+			End;
+76 :		Begin
+         // source: delphi.y line#314
+         _CurrentValue.yyConstDeclarationNode := ConstDeclarationNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyStringLiteralNode); 
+			End;
+77 :		Begin
+         // source: delphi.y line#319
+         _CurrentValue.yyDeclarationListNode := CreateLabelDecls(yyv[yysp-1].yyIdentifierListNode); 
+			End;
+78 :		Begin
+         // source: delphi.y line#323
+         _CurrentValue.yyIdentifierListNode := IdentifierListNode.Create(IdentifierNode.Create(yyv[yysp-0].yyStringObject)); 
+			End;
+79 :		Begin
+         // source: delphi.y line#324
+         _CurrentValue.yyIdentifierListNode := yyv[yysp-2].yyIdentifierListNode; yyv[yysp-2].yyIdentifierListNode.Add(IdentifierNode.Create(yyv[yysp-0].yyStringObject)); 
+			End;
+80 :		Begin
+         // source: delphi.y line#328
          (* decimal int 0..9999 *)
          If (yyv[yysp-0].yyCardinal < 0) Or (yyv[yysp-0].yyCardinal > 9999) Then
          Begin
          yyerror('Label number must be between 0 and 9999');
          End;
-         yyval.yyStringObject := StringObject.Create(CardinalToString(yyv[yysp-0].yyCardinal));
+         _CurrentValue.yyStringObject := StringObject.Create(CardinalToString(yyv[yysp-0].yyCardinal));
          
-       end;
-81 : begin
-         // source: delphi.y line#337
-         yyval.yyStringObject := yyv[yysp-0].yyStringObject; 
-       end;
-82 : begin
-         // source: delphi.y line#342
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList; 
-       end;
-83 : begin
-         // source: delphi.y line#346
-         yyval.yyDeclarationList := DeclarationList.Create(yyv[yysp-0].yyUnitItem); 
-       end;
-84 : begin
-         // source: delphi.y line#347
-         yyval.yyDeclarationList := yyv[yysp-2].yyDeclarationList; yyv[yysp-2].yyDeclarationList.Add(yyv[yysp-0].yyUnitItem); 
-       end;
-85 : begin
+			End;
+81 :		Begin
+         // source: delphi.y line#335
+         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+			End;
+82 :		Begin
+         // source: delphi.y line#340
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+			End;
+83 :		Begin
+         // source: delphi.y line#344
+         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(yyv[yysp-0].yyUnitItemNode); 
+			End;
+84 :		Begin
+         // source: delphi.y line#345
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.Add(yyv[yysp-0].yyUnitItemNode); 
+			End;
+85 :		Begin
+         // source: delphi.y line#349
+         _CurrentValue.yyUnitItemNode := ExportItemNode.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyParametersSectionNode); 
+			End;
+86 :		Begin
+         // source: delphi.y line#350
+         _CurrentValue.yyUnitItemNode := ExportItemNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSectionNode, yyv[yysp-0].yyStringObject); 
+			End;
+87 :		Begin
          // source: delphi.y line#351
-         yyval.yyUnitItem := ExportItem.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyParametersSection); 
-       end;
-86 : begin
-         // source: delphi.y line#352
-         yyval.yyUnitItem := ExportItem.Create(yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSection, yyv[yysp-0].yyStringObject); 
-       end;
-87 : begin
-         // source: delphi.y line#353
-         yyval.yyUnitItem := ExportItem.Create(yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSection, yyv[yysp-0].yyCardinal); 
-       end;
-88 : begin
-         // source: delphi.y line#357
-         yyval.yyStringObject := yyv[yysp-0].yyStringObject; 
-       end;
-89 : begin
-         // source: delphi.y line#358
-         yyval.yyStringObject := StringObject.Create(yyv[yysp-2].yyStringObject.Value + '.' + yyv[yysp-0].yyStringObject.Value); // possible mem leak
-       end;
-90 : begin
-         // source: delphi.y line#363
+         _CurrentValue.yyUnitItemNode := ExportItemNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSectionNode, yyv[yysp-0].yyCardinal); 
+			End;
+88 :		Begin
+         // source: delphi.y line#355
+         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+			End;
+89 :		Begin
+         // source: delphi.y line#356
+         _CurrentValue.yyStringObject := StringObject.Create(yyv[yysp-2].yyStringObject.Value + '.' + yyv[yysp-0].yyStringObject.Value); // possible mem leak
+			End;
+90 :		Begin
+         // source: delphi.y line#361
          
-       end;
-91 : begin
-         // source: delphi.y line#364
+			End;
+91 :		Begin
+         // source: delphi.y line#362
          
-       end;
-92 : begin
+			End;
+92 :		Begin
+         // source: delphi.y line#368
+         _CurrentValue.yyCallableDeclarationNode := yyv[yysp-0].yyRoutineDefinitionNode; 
+			End;
+93 :		Begin
+         // source: delphi.y line#369
+         _CurrentValue.yyCallableDeclarationNode := yyv[yysp-1].yyRoutineDeclarationNode; yyv[yysp-1].yyRoutineDeclarationNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
+			End;
+94 :		Begin
          // source: delphi.y line#370
-         yyval.yyCallableDeclaration := yyv[yysp-0].yyRoutineDefinition; 
-       end;
-93 : begin
-         // source: delphi.y line#371
-         yyval.yyCallableDeclaration := yyv[yysp-1].yyRoutineDeclaration; yyv[yysp-1].yyRoutineDeclaration.Directives := yyv[yysp-0].yyFunctionDirectiveList; 
-       end;
-94 : begin
-         // source: delphi.y line#372
-         yyval.yyCallableDeclaration := yyv[yysp-2].yyMethodDefinition; yyv[yysp-2].yyMethodDefinition.body := yyv[yysp-1].yyRoutineSection; 
-       end;
-95 : begin
-         // source: delphi.y line#376
-         yyval.yyRoutineDefinition := RoutineDefinition.Create(yyv[yysp-3].yyRoutineDeclaration.name, yyv[yysp-3].yyRoutineDeclaration.SignatureType, yyv[yysp-2].yyFunctionDirectiveList, yyv[yysp-1].yyRoutineSection); 
-       end;
-96 : begin
-         // source: delphi.y line#380
-         yyval.yyMethodDeclaration := MethodDeclaration.Create(_lastObjName, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSection, yyv[yysp-1].yyTypeNode); 
-       end;
-97 : begin
-         // source: delphi.y line#381
-         yyval.yyMethodDeclaration := MethodDeclaration.Create(_lastObjName, yyv[yysp-2].yyStringObject, yyv[yysp-1].yyParametersSection, Nil); 
-       end;
-98 : begin
-         // source: delphi.y line#385
-         yyval.yyRoutineDeclaration := RoutineDeclaration.Create(yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSection, yyv[yysp-1].yyTypeNode); 
-       end;
-99 : begin
-         // source: delphi.y line#386
-         yyval.yyRoutineDeclaration := RoutineDeclaration.Create(yyv[yysp-2].yyStringObject, yyv[yysp-1].yyParametersSection); 
-       end;
-100 : begin
+         _CurrentValue.yyCallableDeclarationNode := yyv[yysp-2].yyMethodDefinitionNode; yyv[yysp-2].yyMethodDefinitionNode.body := yyv[yysp-1].yyRoutineSectionNode; 
+			End;
+95 :		Begin
+         // source: delphi.y line#374
+         _CurrentValue.yyRoutineDefinitionNode := RoutineDefinitionNode.Create(yyv[yysp-3].yyRoutineDeclarationNode.name, yyv[yysp-3].yyRoutineDeclarationNode.SignatureType, yyv[yysp-2].yyFunctionDirectiveListNode, yyv[yysp-1].yyRoutineSectionNode); 
+			End;
+96 :		Begin
+         // source: delphi.y line#378
+         _CurrentValue.yyMethodDeclarationNode := MethodDeclarationNode.Create(_lastObjName, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSectionNode, yyv[yysp-1].yyTypeNode); 
+			End;
+97 :		Begin
+         // source: delphi.y line#379
+         _CurrentValue.yyMethodDeclarationNode := MethodDeclarationNode.Create(_lastObjName, yyv[yysp-2].yyStringObject, yyv[yysp-1].yyParametersSectionNode, Nil); 
+			End;
+98 :		Begin
+         // source: delphi.y line#383
+         _CurrentValue.yyRoutineDeclarationNode := RoutineDeclarationNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSectionNode, yyv[yysp-1].yyTypeNode); 
+			End;
+99 :		Begin
+         // source: delphi.y line#384
+         _CurrentValue.yyRoutineDeclarationNode := RoutineDeclarationNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-1].yyParametersSectionNode); 
+			End;
+100 :		Begin
+         // source: delphi.y line#388
+         _CurrentValue.yyMethodDefinitionNode := yyv[yysp-2].yyMethodDefinitionNode; yyv[yysp-2].yyMethodDefinitionNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
+			End;
+101 :		Begin
+         // source: delphi.y line#389
+         _CurrentValue.yyMethodDefinitionNode := yyv[yysp-2].yyMethodDefinitionNode; yyv[yysp-2].yyMethodDefinitionNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; yyv[yysp-2].yyMethodDefinitionNode.isStatic := true; 
+			End;
+102 :		Begin
          // source: delphi.y line#390
-         yyval.yyMethodDefinition := yyv[yysp-2].yyMethodDefinition; yyv[yysp-2].yyMethodDefinition.Directives := yyv[yysp-0].yyFunctionDirectiveList; 
-       end;
-101 : begin
-         // source: delphi.y line#391
-         yyval.yyMethodDefinition := yyv[yysp-2].yyMethodDefinition; yyv[yysp-2].yyMethodDefinition.Directives := yyv[yysp-0].yyFunctionDirectiveList; yyv[yysp-2].yyMethodDefinition.isStatic := true; 
-       end;
-102 : begin
-         // source: delphi.y line#392
-         yyval.yyMethodDefinition := MethodDefinition.Create(yyv[yysp-5].yyStringObject, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSection, Nil, yyv[yysp-0].yyFunctionDirectiveList, yyv[yysp-6].yyMethodKind);
-       end;
-103 : begin
-         // source: delphi.y line#396
-         yyval.yyMethodDefinition := MethodDefinition.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyStringObject, yyv[yysp-1].yyParametersSection, yyv[yysp-0].yyTypeNode); 
-       end;
-104 : begin
-         // source: delphi.y line#397
-         yyval.yyMethodDefinition := MethodDefinition.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyStringObject, yyv[yysp-0].yyParametersSection); 
-       end;
-105 : begin
-         // source: delphi.y line#401
-         yyval.yyRoutineDeclaration := yyv[yysp-0].yyRoutineDeclaration; 
-       end;
-106 : begin
-         // source: delphi.y line#405
-         yyval.yyMethodDeclaration := yyv[yysp-1].yyMethodDeclaration; yyv[yysp-1].yyMethodDeclaration.Directives := yyv[yysp-0].yyFunctionDirectiveList; 
-       end;
-107 : begin
-         // source: delphi.y line#406
-         yyval.yyMethodDeclaration := MethodDeclaration.Create(_lastObjName, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSection, Nil, yyv[yysp-0].yyFunctionDirectiveList, yyv[yysp-4].yyMethodKind); 
-       end;
-108 : begin
-         // source: delphi.y line#410
-         yyval.yyMethodDeclaration := yyv[yysp-0].yyMethodDeclaration; 
-       end;
-109 : begin
-         // source: delphi.y line#414
-         yyval.yyStringObject := yyv[yysp-0].yyStringObject; 
-       end;
-110 : begin
-         // source: delphi.y line#417
-         yyval.yyStringObject := yyv[yysp-0].yyStringObject; 
-       end;
-111 : begin
-         // source: delphi.y line#420
-         yyval.yyMethodKind := method_Constructor; 
-       end;
-112 : begin
-         // source: delphi.y line#421
-         yyval.yyMethodKind := method_Destructor; 
-       end;
-113 : begin
-         // source: delphi.y line#425
-         yyval.yyProceduralType := yyv[yysp-2].yyProceduralType; yyv[yysp-2].yyProceduralType.Directives := yyv[yysp-0].yyFunctionDirectiveList; 
-       end;
-114 : begin
+         _CurrentValue.yyMethodDefinitionNode := MethodDefinitionNode.Create(yyv[yysp-5].yyStringObject, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSectionNode, Nil, yyv[yysp-0].yyFunctionDirectiveListNode, yyv[yysp-6].yyMethodKindEnum);
+			End;
+103 :		Begin
+         // source: delphi.y line#394
+         _CurrentValue.yyMethodDefinitionNode := MethodDefinitionNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyStringObject, yyv[yysp-1].yyParametersSectionNode, yyv[yysp-0].yyTypeNode); 
+			End;
+104 :		Begin
+         // source: delphi.y line#395
+         _CurrentValue.yyMethodDefinitionNode := MethodDefinitionNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyStringObject, yyv[yysp-0].yyParametersSectionNode); 
+			End;
+105 :		Begin
+         // source: delphi.y line#399
+         _CurrentValue.yyRoutineDeclarationNode := yyv[yysp-0].yyRoutineDeclarationNode; 
+			End;
+106 :		Begin
+         // source: delphi.y line#403
+         _CurrentValue.yyMethodDeclarationNode := yyv[yysp-1].yyMethodDeclarationNode; yyv[yysp-1].yyMethodDeclarationNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
+			End;
+107 :		Begin
+         // source: delphi.y line#404
+         _CurrentValue.yyMethodDeclarationNode := MethodDeclarationNode.Create(_lastObjName, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyParametersSectionNode, Nil, yyv[yysp-0].yyFunctionDirectiveListNode, yyv[yysp-4].yyMethodKindEnum); 
+			End;
+108 :		Begin
+         // source: delphi.y line#408
+         _CurrentValue.yyMethodDeclarationNode := yyv[yysp-0].yyMethodDeclarationNode; 
+			End;
+109 :		Begin
+         // source: delphi.y line#412
+         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+			End;
+110 :		Begin
+         // source: delphi.y line#415
+         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+			End;
+111 :		Begin
+         // source: delphi.y line#418
+         _CurrentValue.yyMethodKindEnum := method_Constructor; 
+			End;
+112 :		Begin
+         // source: delphi.y line#419
+         _CurrentValue.yyMethodKindEnum := method_Destructor; 
+			End;
+113 :		Begin
+         // source: delphi.y line#423
+         _CurrentValue.yyProceduralTypeNode := yyv[yysp-2].yyProceduralTypeNode; yyv[yysp-2].yyProceduralTypeNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
+			End;
+114 :		Begin
+         // source: delphi.y line#427
+         _CurrentValue.yyProceduralTypeNode := ProceduralTypeNode.Create(yyv[yysp-0].yyParametersSectionNode); 
+			End;
+115 :		Begin
+         // source: delphi.y line#428
+         _CurrentValue.yyProceduralTypeNode := ProceduralTypeNode.Create(yyv[yysp-1].yyParametersSectionNode, yyv[yysp-0].yyTypeNode); 
+			End;
+116 :		Begin
          // source: delphi.y line#429
-         yyval.yyProceduralType := ProceduralType.Create(yyv[yysp-0].yyParametersSection); 
-       end;
-115 : begin
+         _CurrentValue.yyProceduralTypeNode := MethodTypeNode.Create(yyv[yysp-1].yyParametersSectionNode); 
+			End;
+117 :		Begin
          // source: delphi.y line#430
-         yyval.yyProceduralType := ProceduralType.Create(yyv[yysp-1].yyParametersSection, yyv[yysp-0].yyTypeNode); 
-       end;
-116 : begin
-         // source: delphi.y line#431
-         yyval.yyProceduralType := MethodType.Create(yyv[yysp-1].yyParametersSection); 
-       end;
-117 : begin
-         // source: delphi.y line#432
-         yyval.yyProceduralType := MethodType.Create(yyv[yysp-2].yyParametersSection, yyv[yysp-1].yyTypeNode); 
-       end;
-118 : begin
-         yyval := yyv[yysp-1];
-       end;
-119 : begin
-         // source: delphi.y line#440
-         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode;
-       end;
-120 : begin
-         // source: delphi.y line#445
-         yyval.yyRoutineSection := RoutineSection.Create(yyv[yysp-1].yyDeclarationList, yyv[yysp-0].yyBlockStatement); 
-       end;
-121 : begin
-         // source: delphi.y line#446
-         yyval.yyRoutineSection := RoutineSection.Create(Nil, yyv[yysp-0].yyBlockStatement); 
-       end;
-122 : begin
-         // source: delphi.y line#450
-         yyval.yyBlockStatement := yyv[yysp-0].yyBlockStatement; 
-       end;
-123 : begin
-         // source: delphi.y line#451
-         yyval.yyBlockStatement := yyv[yysp-0].yyBlockStatement; 
-       end;
-124 : begin
+         _CurrentValue.yyProceduralTypeNode := MethodTypeNode.Create(yyv[yysp-2].yyParametersSectionNode, yyv[yysp-1].yyTypeNode); 
+			End;
+118 :		Begin
+         _CurrentValue := yyv[yysp-1];
+			End;
+119 :		Begin
+         // source: delphi.y line#438
+         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode;
+			End;
+120 :		Begin
+         // source: delphi.y line#443
+         _CurrentValue.yyRoutineSectionNode := RoutineSectionNode.Create(yyv[yysp-1].yyDeclarationListNode, yyv[yysp-0].yyBlockStatementNode); 
+			End;
+121 :		Begin
+         // source: delphi.y line#444
+         _CurrentValue.yyRoutineSectionNode := RoutineSectionNode.Create(Nil, yyv[yysp-0].yyBlockStatementNode); 
+			End;
+122 :		Begin
+         // source: delphi.y line#448
+         _CurrentValue.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode; 
+			End;
+123 :		Begin
+         // source: delphi.y line#449
+         _CurrentValue.yyBlockStatementNode := yyv[yysp-0].yyBlockStatementNode; 
+			End;
+124 :		Begin
+         // source: delphi.y line#453
+         _CurrentValue.yyParametersSectionNode := ParametersSectionNode.Create(); 
+			End;
+125 :		Begin
+         // source: delphi.y line#454
+         _CurrentValue.yyParametersSectionNode := ParametersSectionNode.Create(); 
+			End;
+126 :		Begin
          // source: delphi.y line#455
-         yyval.yyParametersSection := ParametersSection.Create(); 
-       end;
-125 : begin
-         // source: delphi.y line#456
-         yyval.yyParametersSection := ParametersSection.Create(); 
-       end;
-126 : begin
-         // source: delphi.y line#457
-         yyval.yyParametersSection := ParametersSection.Create(yyv[yysp-1].yyDeclarationList); 
-       end;
-127 : begin
-         // source: delphi.y line#461
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList; 
-       end;
-128 : begin
-         // source: delphi.y line#462
-         yyval.yyDeclarationList := yyv[yysp-2].yyDeclarationList; yyv[yysp-2].yyDeclarationList.Add(yyv[yysp-0].yyDeclarationList); 
-       end;
-129 : begin
+         _CurrentValue.yyParametersSectionNode := ParametersSectionNode.Create(yyv[yysp-1].yyDeclarationListNode); 
+			End;
+127 :		Begin
+         // source: delphi.y line#459
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+			End;
+128 :		Begin
+         // source: delphi.y line#460
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
+			End;
+129 :		Begin
+         // source: delphi.y line#465
+         _CurrentValue.yyDeclarationListNode := CreateParamDecls(yyv[yysp-1].yyIdentifierListNode, yyv[yysp-0].yyTypeNode, Nil, param_Var); 
+			End;
+130 :		Begin
+         // source: delphi.y line#466
+         _CurrentValue.yyDeclarationListNode := CreateParamDecls(yyv[yysp-1].yyIdentifierListNode, yyv[yysp-0].yyTypeNode, Nil, param_Out); 
+			End;
+131 :		Begin
          // source: delphi.y line#467
-         yyval.yyDeclarationList := CreateParamDecls(yyv[yysp-1].yyStringList, yyv[yysp-0].yyTypeNode, Nil, param_Var); 
-       end;
-130 : begin
+         _CurrentValue.yyDeclarationListNode := CreateParamDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-1].yyTypeNode, yyv[yysp-0].yyExpressionNode, param_Default); 
+			End;
+132 :		Begin
          // source: delphi.y line#468
-         yyval.yyDeclarationList := CreateParamDecls(yyv[yysp-1].yyStringList, yyv[yysp-0].yyTypeNode, Nil, param_Out); 
-       end;
-131 : begin
-         // source: delphi.y line#469
-         yyval.yyDeclarationList := CreateParamDecls(yyv[yysp-2].yyStringList, yyv[yysp-1].yyTypeNode, yyv[yysp-0].yyExpression, param_Default); 
-       end;
-132 : begin
-         // source: delphi.y line#470
-         yyval.yyDeclarationList := CreateParamDecls(yyv[yysp-2].yyStringList, yyv[yysp-1].yyTypeNode, yyv[yysp-0].yyExpression, param_Const); 
-       end;
-133 : begin
-         // source: delphi.y line#474
-         yyval.yyTypeNode := Nil; 
-       end;
-134 : begin
-         // source: delphi.y line#475
-         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
-       end;
-135 : begin
-         // source: delphi.y line#479
-         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
-       end;
-136 : begin
-         // source: delphi.y line#483
-         yyval.yyExpression := Nil; 
-       end;
-137 : begin
-         // source: delphi.y line#484
-         yyval.yyExpression := yyv[yysp-0].yyExpression; 
-       end;
-138 : begin
-         // source: delphi.y line#488
-         yyval.yyConstExpression := ConstIdentifier.Create(yyv[yysp-0].yyStringObject); 
-       end;
-139 : begin
-         // source: delphi.y line#489
-         yyval.yyConstExpression := PointerLiteral.Create(0); 
-       end;
-140 : begin
-         // source: delphi.y line#494
-         yyval.yyFunctionDirectiveList := JoinImportDirectives(yyv[yysp-4].yyFunctionDirectiveList, yyv[yysp-0].yyFunctionDirectiveList, yyv[yysp-2].yyExternalDirective); 
-       end;
-141 : begin
-         // source: delphi.y line#495
-         yyval.yyFunctionDirectiveList := JoinImportDirectives(yyv[yysp-3].yyFunctionDirectiveList, yyv[yysp-0].yyFunctionDirectiveList, importDirective_Forward); 
-       end;
-142 : begin
+         _CurrentValue.yyDeclarationListNode := CreateParamDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-1].yyTypeNode, yyv[yysp-0].yyExpressionNode, param_Const); 
+			End;
+133 :		Begin
+         // source: delphi.y line#472
+         _CurrentValue.yyTypeNode := Nil; 
+			End;
+134 :		Begin
+         // source: delphi.y line#473
+         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+			End;
+135 :		Begin
+         // source: delphi.y line#477
+         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+			End;
+136 :		Begin
+         // source: delphi.y line#481
+         _CurrentValue.yyExpressionNode := Nil; 
+			End;
+137 :		Begin
+         // source: delphi.y line#482
+         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
+			End;
+138 :		Begin
+         // source: delphi.y line#486
+         _CurrentValue.yyConstExpressionNode := ConstIdentifierNode.Create(yyv[yysp-0].yyStringObject); 
+			End;
+139 :		Begin
+         // source: delphi.y line#487
+         _CurrentValue.yyConstExpressionNode := NullLiteralNode.Create(); 
+			End;
+140 :		Begin
+         // source: delphi.y line#492
+         _CurrentValue.yyFunctionDirectiveListNode := JoinImportDirectives(yyv[yysp-4].yyFunctionDirectiveListNode, yyv[yysp-0].yyFunctionDirectiveListNode, yyv[yysp-2].yyExternalDirectiveNode); 
+			End;
+141 :		Begin
+         // source: delphi.y line#493
+         _CurrentValue.yyFunctionDirectiveListNode := JoinImportDirectives(yyv[yysp-3].yyFunctionDirectiveListNode, yyv[yysp-0].yyFunctionDirectiveListNode, FunctionAttributeNode.Create(attribute_Forward)); 
+			End;
+142 :		Begin
+         // source: delphi.y line#497
+         _CurrentValue.yyExternalDirectiveNode := ExternalDirectiveNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyExpressionNode); 
+			End;
+143 :		Begin
+         // source: delphi.y line#498
+         _CurrentValue.yyExternalDirectiveNode := ExternalDirectiveNode.Create(yyv[yysp-0].yyExpressionNode); 
+			End;
+144 :		Begin
          // source: delphi.y line#499
-         yyval.yyExternalDirective := ExternalDirective.Create(yyv[yysp-2].yyExpression, yyv[yysp-0].yyExpression); 
-       end;
-143 : begin
-         // source: delphi.y line#500
-         yyval.yyExternalDirective := ExternalDirective.Create(yyv[yysp-0].yyExpression); 
-       end;
-144 : begin
-         // source: delphi.y line#501
-         yyval.yyExternalDirective := Nil; 
-       end;
-145 : begin
-         // source: delphi.y line#505
-         yyval.yyFunctionDirectiveList := Nil ; 
-       end;
-146 : begin
-         // source: delphi.y line#506
-         yyval.yyFunctionDirectiveList := yyv[yysp-0].yyFunctionDirectiveList   ; 
-       end;
-147 : begin
-         // source: delphi.y line#510
-         yyval.yyFunctionDirectiveList := Nil ; 
-       end;
-148 : begin
-         // source: delphi.y line#511
-         yyval.yyFunctionDirectiveList := yyv[yysp-1].yyFunctionDirectiveList   ; 
-       end;
-149 : begin
-         // source: delphi.y line#515
-         yyval.yyFunctionDirectiveList := Nil ; 
-       end;
-150 : begin
-         // source: delphi.y line#516
-         yyval.yyFunctionDirectiveList := yyv[yysp-1].yyFunctionDirectiveList; 
-       end;
-151 : begin
-         // source: delphi.y line#520
-         yyval.yyFunctionDirectiveList := Nil; 
-       end;
-152 : begin
-         // source: delphi.y line#521
-         yyval.yyFunctionDirectiveList := yyv[yysp-1].yyFunctionDirectiveList   ; 
-       end;
-153 : begin
-         // source: delphi.y line#525
-         yyval.yyFunctionDirectiveList := FunctionDirectiveList.Create(yyv[yysp-0].yyFunctionDirective); 
-       end;
-154 : begin
-         // source: delphi.y line#526
-         yyval.yyFunctionDirectiveList := yyv[yysp-2].yyFunctionDirectiveList; yyv[yysp-2].yyFunctionDirectiveList.Add(yyv[yysp-0].yyFunctionDirective); 
-       end;
-155 : begin
-         // source: delphi.y line#530
-         yyval.yyFunctionDirectiveList := FunctionDirectiveList.Create(yyv[yysp-0].yyFunctionDirective); 
-       end;
-156 : begin
-         // source: delphi.y line#531
-         yyval.yyFunctionDirectiveList := yyv[yysp-2].yyFunctionDirectiveList; yyv[yysp-2].yyFunctionDirectiveList.Add(yyv[yysp-0].yyFunctionDirective); 
-       end;
-157 : begin
-         // source: delphi.y line#535
-         yyval.yyFunctionDirectiveList := FunctionDirectiveList.Create(yyv[yysp-0].yyFunctionDirective); 
-       end;
-158 : begin
-         // source: delphi.y line#536
-         yyval.yyFunctionDirectiveList := yyv[yysp-2].yyFunctionDirectiveList; yyv[yysp-2].yyFunctionDirectiveList.Add(yyv[yysp-0].yyFunctionDirective); 
-       end;
-159 : begin
-         // source: delphi.y line#540
-         yyval.yyFunctionDirective := functionDirective_Overload; 
-       end;
-160 : begin
-         // source: delphi.y line#541
-         yyval.yyFunctionDirective := yyv[yysp-0].yyFunctionDirective; 
-       end;
-161 : begin
-         // source: delphi.y line#545
-         yyval.yyFunctionDirective := yyv[yysp-0].yyFunctionDirective; 
-       end;
-162 : begin
-         // source: delphi.y line#546
-         yyval.yyFunctionDirective := yyv[yysp-0].yyFunctionDirective; 
-       end;
-163 : begin
+         _CurrentValue.yyExternalDirectiveNode := Nil; 
+			End;
+145 :		Begin
+         // source: delphi.y line#503
+         _CurrentValue.yyFunctionDirectiveListNode := Nil ; 
+			End;
+146 :		Begin
+         // source: delphi.y line#504
+         _CurrentValue.yyFunctionDirectiveListNode := yyv[yysp-0].yyFunctionDirectiveListNode   ; 
+			End;
+147 :		Begin
+         // source: delphi.y line#508
+         _CurrentValue.yyFunctionDirectiveListNode := Nil ; 
+			End;
+148 :		Begin
+         // source: delphi.y line#509
+         _CurrentValue.yyFunctionDirectiveListNode := yyv[yysp-1].yyFunctionDirectiveListNode   ; 
+			End;
+149 :		Begin
+         // source: delphi.y line#513
+         _CurrentValue.yyFunctionDirectiveListNode := Nil ; 
+			End;
+150 :		Begin
+         // source: delphi.y line#514
+         _CurrentValue.yyFunctionDirectiveListNode := yyv[yysp-1].yyFunctionDirectiveListNode; 
+			End;
+151 :		Begin
+         // source: delphi.y line#518
+         _CurrentValue.yyFunctionDirectiveListNode := Nil; 
+			End;
+152 :		Begin
+         // source: delphi.y line#519
+         _CurrentValue.yyFunctionDirectiveListNode := yyv[yysp-1].yyFunctionDirectiveListNode   ; 
+			End;
+153 :		Begin
+         // source: delphi.y line#523
+         _CurrentValue.yyFunctionDirectiveListNode := FunctionDirectiveListNode.Create(yyv[yysp-0].yyFunctionAttributeNode); 
+			End;
+154 :		Begin
+         // source: delphi.y line#524
+         _CurrentValue.yyFunctionDirectiveListNode := yyv[yysp-2].yyFunctionDirectiveListNode; yyv[yysp-2].yyFunctionDirectiveListNode.Add(yyv[yysp-0].yyFunctionAttributeNode); 
+			End;
+155 :		Begin
+         // source: delphi.y line#528
+         _CurrentValue.yyFunctionDirectiveListNode := FunctionDirectiveListNode.Create(yyv[yysp-0].yyFunctionAttributeNode); 
+			End;
+156 :		Begin
+         // source: delphi.y line#529
+         _CurrentValue.yyFunctionDirectiveListNode := yyv[yysp-2].yyFunctionDirectiveListNode; yyv[yysp-2].yyFunctionDirectiveListNode.Add(yyv[yysp-0].yyFunctionAttributeNode); 
+			End;
+157 :		Begin
+         // source: delphi.y line#533
+         _CurrentValue.yyFunctionDirectiveListNode := FunctionDirectiveListNode.Create(yyv[yysp-0].yyFunctionAttributeNode); 
+			End;
+158 :		Begin
+         // source: delphi.y line#534
+         _CurrentValue.yyFunctionDirectiveListNode := yyv[yysp-2].yyFunctionDirectiveListNode; yyv[yysp-2].yyFunctionDirectiveListNode.Add(yyv[yysp-0].yyFunctionAttributeNode); 
+			End;
+159 :		Begin
+         // source: delphi.y line#538
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Overload); 
+			End;
+160 :		Begin
+         // source: delphi.y line#539
+         _CurrentValue.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
+			End;
+161 :		Begin
+         // source: delphi.y line#543
+         _CurrentValue.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
+			End;
+162 :		Begin
+         // source: delphi.y line#544
+         _CurrentValue.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
+			End;
+163 :		Begin
+         // source: delphi.y line#548
+         _CurrentValue.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
+			End;
+164 :		Begin
+         // source: delphi.y line#549
+         _CurrentValue.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
+			End;
+165 :		Begin
          // source: delphi.y line#550
-         yyval.yyFunctionDirective := yyv[yysp-0].yyFunctionDirective; 
-       end;
-164 : begin
-         // source: delphi.y line#551
-         yyval.yyFunctionDirective := yyv[yysp-0].yyFunctionDirective; 
-       end;
-165 : begin
-         // source: delphi.y line#552
-         yyval.yyFunctionDirective := yyv[yysp-0].yyFunctionDirective; 
-       end;
-166 : begin
+         _CurrentValue.yyFunctionAttributeNode := yyv[yysp-0].yyFunctionAttributeNode; 
+			End;
+166 :		Begin
+         // source: delphi.y line#555
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Far); 
+			End;
+167 :		Begin
+         // source: delphi.y line#556
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Near); 
+			End;
+168 :		Begin
          // source: delphi.y line#557
-         yyval.yyFunctionDirective := functionDirective_Far; 
-       end;
-167 : begin
-         // source: delphi.y line#558
-         yyval.yyFunctionDirective := functionDirective_Near; 
-       end;
-168 : begin
-         // source: delphi.y line#559
-         yyval.yyFunctionDirective := functionDirective_Resident; 
-       end;
-169 : begin
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Resident); 
+			End;
+169 :		Begin
+         // source: delphi.y line#561
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Abstract); 
+			End;
+170 :		Begin
+         // source: delphi.y line#562
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Dynamic); 
+			End;
+171 :		Begin
          // source: delphi.y line#563
-         yyval.yyFunctionDirective := methodDirective_Abstract; 
-       end;
-170 : begin
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Override); 
+			End;
+172 :		Begin
          // source: delphi.y line#564
-         yyval.yyFunctionDirective := methodDirective_Dynamic; 
-       end;
-171 : begin
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Virtual); 
+			End;
+173 :		Begin
          // source: delphi.y line#565
-         yyval.yyFunctionDirective := methodDirective_Override; 
-       end;
-172 : begin
-         // source: delphi.y line#566
-         yyval.yyFunctionDirective := methodDirective_Virtual; 
-       end;
-173 : begin
-         // source: delphi.y line#567
-         yyval.yyFunctionDirective := methodDirective_Reintroduce; 
-       end;
-174 : begin
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Reintroduce); 
+			End;
+174 :		Begin
+         // source: delphi.y line#569
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Assembler); 
+			End;
+175 :		Begin
+         // source: delphi.y line#570
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Export); 
+			End;
+176 :		Begin
          // source: delphi.y line#571
-         yyval.yyFunctionDirective := functionDirective_Assembler; 
-       end;
-175 : begin
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Inline); 
+			End;
+177 :		Begin
          // source: delphi.y line#572
-         yyval.yyFunctionDirective := functionDirective_Export; 
-       end;
-176 : begin
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_Overload); 
+			End;
+178 :		Begin
          // source: delphi.y line#573
-         yyval.yyFunctionDirective := functionDirective_Inline; 
-       end;
-177 : begin
-         // source: delphi.y line#574
-         yyval.yyFunctionDirective := functionDirective_Overload; 
-       end;
-178 : begin
-         // source: delphi.y line#575
-         yyval.yyFunctionDirective := functionDirective_VarArgs; 
-       end;
-179 : begin
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_VarArgs); 
+			End;
+179 :		Begin
+         // source: delphi.y line#577
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_Pascal); 
+			End;
+180 :		Begin
+         // source: delphi.y line#578
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_SafeCall); 
+			End;
+181 :		Begin
          // source: delphi.y line#579
-         yyval.yyFunctionDirective := callConvention_Pascal; 
-       end;
-180 : begin
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_StdCall); 
+			End;
+182 :		Begin
          // source: delphi.y line#580
-         yyval.yyFunctionDirective := callConvention_SafeCall; 
-       end;
-181 : begin
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_CDecl); 
+			End;
+183 :		Begin
          // source: delphi.y line#581
-         yyval.yyFunctionDirective := callConvention_StdCall; 
-       end;
-182 : begin
-         // source: delphi.y line#582
-         yyval.yyFunctionDirective := callConvention_CDecl; 
-       end;
-183 : begin
-         // source: delphi.y line#583
-         yyval.yyFunctionDirective := callConvention_Register; 
-       end;
-184 : begin
-         // source: delphi.y line#588
-         yyval.yyBlockStatement := yyv[yysp-1].yyBlockStatement; 
-       end;
-185 : begin
-         // source: delphi.y line#592
-         yyval.yyBlockStatement := BlockStatement.Create(StatementList.Create(yyv[yysp-0].yyStatementList)); 
-       end;
-186 : begin
-         // source: delphi.y line#596
-         yyval.yyStatementList := StatementList.Create(yyv[yysp-0].yyStatement); 
-       end;
-187 : begin
-         // source: delphi.y line#597
-         yyval.yyStatementList := yyv[yysp-0].yyStatementList; yyv[yysp-0].yyStatementList.Add(yyv[yysp-2].yyStatement); 
-       end;
-188 : begin
-         // source: delphi.y line#601
-         yyval.yyStatement := yyv[yysp-0].yyStatement; 
-       end;
-189 : begin
-         // source: delphi.y line#602
-         yyval.yyStatement := LabelStatement.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyStatement); 
-       end;
-190 : begin
+         _CurrentValue.yyFunctionAttributeNode := FunctionAttributeNode.Create(attribute_call_Register); 
+			End;
+184 :		Begin
+         // source: delphi.y line#586
+         _CurrentValue.yyBlockStatementNode := yyv[yysp-1].yyBlockStatementNode; 
+			End;
+185 :		Begin
+         // source: delphi.y line#590
+         _CurrentValue.yyBlockStatementNode := BlockStatementNode.Create(StatementListNode.Create(yyv[yysp-0].yyStatementListNode)); 
+			End;
+186 :		Begin
+         // source: delphi.y line#594
+         _CurrentValue.yyStatementListNode := StatementListNode.Create(yyv[yysp-0].yyStatementNode); 
+			End;
+187 :		Begin
+         // source: delphi.y line#595
+         _CurrentValue.yyStatementListNode := yyv[yysp-0].yyStatementListNode; yyv[yysp-0].yyStatementListNode.Add(yyv[yysp-2].yyStatementNode); 
+			End;
+188 :		Begin
+         // source: delphi.y line#599
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+			End;
+189 :		Begin
+         // source: delphi.y line#600
+         _CurrentValue.yyStatementNode := LabelStatementNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyStatementNode); 
+			End;
+190 :		Begin
+         // source: delphi.y line#604
+         _CurrentValue.yyStatementNode := EmptyStatementNode.Create(); 
+			End;
+191 :		Begin
+         // source: delphi.y line#605
+         _CurrentValue.yyStatementNode := ExpressionStatementNode.Create(yyv[yysp-0].yyLvalueExpressionNode); 
+			End;
+192 :		Begin
          // source: delphi.y line#606
-         yyval.yyStatement := EmptyStatement.Create(); 
-       end;
-191 : begin
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+			End;
+193 :		Begin
          // source: delphi.y line#607
-         yyval.yyStatement := ExpressionStatement.Create(yyv[yysp-0].yyLvalueExpression); 
-       end;
-192 : begin
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+			End;
+194 :		Begin
          // source: delphi.y line#608
-         yyval.yyStatement := yyv[yysp-0].yyStatement; 
-       end;
-193 : begin
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyBlockStatementNode; 
+			End;
+195 :		Begin
          // source: delphi.y line#609
-         yyval.yyStatement := yyv[yysp-0].yyStatement; 
-       end;
-194 : begin
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+			End;
+196 :		Begin
          // source: delphi.y line#610
-         yyval.yyStatement := yyv[yysp-0].yyBlockStatement; 
-       end;
-195 : begin
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+			End;
+197 :		Begin
          // source: delphi.y line#611
-         yyval.yyStatement := yyv[yysp-0].yyStatement; 
-       end;
-196 : begin
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+			End;
+198 :		Begin
          // source: delphi.y line#612
-         yyval.yyStatement := yyv[yysp-0].yyStatement; 
-       end;
-197 : begin
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+			End;
+199 :		Begin
          // source: delphi.y line#613
-         yyval.yyStatement := yyv[yysp-0].yyStatement; 
-       end;
-198 : begin
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+			End;
+200 :		Begin
          // source: delphi.y line#614
-         yyval.yyStatement := yyv[yysp-0].yyStatement; 
-       end;
-199 : begin
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+			End;
+201 :		Begin
          // source: delphi.y line#615
-         yyval.yyStatement := yyv[yysp-0].yyStatement; 
-       end;
-200 : begin
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+			End;
+202 :		Begin
          // source: delphi.y line#616
-         yyval.yyStatement := yyv[yysp-0].yyStatement; 
-       end;
-201 : begin
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+			End;
+203 :		Begin
          // source: delphi.y line#617
-         yyval.yyStatement := yyv[yysp-0].yyStatement; 
-       end;
-202 : begin
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+			End;
+204 :		Begin
          // source: delphi.y line#618
-         yyval.yyStatement := yyv[yysp-0].yyStatement; 
-       end;
-203 : begin
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyBlockStatementNode; 
+			End;
+205 :		Begin
          // source: delphi.y line#619
-         yyval.yyStatement := yyv[yysp-0].yyStatement; 
-       end;
-204 : begin
+         _CurrentValue.yyStatementNode := BreakStatementNode.Create(); 
+			End;
+206 :		Begin
          // source: delphi.y line#620
-         yyval.yyStatement := yyv[yysp-0].yyBlockStatement; 
-       end;
-205 : begin
-         // source: delphi.y line#621
-         yyval.yyStatement := BreakStatement.Create(); 
-       end;
-206 : begin
-         // source: delphi.y line#622
-         yyval.yyStatement := ContinueStatement.Create(); 
-       end;
-207 : begin
-         // source: delphi.y line#626
-         yyval.yyStatement := Assignment.Create(yyv[yysp-2].yyLvalueExpression, yyv[yysp-0].yyExpression); 
-       end;
-208 : begin
-         // source: delphi.y line#630
-         yyval.yyStatement := GotoStatement.Create(yyv[yysp-0].yyStringObject); 
-       end;
-209 : begin
-         // source: delphi.y line#635
-         yyval.yyStatement := IfStatement.Create(yyv[yysp-4].yyExpression, yyv[yysp-2].yyStatement, yyv[yysp-0].yyStatement); 
-       end;
-210 : begin
-         // source: delphi.y line#636
-         yyval.yyStatement := IfStatement.Create(yyv[yysp-2].yyExpression, yyv[yysp-0].yyStatement, Nil); 
-       end;
-211 : begin
-         // source: delphi.y line#641
-         yyval.yyStatement := CaseStatement.Create(yyv[yysp-4].yyExpression, yyv[yysp-2].yyStatementList, yyv[yysp-1].yyStatement); 
-       end;
-212 : begin
-         // source: delphi.y line#645
-         yyval.yyStatement := Nil;
-       end;
-213 : begin
-         // source: delphi.y line#646
-         yyval.yyStatement := yyv[yysp-0].yyStatement; 
-       end;
-214 : begin
-         // source: delphi.y line#647
-         yyval.yyStatement := yyv[yysp-1].yyStatement; 
-       end;
-215 : begin
-         // source: delphi.y line#651
-         yyval.yyStatementList := StatementList.Create(yyv[yysp-0].yyStatement); 
-       end;
-216 : begin
-         // source: delphi.y line#652
-         yyval.yyStatementList := yyv[yysp-2].yyStatementList; yyv[yysp-2].yyStatementList.Add(yyv[yysp-0].yyStatement); 
-       end;
-217 : begin
-         // source: delphi.y line#656
-         yyval.yyStatement := Nil; 
-       end;
-218 : begin
-         // source: delphi.y line#657
-         yyval.yyStatement := CaseSelector.Create(yyv[yysp-2].yyExpressionList, yyv[yysp-0].yyStatement); 
-       end;
-219 : begin
-         // source: delphi.y line#661
-         yyval.yyExpressionList := ExpressionList.Create(yyv[yysp-0].yyExpression); 
-       end;
-220 : begin
-         // source: delphi.y line#662
-         yyval.yyExpressionList := yyv[yysp-2].yyExpressionList; yyv[yysp-2].yyExpressionList.Add(yyv[yysp-0].yyExpression); 
-       end;
-221 : begin
-         // source: delphi.y line#666
-         yyval.yyStatement := RepeatLoop.Create(yyv[yysp-2].yyBlockStatement, yyv[yysp-0].yyExpression); 
-       end;
-222 : begin
-         // source: delphi.y line#670
-         yyval.yyStatement := WhileLoop.Create(yyv[yysp-0].yyStatement, yyv[yysp-2].yyExpression); 
-       end;
-223 : begin
-         // source: delphi.y line#675
-         yyval.yyStatement := ForLoop.Create(yyv[yysp-6].yyIdentifier, yyv[yysp-4].yyExpression, yyv[yysp-2].yyExpression, yyv[yysp-0].yyStatement, yyv[yysp-3].yyInteger); 
-       end;
-224 : begin
-         // source: delphi.y line#679
-         yyval.yyInteger := 1; 
-       end;
-225 : begin
-         // source: delphi.y line#680
-         yyval.yyInteger := -1; 
-       end;
-226 : begin
-         // source: delphi.y line#684
-         yyval.yyStatement := WithStatement.Create(yyv[yysp-2].yyExpressionList, yyv[yysp-0].yyStatement); 
-       end;
-227 : begin
-         // source: delphi.y line#689
-         yyval.yyStatement := TryExceptStatement.Create(yyv[yysp-3].yyBlockStatement, yyv[yysp-1].yyExceptionBlock); 
-       end;
-228 : begin
-         // source: delphi.y line#693
-         yyval.yyExceptionBlock := ExceptionBlock.Create(yyv[yysp-2].yyStatementList, yyv[yysp-0].yyBlockStatement); 
-       end;
-229 : begin
-         // source: delphi.y line#694
-         yyval.yyExceptionBlock := ExceptionBlock.Create(yyv[yysp-0].yyStatementList); 
-       end;
-230 : begin
-         // source: delphi.y line#695
-         yyval.yyExceptionBlock := ExceptionBlock.Create(Nil, yyv[yysp-0].yyBlockStatement); 
-       end;
-231 : begin
-         // source: delphi.y line#699
-         yyval.yyStatementList := StatementList.Create(yyv[yysp-0].yyStatement); 
-       end;
-232 : begin
-         // source: delphi.y line#700
-         yyval.yyStatementList := yyv[yysp-1].yyStatementList; yyv[yysp-1].yyStatementList.Add(yyv[yysp-0].yyStatement); 
-       end;
-233 : begin
-         // source: delphi.y line#704
-         yyval.yyStatement := OnStatement.Create(yyv[yysp-5].yyStringObject, yyv[yysp-3].yyStringObject, yyv[yysp-1].yyStatement); 
-       end;
-234 : begin
-         // source: delphi.y line#705
-         yyval.yyStatement := OnStatement.Create(Nil, yyv[yysp-3].yyStringObject, yyv[yysp-1].yyStatement); 
-       end;
-235 : begin
-         // source: delphi.y line#710
-         yyval.yyStatement := TryFinallyStatement.Create(yyv[yysp-3].yyBlockStatement, yyv[yysp-1].yyBlockStatement); 
-       end;
-236 : begin
+         _CurrentValue.yyStatementNode := ContinueStatementNode.Create(); 
+			End;
+207 :		Begin
+         // source: delphi.y line#624
+         _CurrentValue.yyStatementNode := AssignmentNode.Create(yyv[yysp-2].yyLvalueExpressionNode, yyv[yysp-0].yyExpressionNode); 
+			End;
+208 :		Begin
+         // source: delphi.y line#628
+         _CurrentValue.yyStatementNode := GotoStatementNode.Create(yyv[yysp-0].yyStringObject); 
+			End;
+209 :		Begin
+         // source: delphi.y line#632
+         _CurrentValue.yyStatementNode := IfStatementNode.Create(yyv[yysp-4].yyExpressionNode, yyv[yysp-2].yyStatementNode, yyv[yysp-0].yyStatementNode); 
+			End;
+210 :		Begin
+         // source: delphi.y line#633
+         _CurrentValue.yyStatementNode := IfStatementNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyStatementNode, Nil); 
+			End;
+211 :		Begin
+         // source: delphi.y line#638
+         _CurrentValue.yyStatementNode := CaseStatementNode.Create(yyv[yysp-4].yyExpressionNode, yyv[yysp-2].yyStatementListNode, yyv[yysp-1].yyStatementNode); 
+			End;
+212 :		Begin
+         // source: delphi.y line#642
+         _CurrentValue.yyStatementNode := Nil;
+			End;
+213 :		Begin
+         // source: delphi.y line#643
+         _CurrentValue.yyStatementNode := yyv[yysp-0].yyStatementNode; 
+			End;
+214 :		Begin
+         // source: delphi.y line#644
+         _CurrentValue.yyStatementNode := yyv[yysp-1].yyStatementNode; 
+			End;
+215 :		Begin
+         // source: delphi.y line#648
+         _CurrentValue.yyStatementListNode := StatementListNode.Create(yyv[yysp-0].yyStatementNode); 
+			End;
+216 :		Begin
+         // source: delphi.y line#649
+         _CurrentValue.yyStatementListNode := yyv[yysp-2].yyStatementListNode; yyv[yysp-2].yyStatementListNode.Add(yyv[yysp-0].yyStatementNode); 
+			End;
+217 :		Begin
+         // source: delphi.y line#653
+         _CurrentValue.yyStatementNode := Nil; 
+			End;
+218 :		Begin
+         // source: delphi.y line#654
+         _CurrentValue.yyStatementNode := CaseSelectorNode.Create(yyv[yysp-2].yyExpressionListNode, yyv[yysp-0].yyStatementNode); 
+			End;
+219 :		Begin
+         // source: delphi.y line#658
+         _CurrentValue.yyExpressionListNode := ExpressionListNode.Create(yyv[yysp-0].yyExpressionNode); 
+			End;
+220 :		Begin
+         // source: delphi.y line#659
+         _CurrentValue.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
+			End;
+221 :		Begin
+         // source: delphi.y line#663
+         _CurrentValue.yyStatementNode := RepeatLoopNode.Create(yyv[yysp-2].yyBlockStatementNode, yyv[yysp-0].yyExpressionNode); 
+			End;
+222 :		Begin
+         // source: delphi.y line#667
+         _CurrentValue.yyStatementNode := WhileLoopNode.Create(yyv[yysp-0].yyStatementNode, yyv[yysp-2].yyExpressionNode); 
+			End;
+223 :		Begin
+         // source: delphi.y line#672
+         _CurrentValue.yyStatementNode := ForLoopNode.Create(yyv[yysp-6].yyIdentifierNode, yyv[yysp-4].yyExpressionNode, yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyStatementNode, yyv[yysp-3].yyInteger); 
+			End;
+224 :		Begin
+         // source: delphi.y line#676
+         _CurrentValue.yyInteger := 1; 
+			End;
+225 :		Begin
+         // source: delphi.y line#677
+         _CurrentValue.yyInteger := -1; 
+			End;
+226 :		Begin
+         // source: delphi.y line#681
+         _CurrentValue.yyStatementNode := WithStatementNode.Create(yyv[yysp-2].yyExpressionListNode, yyv[yysp-0].yyStatementNode); 
+			End;
+227 :		Begin
+         // source: delphi.y line#686
+         _CurrentValue.yyStatementNode := TryExceptStatementNode.Create(yyv[yysp-3].yyBlockStatementNode, yyv[yysp-1].yyExceptionBlockNode); 
+			End;
+228 :		Begin
+         // source: delphi.y line#690
+         _CurrentValue.yyExceptionBlockNode := ExceptionBlockNode.Create(yyv[yysp-2].yyStatementListNode, yyv[yysp-0].yyBlockStatementNode); 
+			End;
+229 :		Begin
+         // source: delphi.y line#691
+         _CurrentValue.yyExceptionBlockNode := ExceptionBlockNode.Create(yyv[yysp-0].yyStatementListNode); 
+			End;
+230 :		Begin
+         // source: delphi.y line#692
+         _CurrentValue.yyExceptionBlockNode := ExceptionBlockNode.Create(Nil, yyv[yysp-0].yyBlockStatementNode); 
+			End;
+231 :		Begin
+         // source: delphi.y line#696
+         _CurrentValue.yyStatementListNode := StatementListNode.Create(yyv[yysp-0].yyStatementNode); 
+			End;
+232 :		Begin
+         // source: delphi.y line#697
+         _CurrentValue.yyStatementListNode := yyv[yysp-1].yyStatementListNode; yyv[yysp-1].yyStatementListNode.Add(yyv[yysp-0].yyStatementNode); 
+			End;
+233 :		Begin
+         // source: delphi.y line#701
+         _CurrentValue.yyStatementNode := OnStatementNode.Create(yyv[yysp-5].yyStringObject, yyv[yysp-3].yyStringObject, yyv[yysp-1].yyStatementNode); 
+			End;
+234 :		Begin
+         // source: delphi.y line#702
+         _CurrentValue.yyStatementNode := OnStatementNode.Create(Nil, yyv[yysp-3].yyStringObject, yyv[yysp-1].yyStatementNode); 
+			End;
+235 :		Begin
+         // source: delphi.y line#707
+         _CurrentValue.yyStatementNode := TryFinallyStatementNode.Create(yyv[yysp-3].yyBlockStatementNode, yyv[yysp-1].yyBlockStatementNode); 
+			End;
+236 :		Begin
+         // source: delphi.y line#711
+         _CurrentValue.yyStatementNode := RaiseStatementNode.Create(Nil, Nil); 
+			End;
+237 :		Begin
+         // source: delphi.y line#712
+         _CurrentValue.yyStatementNode := RaiseStatementNode.Create(yyv[yysp-0].yyLvalueExpressionNode, Nil); 
+			End;
+238 :		Begin
+         // source: delphi.y line#713
+         _CurrentValue.yyStatementNode := RaiseStatementNode.Create(Nil, yyv[yysp-0].yyExpressionNode); 
+			End;
+239 :		Begin
          // source: delphi.y line#714
-         yyval.yyStatement := RaiseStatement.Create(Nil, Nil); 
-       end;
-237 : begin
-         // source: delphi.y line#715
-         yyval.yyStatement := RaiseStatement.Create(yyv[yysp-0].yyLvalueExpression, Nil); 
-       end;
-238 : begin
-         // source: delphi.y line#716
-         yyval.yyStatement := RaiseStatement.Create(Nil, yyv[yysp-0].yyExpression); 
-       end;
-239 : begin
-         // source: delphi.y line#717
-         yyval.yyStatement := RaiseStatement.Create(yyv[yysp-2].yyLvalueExpression, yyv[yysp-0].yyExpression); 
-       end;
-240 : begin
-         // source: delphi.y line#721
-         yyval.yyBlockStatement := AssemblerBlock.Create(yyv[yysp-1].yyStatementList); 
-       end;
-241 : begin
-         // source: delphi.y line#725
-         yyval.yyStatementList := Nil; 
-       end;
-242 : begin
-         // source: delphi.y line#726
-         yyval.yyStatementList := Nil; 
-       end;
-243 : begin
-         // source: delphi.y line#730
-         yyval.yyIdentifier := Identifier.Create(yyv[yysp-0].yyStringObject); 
-       end;
-244 : begin
+         _CurrentValue.yyStatementNode := RaiseStatementNode.Create(yyv[yysp-2].yyLvalueExpressionNode, yyv[yysp-0].yyExpressionNode); 
+			End;
+240 :		Begin
+         // source: delphi.y line#718
+         _CurrentValue.yyBlockStatementNode := AssemblerBlockNode.Create(yyv[yysp-1].yyStatementListNode); 
+			End;
+241 :		Begin
+         // source: delphi.y line#722
+         _CurrentValue.yyStatementListNode := Nil; 
+			End;
+242 :		Begin
+         // source: delphi.y line#723
+         _CurrentValue.yyStatementListNode := Nil; 
+			End;
+243 :		Begin
+         // source: delphi.y line#727
+         _CurrentValue.yyIdentifierNode := IdentifierNode.Create(yyv[yysp-0].yyStringObject); 
+			End;
+244 :		Begin
+         // source: delphi.y line#731
+         _CurrentValue.yyLvalueExpressionNode := UnresolvedIdNode.Create(yyv[yysp-0].yyIdentifierNode); 
+			End;
+245 :		Begin
+         // source: delphi.y line#732
+         _CurrentValue.yyLvalueExpressionNode := UnresolvedCallNode.Create(yyv[yysp-3].yyLvalueExpressionNode, yyv[yysp-1].yyExpressionListNode); 
+			End;
+246 :		Begin
+         // source: delphi.y line#733
+         _CurrentValue.yyLvalueExpressionNode := StaticCastNode.Create(PointerTypeNode, yyv[yysp-1].yyExpressionNode); 
+			End;
+247 :		Begin
          // source: delphi.y line#734
-         yyval.yyLvalueExpression := UnresolvedId.Create(yyv[yysp-0].yyIdentifier); 
-       end;
-245 : begin
+         _CurrentValue.yyLvalueExpressionNode := ObjectAccessNode.Create(yyv[yysp-2].yyLvalueExpressionNode, yyv[yysp-0].yyStringObject); 
+			End;
+248 :		Begin
          // source: delphi.y line#735
-         yyval.yyLvalueExpression := UnresolvedCall.Create(yyv[yysp-3].yyLvalueExpression, yyv[yysp-1].yyExpressionList); 
-       end;
-246 : begin
+         _CurrentValue.yyLvalueExpressionNode := InheritedCallNode.Create(Nil); 
+			End;
+249 :		Begin
          // source: delphi.y line#736
-         yyval.yyLvalueExpression := StaticCast.Create(PointerType, yyv[yysp-1].yyExpression); 
-       end;
-247 : begin
-         // source: delphi.y line#737
-         yyval.yyLvalueExpression := ObjectAccess.Create(yyv[yysp-2].yyLvalueExpression, yyv[yysp-0].yyStringObject); 
-       end;
-248 : begin
-         // source: delphi.y line#738
-         yyval.yyLvalueExpression := InheritedCall.Create(Nil); 
-       end;
-249 : begin
-         // source: delphi.y line#739
-         yyval.yyLvalueExpression := InheritedCall.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyExpressionList); 
-       end;
-250 : begin
+         _CurrentValue.yyLvalueExpressionNode := InheritedCallNode.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyExpressionListNode); 
+			End;
+250 :		Begin
+         // source: delphi.y line#740
+         _CurrentValue.yyLvalueExpressionNode := UnresolvedIdNode.Create(yyv[yysp-0].yyIdentifierNode); 
+			End;
+251 :		Begin
+         // source: delphi.y line#741
+         _CurrentValue.yyLvalueExpressionNode := UnresolvedCallNode.Create(yyv[yysp-3].yyLvalueExpressionNode, yyv[yysp-1].yyExpressionListNode); 
+			End;
+252 :		Begin
+         // source: delphi.y line#742
+         _CurrentValue.yyLvalueExpressionNode := StaticCastNode.Create(PointerTypeNode, yyv[yysp-1].yyExpressionNode); 
+			End;
+253 :		Begin
          // source: delphi.y line#743
-         yyval.yyLvalueExpression := UnresolvedId.Create(yyv[yysp-0].yyIdentifier); 
-       end;
-251 : begin
+         _CurrentValue.yyLvalueExpressionNode := ObjectAccessNode.Create(yyv[yysp-2].yyLvalueExpressionNode, yyv[yysp-0].yyStringObject); 
+			End;
+254 :		Begin
          // source: delphi.y line#744
-         yyval.yyLvalueExpression := UnresolvedCall.Create(yyv[yysp-3].yyLvalueExpression, yyv[yysp-1].yyExpressionList); 
-       end;
-252 : begin
+         _CurrentValue.yyLvalueExpressionNode := PointerDereferenceNode.Create(yyv[yysp-1].yyLvalueExpressionNode); 
+			End;
+255 :		Begin
          // source: delphi.y line#745
-         yyval.yyLvalueExpression := StaticCast.Create(PointerType, yyv[yysp-1].yyExpression); 
-       end;
-253 : begin
+         _CurrentValue.yyLvalueExpressionNode := ArrayAccessNode.Create(yyv[yysp-3].yyLvalueExpressionNode, yyv[yysp-1].yyExpressionListNode); 
+			End;
+256 :		Begin
          // source: delphi.y line#746
-         yyval.yyLvalueExpression := ObjectAccess.Create(yyv[yysp-2].yyLvalueExpression, yyv[yysp-0].yyStringObject); 
-       end;
-254 : begin
-         // source: delphi.y line#747
-         yyval.yyLvalueExpression := PointerDereference.Create(yyv[yysp-1].yyLvalueExpression); 
-       end;
-255 : begin
-         // source: delphi.y line#748
-         yyval.yyLvalueExpression := ArrayAccess.Create(yyv[yysp-3].yyLvalueExpression, yyv[yysp-1].yyExpressionList); 
-       end;
-256 : begin
-         // source: delphi.y line#749
-         yyval.yyLvalueExpression := ExprAsLvalue.Create(yyv[yysp-1].yyExpression); 
-       end;
-257 : begin
-         // source: delphi.y line#753
-         If (yyv[yysp-0].yyLvalueExpression Is ExprAsLvalue) Then yyval.yyExpression := (yyv[yysp-0].yyLvalueExpression as ExprAsLvalue).expr Else yyval.yyExpression := LvalueAsExpr.Create(yyv[yysp-0].yyLvalueExpression); 
-       end;
-258 : begin
+         _CurrentValue.yyLvalueExpressionNode := ExprAsLvalueNode.Create(yyv[yysp-1].yyExpressionNode); 
+			End;
+257 :		Begin
+         // source: delphi.y line#750
+         If (yyv[yysp-0].yyLvalueExpressionNode Is ExprAsLvalueNode) Then _CurrentValue.yyExpressionNode := (yyv[yysp-0].yyLvalueExpressionNode as ExprAsLvalueNode).expr Else _CurrentValue.yyExpressionNode := LvalueAsExprNode.Create(yyv[yysp-0].yyLvalueExpressionNode); 
+			End;
+258 :		Begin
+         // source: delphi.y line#754
+         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyLiteralNode; 
+			End;
+259 :		Begin
+         // source: delphi.y line#755
+         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
+			End;
+260 :		Begin
+         // source: delphi.y line#756
+         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
+			End;
+261 :		Begin
          // source: delphi.y line#757
-         yyval.yyExpression := yyv[yysp-0].yyLiteral; 
-       end;
-259 : begin
+         _CurrentValue.yyExpressionNode := AddressLvalueNode.Create(yyv[yysp-0].yyLvalueExpressionNode); 
+			End;
+262 :		Begin
          // source: delphi.y line#758
-         yyval.yyExpression := yyv[yysp-0].yyExpression; 
-       end;
-260 : begin
+         _CurrentValue.yyExpressionNode := LogicalNotNode.Create(yyv[yysp-0].yyExpressionNode); 
+			End;
+263 :		Begin
          // source: delphi.y line#759
-         yyval.yyExpression := yyv[yysp-0].yyExpression; 
-       end;
-261 : begin
+         _CurrentValue.yyExpressionNode := UnaryPlusNode.Create(yyv[yysp-0].yyExpressionNode); 
+			End;
+264 :		Begin
          // source: delphi.y line#760
-         yyval.yyExpression := AddressLvalue.Create(yyv[yysp-0].yyLvalueExpression); 
-       end;
-262 : begin
+         _CurrentValue.yyExpressionNode := UnaryMinusNode.Create(yyv[yysp-0].yyExpressionNode); 
+			End;
+265 :		Begin
          // source: delphi.y line#761
-         yyval.yyExpression := LogicalNot.Create(yyv[yysp-0].yyExpression); 
-       end;
-263 : begin
+         _CurrentValue.yyExpressionNode := InheritedCallNode.Create(Nil); 
+			End;
+266 :		Begin
          // source: delphi.y line#762
-         yyval.yyExpression := UnaryPlus.Create(yyv[yysp-0].yyExpression); 
-       end;
-264 : begin
+         _CurrentValue.yyExpressionNode := InheritedCallNode.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyExpressionListNode); 
+			End;
+267 :		Begin
          // source: delphi.y line#763
-         yyval.yyExpression := UnaryMinus.Create(yyv[yysp-0].yyExpression); 
-       end;
-265 : begin
-         // source: delphi.y line#764
-         yyval.yyExpression := InheritedCall.Create(Nil); 
-       end;
-266 : begin
-         // source: delphi.y line#765
-         yyval.yyExpression := InheritedCall.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyExpressionList); 
-       end;
-267 : begin
-         // source: delphi.y line#766
-         yyval.yyExpression := ArrayAccess.Create(ArrayConst.Create(yyv[yysp-3].yyStringObject), ExpressionList.Create(yyv[yysp-1].yyExpression)); 
-       end;
-268 : begin
-         // source: delphi.y line#770
-         yyval.yyExpressionList := ExpressionList.Create(); 
-       end;
-269 : begin
-         // source: delphi.y line#771
-         yyval.yyExpressionList := yyv[yysp-1].yyExpressionList; 
-       end;
-270 : begin
+         _CurrentValue.yyExpressionNode := ArrayAccessNode.Create(ArrayConstNode.Create(yyv[yysp-3].yyStringObject), ExpressionListNode.Create(yyv[yysp-1].yyExpressionNode)); 
+			End;
+268 :		Begin
+         // source: delphi.y line#767
+         _CurrentValue.yyExpressionListNode := ExpressionListNode.Create(); 
+			End;
+269 :		Begin
+         // source: delphi.y line#768
+         _CurrentValue.yyExpressionListNode := yyv[yysp-1].yyExpressionListNode; 
+			End;
+270 :		Begin
+         // source: delphi.y line#772
+         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
+			End;
+271 :		Begin
+         // source: delphi.y line#773
+         _CurrentValue.yyExpressionNode := RuntimeCastNode.Create(yyv[yysp-2].yyExpressionNode, ClassRefTypeNode.Create(yyv[yysp-0].yyStringObject)); 
+			End;
+272 :		Begin
+         // source: delphi.y line#774
+         _CurrentValue.yyExpressionNode := IsExpressionNode.Create(yyv[yysp-2].yyExpressionNode, ClassRefTypeNode.Create(yyv[yysp-0].yyStringObject)); 
+			End;
+273 :		Begin
          // source: delphi.y line#775
-         yyval.yyExpression := yyv[yysp-0].yyExpression; 
-       end;
-271 : begin
+         _CurrentValue.yyExpressionNode := InExpressionNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyExpressionNode); 
+			End;
+274 :		Begin
          // source: delphi.y line#776
-         yyval.yyExpression := RuntimeCast.Create(yyv[yysp-2].yyExpression, ClassRefType.Create(yyv[yysp-0].yyStringObject)); 
-       end;
-272 : begin
+         _CurrentValue.yyExpressionNode := CreateBinaryExpression(yyv[yysp-2].yyExpressionNode, yyv[yysp-1].yyInteger, yyv[yysp-0].yyExpressionNode); 
+			End;
+275 :		Begin
          // source: delphi.y line#777
-         yyval.yyExpression := TypeIs.Create(yyv[yysp-2].yyExpression, ClassRefType.Create(yyv[yysp-0].yyStringObject)); 
-       end;
-273 : begin
+         _CurrentValue.yyExpressionNode := CreateBinaryExpression(yyv[yysp-2].yyExpressionNode, yyv[yysp-1].yyInteger, yyv[yysp-0].yyExpressionNode); 
+			End;
+276 :		Begin
          // source: delphi.y line#778
-         yyval.yyExpression := SetIn.Create(yyv[yysp-2].yyExpression, yyv[yysp-0].yyExpression); 
-       end;
-274 : begin
-         // source: delphi.y line#779
-         yyval.yyExpression := CreateBinaryExpression(yyv[yysp-2].yyExpression, yyv[yysp-1].yyInteger, yyv[yysp-0].yyExpression); 
-       end;
-275 : begin
-         // source: delphi.y line#780
-         yyval.yyExpression := CreateBinaryExpression(yyv[yysp-2].yyExpression, yyv[yysp-1].yyInteger, yyv[yysp-0].yyExpression); 
-       end;
-276 : begin
-         // source: delphi.y line#781
-         yyval.yyExpression := CreateBinaryExpression(yyv[yysp-2].yyExpression, yyv[yysp-1].yyInteger, yyv[yysp-0].yyExpression); 
-       end;
-277 : begin
+         _CurrentValue.yyExpressionNode := CreateBinaryExpression(yyv[yysp-2].yyExpressionNode, yyv[yysp-1].yyInteger, yyv[yysp-0].yyExpressionNode); 
+			End;
+277 :		Begin
+         // source: delphi.y line#782
+         _CurrentValue.yyInteger := KW_MUL; 
+			End;
+278 :		Begin
+         // source: delphi.y line#783
+         _CurrentValue.yyInteger := KW_DIV; 
+			End;
+279 :		Begin
+         // source: delphi.y line#784
+         _CurrentValue.yyInteger := KW_QUOT; 
+			End;
+280 :		Begin
          // source: delphi.y line#785
-         yyval.yyInteger := KW_MUL; 
-       end;
-278 : begin
+         _CurrentValue.yyInteger := KW_MOD; 
+			End;
+281 :		Begin
          // source: delphi.y line#786
-         yyval.yyInteger := KW_DIV; 
-       end;
-279 : begin
+         _CurrentValue.yyInteger := KW_SHR; 
+			End;
+282 :		Begin
          // source: delphi.y line#787
-         yyval.yyInteger := KW_QUOT; 
-       end;
-280 : begin
+         _CurrentValue.yyInteger := KW_SHL; 
+			End;
+283 :		Begin
          // source: delphi.y line#788
-         yyval.yyInteger := KW_MOD; 
-       end;
-281 : begin
-         // source: delphi.y line#789
-         yyval.yyInteger := KW_SHR; 
-       end;
-282 : begin
-         // source: delphi.y line#790
-         yyval.yyInteger := KW_SHL; 
-       end;
-283 : begin
+         _CurrentValue.yyInteger := KW_AND; 
+			End;
+284 :		Begin
          // source: delphi.y line#791
-         yyval.yyInteger := KW_AND; 
-       end;
-284 : begin
+         _CurrentValue.yyInteger := KW_SUB; 
+			End;
+285 :		Begin
+         // source: delphi.y line#792
+         _CurrentValue.yyInteger := KW_SUM; 
+			End;
+286 :		Begin
+         // source: delphi.y line#793
+         _CurrentValue.yyInteger := KW_OR; 
+			End;
+287 :		Begin
          // source: delphi.y line#794
-         yyval.yyInteger := KW_SUB; 
-       end;
-285 : begin
-         // source: delphi.y line#795
-         yyval.yyInteger := KW_SUM; 
-       end;
-286 : begin
-         // source: delphi.y line#796
-         yyval.yyInteger := KW_OR; 
-       end;
-287 : begin
+         _CurrentValue.yyInteger := KW_XOR; 
+			End;
+288 :		Begin
          // source: delphi.y line#797
-         yyval.yyInteger := KW_XOR; 
-       end;
-288 : begin
+         _CurrentValue.yyInteger := KW_EQ; 
+			End;
+289 :		Begin
+         // source: delphi.y line#798
+         _CurrentValue.yyInteger := KW_NE; 
+			End;
+290 :		Begin
+         // source: delphi.y line#799
+         _CurrentValue.yyInteger := KW_LT; 
+			End;
+291 :		Begin
          // source: delphi.y line#800
-         yyval.yyInteger := KW_EQ; 
-       end;
-289 : begin
+         _CurrentValue.yyInteger := KW_LE; 
+			End;
+292 :		Begin
          // source: delphi.y line#801
-         yyval.yyInteger := KW_NE; 
-       end;
-290 : begin
+         _CurrentValue.yyInteger := KW_GT; 
+			End;
+293 :		Begin
          // source: delphi.y line#802
-         yyval.yyInteger := KW_LT; 
-       end;
-291 : begin
-         // source: delphi.y line#803
-         yyval.yyInteger := KW_LE; 
-       end;
-292 : begin
-         // source: delphi.y line#804
-         yyval.yyInteger := KW_GT; 
-       end;
-293 : begin
-         // source: delphi.y line#805
-         yyval.yyInteger := KW_GE; 
-       end;
-294 : begin
-         // source: delphi.y line#809
-         yyval.yyExpressionList := ExpressionList.Create(yyv[yysp-0].yyExpression); 
-       end;
-295 : begin
-         // source: delphi.y line#810
-         yyval.yyExpressionList := yyv[yysp-2].yyExpressionList; yyv[yysp-2].yyExpressionList.Add(yyv[yysp-0].yyExpression); 
-       end;
-296 : begin
-         // source: delphi.y line#814
-         yyval.yyExpressionList := ExpressionList.Create(); 
-       end;
-297 : begin
-         // source: delphi.y line#815
-         yyval.yyExpressionList := yyv[yysp-0].yyExpressionList; 
-       end;
-298 : begin
-         // source: delphi.y line#819
-         yyval.yyLiteral := yyv[yysp-0].yyLiteral; 
-       end;
-299 : begin
-         // source: delphi.y line#820
-         yyval.yyLiteral := yyv[yysp-0].yyLiteral; 
-       end;
-300 : begin
+         _CurrentValue.yyInteger := KW_GE; 
+			End;
+294 :		Begin
+         // source: delphi.y line#806
+         _CurrentValue.yyExpressionListNode := ExpressionListNode.Create(yyv[yysp-0].yyExpressionNode); 
+			End;
+295 :		Begin
+         // source: delphi.y line#807
+         _CurrentValue.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
+			End;
+296 :		Begin
+         // source: delphi.y line#811
+         _CurrentValue.yyExpressionListNode := ExpressionListNode.Create(); 
+			End;
+297 :		Begin
+         // source: delphi.y line#812
+         _CurrentValue.yyExpressionListNode := yyv[yysp-0].yyExpressionListNode; 
+			End;
+298 :		Begin
+         // source: delphi.y line#816
+         _CurrentValue.yyLiteralNode := yyv[yysp-0].yyLiteralNode; 
+			End;
+299 :		Begin
+         // source: delphi.y line#817
+         _CurrentValue.yyLiteralNode := yyv[yysp-0].yyLiteralNode; 
+			End;
+300 :		Begin
+         // source: delphi.y line#821
+         _CurrentValue.yyLiteralNode := IntLiteralNode.Create(yyv[yysp-0].yyCardinal);
+			End;
+301 :		Begin
+         // source: delphi.y line#822
+         _CurrentValue.yyLiteralNode := BoolLiteralNode.Create(yyv[yysp-0].yyBoolean);
+			End;
+302 :		Begin
+         // source: delphi.y line#823
+         _CurrentValue.yyLiteralNode := RealLiteralNode.Create(yyv[yysp-0].yyDouble);
+			End;
+303 :		Begin
          // source: delphi.y line#824
-         yyval.yyLiteral := IntLiteral.Create(yyv[yysp-0].yyCardinal);
-       end;
-301 : begin
-         // source: delphi.y line#825
-         yyval.yyLiteral := BoolLiteral.Create(yyv[yysp-0].yyBoolean);
-       end;
-302 : begin
-         // source: delphi.y line#826
-         yyval.yyLiteral := RealLiteral.Create(yyv[yysp-0].yyDouble);
-       end;
-303 : begin
-         // source: delphi.y line#827
-         yyval.yyLiteral := PointerLiteral.Create(yyv[yysp-0].yyCardinal);
-       end;
-304 : begin
-         // source: delphi.y line#831
-         yyval.yyLiteral := IntLiteral.Create(yyv[yysp-0].yyCardinal);
-       end;
-305 : begin
-         // source: delphi.y line#832
-         yyval.yyLiteral := CharLiteral.Create(yyv[yysp-0].yyAnsiChar);
-       end;
-306 : begin
-         // source: delphi.y line#833
-         yyval.yyLiteral := BoolLiteral.Create(yyv[yysp-0].yyBoolean);
-       end;
-307 : begin
-         // source: delphi.y line#837
-         If (Length(yyv[yysp-0].yyStringObject.Value)=1) Then yyval.yyLiteral := CharLiteral.Create(yyv[yysp-0].yyStringObject.Value[1]) Else yyval.yyLiteral := StringLiteral.Create(yyv[yysp-0].yyStringObject); 
-       end;
-308 : begin
-         // source: delphi.y line#841
-         yyval.yyStringLiteral := StringLiteral.Create(yyv[yysp-0].yyStringObject); 
-       end;
-309 : begin
+         _CurrentValue.yyLiteralNode := NullLiteralNode.Create();
+			End;
+304 :		Begin
+         // source: delphi.y line#828
+         _CurrentValue.yyLiteralNode := IntLiteralNode.Create(yyv[yysp-0].yyCardinal);
+			End;
+305 :		Begin
+         // source: delphi.y line#829
+         _CurrentValue.yyLiteralNode := CharLiteralNode.Create(yyv[yysp-0].yyAnsiChar);
+			End;
+306 :		Begin
+         // source: delphi.y line#830
+         _CurrentValue.yyLiteralNode := BoolLiteralNode.Create(yyv[yysp-0].yyBoolean);
+			End;
+307 :		Begin
+         // source: delphi.y line#834
+         If (Length(yyv[yysp-0].yyStringObject.Value)=1) Then _CurrentValue.yyLiteralNode := CharLiteralNode.Create(yyv[yysp-0].yyStringObject.Value[1]) Else _CurrentValue.yyLiteralNode := StringLiteralNode.Create(yyv[yysp-0].yyStringObject); 
+			End;
+308 :		Begin
+         // source: delphi.y line#838
+         _CurrentValue.yyStringLiteralNode := StringLiteralNode.Create(yyv[yysp-0].yyStringObject); 
+			End;
+309 :		Begin
+         // source: delphi.y line#842
+         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+			End;
+310 :		Begin
+         // source: delphi.y line#843
+         _CurrentValue.yyStringObject := StringObject.Create(yyv[yysp-0].yyAnsiChar); 
+			End;
+311 :		Begin
+         // source: delphi.y line#844
+         _CurrentValue.yyStringObject := StringObject.Create(yyv[yysp-1].yyStringObject.Value + yyv[yysp-0].yyStringObject.Value); 
+			End;
+312 :		Begin
          // source: delphi.y line#845
-         yyval.yyStringObject := yyv[yysp-0].yyStringObject; 
-       end;
-310 : begin
-         // source: delphi.y line#846
-         yyval.yyStringObject := StringObject.Create(yyv[yysp-0].yyAnsiChar); 
-       end;
-311 : begin
-         // source: delphi.y line#847
-         yyval.yyStringObject := StringObject.Create(yyv[yysp-1].yyStringObject.Value + yyv[yysp-0].yyStringObject.Value); 
-       end;
-312 : begin
-         // source: delphi.y line#848
-         yyval.yyStringObject := StringObject.Create(yyv[yysp-1].yyStringObject.Value + yyv[yysp-0].yyAnsiChar); 
-       end;
-313 : begin
-         // source: delphi.y line#852
-         yyval.yyStringObject := yyv[yysp-0].yyStringObject; if (Length(yyv[yysp-0].yyStringObject.Value) = 1) Then yyerror('Expected string, found char'); 
-       end;
-314 : begin
-         // source: delphi.y line#856
-         yyval.yyStringObject := yyv[yysp-0].yyStringObject; If (Length(yyv[yysp-0].yyStringObject.Value) <= 0) Then yyerror('Invalid empty string'); 
-       end;
-315 : begin
-         // source: delphi.y line#860
-         yyval.yyStringList := StringList.Create(); yyval.yyStringList.Add(yyv[yysp-0].yyStringObject); 
-       end;
-316 : begin
+         _CurrentValue.yyStringObject := StringObject.Create(yyv[yysp-1].yyStringObject.Value + yyv[yysp-0].yyAnsiChar); 
+			End;
+313 :		Begin
+         // source: delphi.y line#849
+         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; if (Length(yyv[yysp-0].yyStringObject.Value) = 1) Then yyerror('Expected string, found char'); 
+			End;
+314 :		Begin
+         // source: delphi.y line#853
+         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; If (Length(yyv[yysp-0].yyStringObject.Value) <= 0) Then yyerror('Invalid empty string'); 
+			End;
+315 :		Begin
+         // source: delphi.y line#857
+         _CurrentValue.yyIdentifierListNode := IdentifierListNode.Create(IdentifierNode.Create(yyv[yysp-0].yyStringObject)); 
+			End;
+316 :		Begin
+         // source: delphi.y line#858
+         _CurrentValue.yyIdentifierListNode := yyv[yysp-2].yyIdentifierListNode; yyv[yysp-2].yyIdentifierListNode.Add(IdentifierNode.Create(yyv[yysp-0].yyStringObject)); 
+			End;
+317 :		Begin
          // source: delphi.y line#861
-         yyval.yyStringList := yyv[yysp-2].yyStringList; yyv[yysp-2].yyStringList.Add(yyv[yysp-0].yyStringObject); 
-       end;
-317 : begin
-         // source: delphi.y line#864
-         yyval.yyStringObject := yyv[yysp-0].yyStringObject; 
-       end;
-318 : begin
+         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+			End;
+318 :		Begin
+         // source: delphi.y line#865
+         _CurrentValue.yyCardinal := 0; 
+			End;
+319 :		Begin
          // source: delphi.y line#868
-         yyval.yyCardinal := 0; 
-       end;
-319 : begin
+         _CurrentValue.yyCardinal := yyv[yysp-0].yyInt64; 
+			End;
+320 :		Begin
          // source: delphi.y line#871
-         yyval.yyCardinal := yyv[yysp-0].yyInt64; 
-       end;
-320 : begin
+         _CurrentValue.yyAnsiChar := yyv[yysp-0].yyAnsiChar;
+			End;
+321 :		Begin
          // source: delphi.y line#874
-         yyval.yyAnsiChar := yyv[yysp-0].yyAnsiChar;
-       end;
-321 : begin
+         _CurrentValue.yyDouble := yyv[yysp-0].yyDouble;
+			End;
+322 :		Begin
          // source: delphi.y line#877
-         yyval.yyDouble := yyv[yysp-0].yyDouble;
-       end;
-322 : begin
+         _CurrentValue.yyBoolean := yyv[yysp-0].yyBoolean;
+			End;
+323 :		Begin
          // source: delphi.y line#880
-         yyval.yyBoolean := yyv[yysp-0].yyBoolean;
-       end;
-323 : begin
-         // source: delphi.y line#883
-         yyval.yyStringObject := yyv[yysp-0].yyStringObject; 
-       end;
-324 : begin
-         // source: delphi.y line#889
-         yyval.yyTypeNode := RangeType.Create(yyv[yysp-2].yyExpression, yyv[yysp-0].yyExpression); yyv[yysp-2].yyExpression.EnforceConst := True; yyv[yysp-0].yyExpression.EnforceConst := True; 
-       end;
-325 : begin
-         // source: delphi.y line#893
-         yyval.yyExpression := yyv[yysp-0].yyLiteral; 
-       end;
-326 : begin
-         // source: delphi.y line#894
-         yyval.yyExpression := UnaryPlus.Create(yyv[yysp-0].yyExpression); 
-       end;
-327 : begin
-         // source: delphi.y line#895
-         yyval.yyExpression := UnaryMinus.Create(yyv[yysp-0].yyExpression); 
-       end;
-328 : begin
-         // source: delphi.y line#899
-         yyval.yyTypeNode := EnumType.Create(yyv[yysp-1].yyEnumValueList); 
-       end;
-329 : begin
-         // source: delphi.y line#903
-         yyval.yyEnumValueList := EnumValueList.Create(yyv[yysp-0].yyEnumValue); 
-       end;
-330 : begin
-         // source: delphi.y line#904
-         yyval.yyEnumValueList := yyv[yysp-2].yyEnumValueList; yyv[yysp-2].yyEnumValueList.Add(yyv[yysp-0].yyEnumValue); 
-       end;
-331 : begin
-         // source: delphi.y line#908
-         yyval.yyEnumValue := EnumValue.Create(yyv[yysp-0].yyStringObject); 
-       end;
-332 : begin
-         // source: delphi.y line#909
-         yyval.yyEnumValue := EnumValue.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyExpression); 
-       end;
-333 : begin
-         // source: delphi.y line#913
-         yyval.yyExpression := SetExpression.Create();
-       end;
-334 : begin
-         // source: delphi.y line#914
-         yyval.yyExpression := SetExpression.Create(yyv[yysp-1].yyExpressionList); 
-       end;
-335 : begin
-         // source: delphi.y line#918
-         yyval.yyExpressionList := ExpressionList.Create(); yyval.yyExpressionList.Add(yyv[yysp-0].yyExpression); 
-       end;
-336 : begin
-         // source: delphi.y line#919
-         yyval.yyExpressionList := yyv[yysp-2].yyExpressionList; yyv[yysp-2].yyExpressionList.Add(yyv[yysp-0].yyExpression); 
-       end;
-337 : begin
-         // source: delphi.y line#923
-         yyval.yyExpression := yyv[yysp-0].yyExpression; 
-       end;
-338 : begin
-         // source: delphi.y line#924
-         yyval.yyExpression := SetRange.Create(RangeType.Create(yyv[yysp-2].yyExpression, yyv[yysp-0].yyExpression)); 
-       end;
-339 : begin
-         // source: delphi.y line#929
-         yyval.yyDeclarationList := DeclarationList.Create(); yyval.yyDeclarationList.Add(yyv[yysp-0].yyConstDeclaration); 
-       end;
-340 : begin
-         // source: delphi.y line#930
-         yyval.yyDeclarationList := yyv[yysp-1].yyDeclarationList; yyv[yysp-1].yyDeclarationList.Add(yyv[yysp-0].yyConstDeclaration); 
-       end;
-341 : begin
+         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+			End;
+324 :		Begin
+         // source: delphi.y line#886
+         _CurrentValue.yyTypeNode := RangeTypeNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyExpressionNode); yyv[yysp-2].yyExpressionNode.EnforceConst := True; yyv[yysp-0].yyExpressionNode.EnforceConst := True; 
+			End;
+325 :		Begin
+         // source: delphi.y line#890
+         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyLiteralNode; 
+			End;
+326 :		Begin
+         // source: delphi.y line#891
+         _CurrentValue.yyExpressionNode := UnaryPlusNode.Create(yyv[yysp-0].yyExpressionNode); 
+			End;
+327 :		Begin
+         // source: delphi.y line#892
+         _CurrentValue.yyExpressionNode := UnaryMinusNode.Create(yyv[yysp-0].yyExpressionNode); 
+			End;
+328 :		Begin
+         // source: delphi.y line#896
+         _CurrentValue.yyTypeNode := EnumTypeNode.Create(yyv[yysp-1].yyEnumValueListNode); 
+			End;
+329 :		Begin
+         // source: delphi.y line#900
+         _CurrentValue.yyEnumValueListNode := EnumValueListNode.Create(yyv[yysp-0].yyEnumValueNode); 
+			End;
+330 :		Begin
+         // source: delphi.y line#901
+         _CurrentValue.yyEnumValueListNode := yyv[yysp-2].yyEnumValueListNode; yyv[yysp-2].yyEnumValueListNode.Add(yyv[yysp-0].yyEnumValueNode); 
+			End;
+331 :		Begin
+         // source: delphi.y line#905
+         _CurrentValue.yyEnumValueNode := EnumValueNode.Create(yyv[yysp-0].yyStringObject); 
+			End;
+332 :		Begin
+         // source: delphi.y line#906
+         _CurrentValue.yyEnumValueNode := EnumValueNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyExpressionNode); 
+			End;
+333 :		Begin
+         // source: delphi.y line#910
+         _CurrentValue.yyExpressionNode := SetExpressionNode.Create();
+			End;
+334 :		Begin
+         // source: delphi.y line#911
+         _CurrentValue.yyExpressionNode := SetExpressionNode.Create(yyv[yysp-1].yyExpressionListNode); 
+			End;
+335 :		Begin
+         // source: delphi.y line#915
+         _CurrentValue.yyExpressionListNode := ExpressionListNode.Create(); _CurrentValue.yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
+			End;
+336 :		Begin
+         // source: delphi.y line#916
+         _CurrentValue.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
+			End;
+337 :		Begin
+         // source: delphi.y line#920
+         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
+			End;
+338 :		Begin
+         // source: delphi.y line#921
+         _CurrentValue.yyExpressionNode := SetRangeNode.Create(RangeTypeNode.Create(yyv[yysp-2].yyExpressionNode, yyv[yysp-0].yyExpressionNode)); 
+			End;
+339 :		Begin
+         // source: delphi.y line#926
+         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); _CurrentValue.yyDeclarationListNode.Add(yyv[yysp-0].yyConstDeclarationNode); 
+			End;
+340 :		Begin
+         // source: delphi.y line#927
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyConstDeclarationNode); 
+			End;
+341 :		Begin
+         // source: delphi.y line#931
+         _CurrentValue.yyConstDeclarationNode := ConstDeclarationNode.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyExpressionNode); 
+			End;
+342 :		Begin
+         // source: delphi.y line#932
+         _CurrentValue.yyConstDeclarationNode := ConstDeclarationNode.Create(yyv[yysp-5].yyStringObject, yyv[yysp-1].yyExpressionNode, yyv[yysp-3].yyTypeNode); 
+			End;
+343 :		Begin
          // source: delphi.y line#934
-         yyval.yyConstDeclaration := ConstDeclaration.Create(yyv[yysp-3].yyStringObject, yyv[yysp-1].yyExpression); 
-       end;
-342 : begin
-         // source: delphi.y line#935
-         yyval.yyConstDeclaration := ConstDeclaration.Create(yyv[yysp-5].yyStringObject, yyv[yysp-1].yyExpression, yyv[yysp-3].yyTypeNode); 
-       end;
-343 : begin
-         // source: delphi.y line#937
-         yyval.yyConstDeclaration := ConstDeclaration.Create(yyv[yysp-5].yyStringObject, yyv[yysp-1].yyConstExpression, yyv[yysp-3].yyProceduralType); yyv[yysp-3].yyProceduralType.Directives := yyv[yysp-2].yyFunctionDirectiveList; 
-       end;
-344 : begin
-         // source: delphi.y line#941
-         yyval.yyExpression := yyv[yysp-0].yyExpression; 
-       end;
-345 : begin
-         // source: delphi.y line#942
-         yyval.yyExpression := yyv[yysp-0].yyConstExpression; 
-       end;
-346 : begin
-         // source: delphi.y line#943
-         yyval.yyExpression := yyv[yysp-0].yyConstExpression; 
-       end;
-347 : begin
-         // source: delphi.y line#947
-         yyval.yyExpression := yyv[yysp-0].yyExpression; yyv[yysp-0].yyExpression.EnforceConst := true; 
-       end;
-348 : begin
-         // source: delphi.y line#951
-         yyval.yyExpressionList := ExpressionList.Create(); yyval.yyExpressionList.Add(yyv[yysp-0].yyExpression); 
-       end;
-349 : begin
-         // source: delphi.y line#952
-         yyval.yyExpressionList := yyv[yysp-2].yyExpressionList; yyv[yysp-2].yyExpressionList.Add(yyv[yysp-0].yyExpression); 
-       end;
-350 : begin
-         // source: delphi.y line#956
-         yyval.yyConstExpression := ArrayConst.Create(yyv[yysp-1].yyExpressionList); yyv[yysp-1].yyExpressionList.InsertAt(0, yyv[yysp-3].yyExpression); 
-       end;
-351 : begin
-         // source: delphi.y line#960
-         yyval.yyExpressionList := ExpressionList.Create(yyv[yysp-0].yyExpression); 
-       end;
-352 : begin
-         // source: delphi.y line#961
-         yyval.yyExpressionList := yyv[yysp-2].yyExpressionList; yyv[yysp-2].yyExpressionList.Add(yyv[yysp-0].yyExpression); 
-       end;
-353 : begin
-         // source: delphi.y line#965
-         yyval.yyConstExpression := RecordConst.Create(yyv[yysp-2].yyFieldInitList); 
-       end;
-354 : begin
-         // source: delphi.y line#969
-         yyval.yyFieldInitList := FieldInitList.Create(); yyval.yyFieldInitList.Add(yyv[yysp-0].yyFieldInit);
-       end;
-355 : begin
-         // source: delphi.y line#970
-         yyval.yyFieldInitList := yyv[yysp-2].yyFieldInitList; yyv[yysp-2].yyFieldInitList.Add(yyv[yysp-0].yyFieldInit); 
-       end;
-356 : begin
-         // source: delphi.y line#974
-         yyval.yyFieldInit := FieldInit.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyExpression); 
-       end;
-357 : begin
+         _CurrentValue.yyConstDeclarationNode := ConstDeclarationNode.Create(yyv[yysp-5].yyStringObject, yyv[yysp-1].yyConstExpressionNode, yyv[yysp-3].yyProceduralTypeNode); yyv[yysp-3].yyProceduralTypeNode.Directives := yyv[yysp-2].yyFunctionDirectiveListNode; 
+			End;
+344 :		Begin
+         // source: delphi.y line#938
+         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyExpressionNode; 
+			End;
+345 :		Begin
+         // source: delphi.y line#939
+         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyConstExpressionNode; 
+			End;
+346 :		Begin
+         // source: delphi.y line#940
+         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyConstExpressionNode; 
+			End;
+347 :		Begin
+         // source: delphi.y line#944
+         _CurrentValue.yyExpressionNode := yyv[yysp-0].yyExpressionNode; yyv[yysp-0].yyExpressionNode.EnforceConst := true; 
+			End;
+348 :		Begin
+         // source: delphi.y line#948
+         _CurrentValue.yyExpressionListNode := ExpressionListNode.Create(); _CurrentValue.yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
+			End;
+349 :		Begin
+         // source: delphi.y line#949
+         _CurrentValue.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
+			End;
+350 :		Begin
+         // source: delphi.y line#953
+         _CurrentValue.yyConstExpressionNode := ArrayConstNode.Create(yyv[yysp-1].yyExpressionListNode); yyv[yysp-1].yyExpressionListNode.InsertAt(0, yyv[yysp-3].yyExpressionNode); 
+			End;
+351 :		Begin
+         // source: delphi.y line#957
+         _CurrentValue.yyExpressionListNode := ExpressionListNode.Create(yyv[yysp-0].yyExpressionNode); 
+			End;
+352 :		Begin
+         // source: delphi.y line#958
+         _CurrentValue.yyExpressionListNode := yyv[yysp-2].yyExpressionListNode; yyv[yysp-2].yyExpressionListNode.Add(yyv[yysp-0].yyExpressionNode); 
+			End;
+353 :		Begin
+         // source: delphi.y line#962
+         _CurrentValue.yyConstExpressionNode := RecordConstNode.Create(yyv[yysp-2].yyFieldInitListNode); 
+			End;
+354 :		Begin
+         // source: delphi.y line#966
+         _CurrentValue.yyFieldInitListNode := FieldInitListNode.Create(); _CurrentValue.yyFieldInitListNode.Add(yyv[yysp-0].yyFieldInitNode);
+			End;
+355 :		Begin
+         // source: delphi.y line#967
+         _CurrentValue.yyFieldInitListNode := yyv[yysp-2].yyFieldInitListNode; yyv[yysp-2].yyFieldInitListNode.Add(yyv[yysp-0].yyFieldInitNode); 
+			End;
+356 :		Begin
+         // source: delphi.y line#971
+         _CurrentValue.yyFieldInitNode := FieldInitNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-0].yyExpressionNode); 
+			End;
+357 :		Begin
+         // source: delphi.y line#975
+         _CurrentValue.yyStructuredTypeNode := RecordTypeNode.Create(DeclarationListNode.Create()); 
+			End;
+358 :		Begin
+         // source: delphi.y line#976
+         _CurrentValue.yyStructuredTypeNode := RecordTypeNode.Create(yyv[yysp-2].yyDeclarationListNode); 
+			End;
+359 :		Begin
+         // source: delphi.y line#977
+         _CurrentValue.yyStructuredTypeNode := RecordTypeNode.Create(yyv[yysp-4].yyDeclarationListNode); 
+			End;
+360 :		Begin
          // source: delphi.y line#978
-         yyval.yyStructuredType := RecordType.Create(DeclarationList.Create()); 
-       end;
-358 : begin
-         // source: delphi.y line#979
-         yyval.yyStructuredType := RecordType.Create(yyv[yysp-2].yyDeclarationList); 
-       end;
-359 : begin
-         // source: delphi.y line#980
-         yyval.yyStructuredType := RecordType.Create(yyv[yysp-4].yyDeclarationList); 
-       end;
-360 : begin
-         // source: delphi.y line#981
-         yyval.yyStructuredType := RecordType.Create(yyv[yysp-2].yyDeclarationList); 
-       end;
-361 : begin
-         // source: delphi.y line#985
-         yyval.yyDeclarationList := DeclarationList.Create(VariantDeclaration.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyTypeNode, yyv[yysp-0].yyDeclarationList)); 
-       end;
-362 : begin
-         // source: delphi.y line#986
-         yyval.yyDeclarationList :=  DeclarationList.Create(VariantDeclaration.Create(Nil, yyv[yysp-2].yyTypeNode, yyv[yysp-0].yyDeclarationList)); 
-       end;
-363 : begin
-         // source: delphi.y line#990
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList; 
-       end;
-364 : begin
-         // source: delphi.y line#991
-         yyval.yyDeclarationList := yyv[yysp-1].yyDeclarationList; 
-       end;
-365 : begin
-         // source: delphi.y line#992
-         yyval.yyDeclarationList := yyv[yysp-2].yyDeclarationList; yyv[yysp-2].yyDeclarationList.InsertAt(0, yyv[yysp-2].yyDeclarationList); 
-       end;
-366 : begin
-         // source: delphi.y line#996
-         yyval.yyDeclarationList := CreateRecordUnionField(yyv[yysp-5].yyExpressionList, yyv[yysp-2].yyDeclarationList); 
-       end;
-367 : begin
-         // source: delphi.y line#1000
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList; 
-       end;
-368 : begin
-         // source: delphi.y line#1001
-         yyval.yyDeclarationList := yyv[yysp-2].yyDeclarationList; yyv[yysp-2].yyDeclarationList.Add(yyv[yysp-0].yyDeclarationList); 
-       end;
-369 : begin
-         // source: delphi.y line#1005
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList; 
-       end;
-370 : begin
-         // source: delphi.y line#1006
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList; 
-       end;
-371 : begin
-         // source: delphi.y line#1010
-         yyval.yyClassTypeNode := ClassTypeNode.Create(yyv[yysp-2].yyStringList, yyv[yysp-1].yyObjectSection); 
-       end;
-372 : begin
-         // source: delphi.y line#1011
-         yyval.yyClassTypeNode := ClassTypeNode.Create(yyv[yysp-0].yyStringList); 
-       end;
-373 : begin
-         // source: delphi.y line#1015
-         yyval.yyStringList := Nil; 
-       end;
-374 : begin
-         // source: delphi.y line#1016
-         yyval.yyStringList := yyv[yysp-1].yyStringList; 
-       end;
-375 : begin
-         // source: delphi.y line#1020
-         yyval.yyObjectSection := yyv[yysp-1].yyObjectSection; yyv[yysp-1].yyObjectSection.Add(yyv[yysp-0].yyObjectSection); 
-       end;
-376 : begin
-         // source: delphi.y line#1024
-         yyval.yyObjectSection := ObjectSection.Create(yyv[yysp-1].yyDeclarationList, yyv[yysp-0].yyDeclarationList); 
-       end;
-377 : begin
-         // source: delphi.y line#1025
-         yyval.yyObjectSection := ObjectSection.Create(Nil, yyv[yysp-0].yyDeclarationList); 
-       end;
-378 : begin
+         _CurrentValue.yyStructuredTypeNode := RecordTypeNode.Create(yyv[yysp-2].yyDeclarationListNode); 
+			End;
+361 :		Begin
+         // source: delphi.y line#982
+         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(VariantDeclarationNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyTypeNode, yyv[yysp-0].yyDeclarationListNode)); 
+			End;
+362 :		Begin
+         // source: delphi.y line#983
+         _CurrentValue.yyDeclarationListNode :=  DeclarationListNode.Create(VariantDeclarationNode.Create(Nil, yyv[yysp-2].yyTypeNode, yyv[yysp-0].yyDeclarationListNode)); 
+			End;
+363 :		Begin
+         // source: delphi.y line#987
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+			End;
+364 :		Begin
+         // source: delphi.y line#988
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
+			End;
+365 :		Begin
+         // source: delphi.y line#989
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.InsertAt(0, yyv[yysp-2].yyDeclarationListNode); 
+			End;
+366 :		Begin
+         // source: delphi.y line#993
+         _CurrentValue.yyDeclarationListNode := CreateRecordUnionField(yyv[yysp-5].yyExpressionListNode, yyv[yysp-2].yyDeclarationListNode); 
+			End;
+367 :		Begin
+         // source: delphi.y line#997
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+			End;
+368 :		Begin
+         // source: delphi.y line#998
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
+			End;
+369 :		Begin
+         // source: delphi.y line#1002
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+			End;
+370 :		Begin
+         // source: delphi.y line#1003
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+			End;
+371 :		Begin
+         // source: delphi.y line#1007
+         _CurrentValue.yyClassTypeNode := ClassTypeNode.Create(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-1].yyObjectSectionNode); 
+			End;
+372 :		Begin
+         // source: delphi.y line#1008
+         _CurrentValue.yyClassTypeNode := ClassTypeNode.Create(yyv[yysp-0].yyIdentifierListNode); 
+			End;
+373 :		Begin
+         // source: delphi.y line#1012
+         _CurrentValue.yyIdentifierListNode := Nil; 
+			End;
+374 :		Begin
+         // source: delphi.y line#1013
+         _CurrentValue.yyIdentifierListNode := yyv[yysp-1].yyIdentifierListNode; 
+			End;
+375 :		Begin
+         // source: delphi.y line#1017
+         _CurrentValue.yyObjectSectionNode := yyv[yysp-1].yyObjectSectionNode; yyv[yysp-1].yyObjectSectionNode.Add(yyv[yysp-0].yyObjectSectionNode); 
+			End;
+376 :		Begin
+         // source: delphi.y line#1021
+         _CurrentValue.yyObjectSectionNode := ObjectSectionNode.Create(yyv[yysp-1].yyDeclarationListNode, yyv[yysp-0].yyDeclarationListNode); 
+			End;
+377 :		Begin
+         // source: delphi.y line#1022
+         _CurrentValue.yyObjectSectionNode := ObjectSectionNode.Create(Nil, yyv[yysp-0].yyDeclarationListNode); 
+			End;
+378 :		Begin
+         // source: delphi.y line#1026
+         _CurrentValue.yyObjectSectionNode := ObjectSectionNode.Create(); 
+			End;
+379 :		Begin
+         // source: delphi.y line#1027
+         _CurrentValue.yyObjectSectionNode := yyv[yysp-2].yyObjectSectionNode; yyv[yysp-2].yyObjectSectionNode.AddDecls(yyv[yysp-0].yyDeclarationListNode, yyv[yysp-1].yyScopeEnum); 
+			End;
+380 :		Begin
          // source: delphi.y line#1029
-         yyval.yyObjectSection := ObjectSection.Create(); 
-       end;
-379 : begin
-         // source: delphi.y line#1030
-         yyval.yyObjectSection := yyv[yysp-2].yyObjectSection; yyv[yysp-2].yyObjectSection.AddDecls(yyv[yysp-0].yyDeclarationList, yyv[yysp-1].yyInteger); 
-       end;
-380 : begin
-         // source: delphi.y line#1032
-         yyval.yyObjectSection := yyv[yysp-3].yyObjectSection; yyv[yysp-3].yyObjectSection.AddDecls(yyv[yysp-0].yyDeclarationList, yyv[yysp-2].yyInteger); yyv[yysp-3].yyObjectSection.AddFields(yyv[yysp-1].yyDeclarationList, yyv[yysp-2].yyInteger); 
-       end;
-381 : begin
+         _CurrentValue.yyObjectSectionNode := yyv[yysp-3].yyObjectSectionNode; yyv[yysp-3].yyObjectSectionNode.AddDecls(yyv[yysp-0].yyDeclarationListNode, yyv[yysp-2].yyScopeEnum); yyv[yysp-3].yyObjectSectionNode.AddFields(yyv[yysp-1].yyDeclarationListNode, yyv[yysp-2].yyScopeEnum); 
+			End;
+381 :		Begin
+         // source: delphi.y line#1033
+         _CurrentValue.yyScopeEnum := Scope_Published; 
+			End;
+382 :		Begin
+         // source: delphi.y line#1034
+         _CurrentValue.yyScopeEnum := Scope_Public; 
+			End;
+383 :		Begin
+         // source: delphi.y line#1035
+         _CurrentValue.yyScopeEnum := Scope_Protected; 
+			End;
+384 :		Begin
          // source: delphi.y line#1036
-         yyval.yyInteger := Scope_Published; 
-       end;
-382 : begin
-         // source: delphi.y line#1037
-         yyval.yyInteger := Scope_Public; 
-       end;
-383 : begin
-         // source: delphi.y line#1038
-         yyval.yyInteger := Scope_Protected; 
-       end;
-384 : begin
-         // source: delphi.y line#1039
-         yyval.yyInteger := Scope_Private; 
-       end;
-385 : begin
-         // source: delphi.y line#1043
-         yyval.yyDeclarationList := yyv[yysp-1].yyDeclarationList; 
-       end;
-386 : begin
-         // source: delphi.y line#1044
-         yyval.yyDeclarationList := yyv[yysp-1].yyDeclarationList; MakeFieldDeclarationsStatic(yyv[yysp-1].yyDeclarationList); 
-       end;
-387 : begin
-         // source: delphi.y line#1048
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList; 
-       end;
-388 : begin
-         // source: delphi.y line#1049
-         yyval.yyDeclarationList := yyv[yysp-2].yyDeclarationList; yyv[yysp-2].yyDeclarationList.Add(yyv[yysp-0].yyDeclarationList); 
-       end;
-389 : begin
+         _CurrentValue.yyScopeEnum := Scope_Private; 
+			End;
+385 :		Begin
+         // source: delphi.y line#1040
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
+			End;
+386 :		Begin
+         // source: delphi.y line#1041
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; MakeFieldDeclarationsStatic(yyv[yysp-1].yyDeclarationListNode); 
+			End;
+387 :		Begin
+         // source: delphi.y line#1045
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+			End;
+388 :		Begin
+         // source: delphi.y line#1046
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-2].yyDeclarationListNode; yyv[yysp-2].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationListNode); 
+			End;
+389 :		Begin
+         // source: delphi.y line#1050
+         _CurrentValue.yyDeclarationListNode := CreateFieldDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyTypeNode); 
+			End;
+390 :		Begin
+         // source: delphi.y line#1051
+         _CurrentValue.yyDeclarationListNode := CreateFieldDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyProceduralTypeNode); 
+			End;
+391 :		Begin
          // source: delphi.y line#1053
-         yyval.yyDeclarationList := CreateFieldDecls(yyv[yysp-2].yyStringList, yyv[yysp-0].yyTypeNode); 
-       end;
-390 : begin
-         // source: delphi.y line#1054
-         yyval.yyDeclarationList := CreateFieldDecls(yyv[yysp-2].yyStringList, yyv[yysp-0].yyProceduralType); 
-       end;
-391 : begin
-         // source: delphi.y line#1056
-         yyval.yyDeclarationList := CreateFieldDecls(yyv[yysp-4].yyStringList, yyv[yysp-2].yyProceduralType); yyv[yysp-2].yyProceduralType.Directives := yyv[yysp-0].yyFunctionDirectiveList; 
-       end;
-392 : begin
-         // source: delphi.y line#1060
-         yyval.yyDeclarationList := DeclarationList.Create(); 
-       end;
-393 : begin
-         // source: delphi.y line#1061
-         yyval.yyDeclarationList := yyv[yysp-0].yyDeclarationList; 
-       end;
-394 : begin
-         // source: delphi.y line#1065
-         yyval.yyDeclarationList := DeclarationList.Create(); yyval.yyDeclarationList.Add(yyv[yysp-0].yyDeclaration); 
-       end;
-395 : begin
-         // source: delphi.y line#1066
-         yyval.yyDeclarationList := yyv[yysp-1].yyDeclarationList; yyv[yysp-1].yyDeclarationList.Add(yyv[yysp-0].yyDeclaration); 
-       end;
-396 : begin
-         // source: delphi.y line#1070
-         yyval.yyDeclaration := yyv[yysp-0].yyMethodDeclaration; yyv[yysp-0].yyMethodDeclaration.isStatic := yyv[yysp-1].yyBoolean; 
-       end;
-397 : begin
-         // source: delphi.y line#1071
-         yyval.yyDeclaration := yyv[yysp-0].yyDeclaration; 
-       end;
-398 : begin
-         // source: delphi.y line#1075
-         yyval.yyBoolean := False; 
-       end;
-399 : begin
-         // source: delphi.y line#1076
-         yyval.yyBoolean := True ; 
-       end;
-400 : begin
-         // source: delphi.y line#1080
-         yyval.yyInterfaceType := InterfaceType.Create(yyv[yysp-2].yyStringList, yyv[yysp-0].yyObjectSection, yyv[yysp-1].yyStringLiteral); 
-       end;
-401 : begin
-         // source: delphi.y line#1081
-         yyval.yyInterfaceType := InterfaceType.Create(yyv[yysp-0].yyStringList); 
-       end;
-402 : begin
-         // source: delphi.y line#1085
-         yyval.yyObjectSection := ObjectSection.Create(Nil, yyv[yysp-1].yyDeclarationList, Scope_Public); 
-       end;
-403 : begin
-         // source: delphi.y line#1089
-         yyval.yyDeclarationList := DeclarationList.Create(yyv[yysp-0].yyDeclaration); 
-       end;
-404 : begin
-         // source: delphi.y line#1090
-         yyval.yyDeclarationList := yyv[yysp-1].yyDeclarationList; yyv[yysp-1].yyDeclarationList.Add(yyv[yysp-0].yyDeclaration); 
-       end;
-405 : begin
-         // source: delphi.y line#1094
-         yyval.yyDeclaration := yyv[yysp-0].yyMethodDeclaration; 
-       end;
-406 : begin
-         // source: delphi.y line#1095
-         yyval.yyDeclaration := yyv[yysp-0].yyDeclaration; 
-       end;
-407 : begin
-         // source: delphi.y line#1099
-         yyval.yyStringLiteral := Nil; 
-       end;
-408 : begin
-         // source: delphi.y line#1100
-         yyval.yyStringLiteral := yyv[yysp-1].yyStringLiteral; 
-       end;
-409 : begin
+         _CurrentValue.yyDeclarationListNode := CreateFieldDecls(yyv[yysp-4].yyIdentifierListNode, yyv[yysp-2].yyProceduralTypeNode); yyv[yysp-2].yyProceduralTypeNode.Directives := yyv[yysp-0].yyFunctionDirectiveListNode; 
+			End;
+392 :		Begin
+         // source: delphi.y line#1057
+         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); 
+			End;
+393 :		Begin
+         // source: delphi.y line#1058
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-0].yyDeclarationListNode; 
+			End;
+394 :		Begin
+         // source: delphi.y line#1062
+         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(); _CurrentValue.yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationNode); 
+			End;
+395 :		Begin
+         // source: delphi.y line#1063
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationNode); 
+			End;
+396 :		Begin
+         // source: delphi.y line#1067
+         _CurrentValue.yyDeclarationNode := yyv[yysp-0].yyMethodDeclarationNode; yyv[yysp-0].yyMethodDeclarationNode.isStatic := yyv[yysp-1].yyBoolean; 
+			End;
+397 :		Begin
+         // source: delphi.y line#1068
+         _CurrentValue.yyDeclarationNode := yyv[yysp-0].yyDeclarationNode; 
+			End;
+398 :		Begin
+         // source: delphi.y line#1072
+         _CurrentValue.yyBoolean := False; 
+			End;
+399 :		Begin
+         // source: delphi.y line#1073
+         _CurrentValue.yyBoolean := True ; 
+			End;
+400 :		Begin
+         // source: delphi.y line#1077
+         _CurrentValue.yyInterfaceTypeNode := InterfaceTypeNode.Create(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyObjectSectionNode, yyv[yysp-1].yyStringLiteralNode); 
+			End;
+401 :		Begin
+         // source: delphi.y line#1078
+         _CurrentValue.yyInterfaceTypeNode := InterfaceTypeNode.Create(yyv[yysp-0].yyIdentifierListNode); 
+			End;
+402 :		Begin
+         // source: delphi.y line#1082
+         _CurrentValue.yyObjectSectionNode := ObjectSectionNode.Create(Nil, yyv[yysp-1].yyDeclarationListNode, Scope_Public); 
+			End;
+403 :		Begin
+         // source: delphi.y line#1086
+         _CurrentValue.yyDeclarationListNode := DeclarationListNode.Create(yyv[yysp-0].yyDeclarationNode); 
+			End;
+404 :		Begin
+         // source: delphi.y line#1087
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; yyv[yysp-1].yyDeclarationListNode.Add(yyv[yysp-0].yyDeclarationNode); 
+			End;
+405 :		Begin
+         // source: delphi.y line#1091
+         _CurrentValue.yyDeclarationNode := yyv[yysp-0].yyMethodDeclarationNode; 
+			End;
+406 :		Begin
+         // source: delphi.y line#1092
+         _CurrentValue.yyDeclarationNode := yyv[yysp-0].yyDeclarationNode; 
+			End;
+407 :		Begin
+         // source: delphi.y line#1096
+         _CurrentValue.yyStringLiteralNode := Nil; 
+			End;
+408 :		Begin
+         // source: delphi.y line#1097
+         _CurrentValue.yyStringLiteralNode := yyv[yysp-1].yyStringLiteralNode; 
+			End;
+409 :		Begin
+         // source: delphi.y line#1103
+         _CurrentValue.yyDeclarationNode := PropertyDeclarationNode.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyTypeNode, yyv[yysp-1].yyPropertySpecifiersNode); 
+			End;
+410 :		Begin
+         // source: delphi.y line#1105
+         _CurrentValue.yyDeclarationNode := ArrayPropertyNode.Create(yyv[yysp-6].yyStringObject, yyv[yysp-3].yyTypeNode, yyv[yysp-5].yyDeclarationListNode, yyv[yysp-2].yyPropertySpecifiersNode, yyv[yysp-0].yyBoolean); 
+			End;
+411 :		Begin
          // source: delphi.y line#1106
-         yyval.yyDeclaration := PropertyDeclaration.Create(yyv[yysp-4].yyStringObject, yyv[yysp-2].yyTypeNode, yyv[yysp-1].yyPropertySpecifiers); 
-       end;
-410 : begin
-         // source: delphi.y line#1108
-         yyval.yyDeclaration := ArrayProperty.Create(yyv[yysp-6].yyStringObject, yyv[yysp-3].yyTypeNode, yyv[yysp-5].yyDeclarationList, yyv[yysp-2].yyPropertySpecifiers, yyv[yysp-0].yyBoolean); 
-       end;
-411 : begin
-         // source: delphi.y line#1109
-         yyval.yyDeclaration := PropertyDeclaration.Create(yyv[yysp-2].yyStringObject, Nil, yyv[yysp-1].yyPropertySpecifiers); 
-       end;
-412 : begin
-         // source: delphi.y line#1113
-         yyval.yyBoolean := false;
-       end;
-413 : begin
-         // source: delphi.y line#1114
-         yyval.yyBoolean := CheckDirectiveId('default', yyv[yysp-0].yyStringObject); 
-       end;
-414 : begin
-         // source: delphi.y line#1118
-         yyval.yyDeclarationList := yyv[yysp-1].yyDeclarationList; 
-       end;
-415 : begin
-         // source: delphi.y line#1122
-         yyval.yyDeclarationList := CreateVarParamDecls(yyv[yysp-2].yyStringList, yyv[yysp-0].yyTypeNode); 
-       end;
-416 : begin
-         // source: delphi.y line#1123
-         yyval.yyDeclarationList := CreateConstParamDecls(yyv[yysp-2].yyStringList, yyv[yysp-0].yyTypeNode); 
-       end;
-417 : begin
-         // source: delphi.y line#1128
-         yyval.yyPropertySpecifiers := PropertySpecifiers.Create(yyv[yysp-4].yyIntLiteral, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyStringObject, yyv[yysp-1].yyConstExpression, yyv[yysp-0].yyLiteral); 
-       end;
-418 : begin
-         // source: delphi.y line#1132
-         yyval.yyPropertySpecifiers := PropertySpecifiers.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyStringObject); 
-       end;
-419 : begin
-         // source: delphi.y line#1136
-         yyval.yyPropertySpecifiers := PropertySpecifiers.Create(yyv[yysp-5].yyIntLiteral, yyv[yysp-4].yyStringObject, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyConstExpression, yyv[yysp-1].yyLiteral, yyv[yysp-0].yyStringObject); 
-       end;
-420 : begin
-         // source: delphi.y line#1140
-         yyval.yyIntLiteral := Nil; 
-       end;
-421 : begin
-         // source: delphi.y line#1141
-         yyval.yyIntLiteral := IntLiteral.Create(yyv[yysp-0].yyCardinal);  
-       end;
-422 : begin
-         // source: delphi.y line#1145
-         yyval.yyStringObject := Nil; 
-       end;
-423 : begin
-         // source: delphi.y line#1146
-         yyval.yyStringObject := yyv[yysp-0].yyStringObject; 
-       end;
-424 : begin
-         // source: delphi.y line#1150
-         yyval.yyStringObject := Nil; 
-       end;
-425 : begin
-         // source: delphi.y line#1151
-         yyval.yyStringObject := yyv[yysp-0].yyStringObject; 
-       end;
-426 : begin
-         // source: delphi.y line#1155
-         yyval.yyConstExpression := BoolLiteral.Create(true);  
-       end;
-427 : begin
-         // source: delphi.y line#1156
-         yyval.yyConstExpression := ConstIdentifier.Create(yyv[yysp-0].yyStringObject);  
-       end;
-428 : begin
-         // source: delphi.y line#1157
-         yyval.yyConstExpression := BoolLiteral.Create(yyv[yysp-0].yyBoolean);  
-       end;
-429 : begin
-         // source: delphi.y line#1161
-         yyval.yyLiteral := IntLiteral.Create(MaxInt);  
-       end;
-430 : begin
-         // source: delphi.y line#1162
-         yyval.yyLiteral := IntLiteral.Create(MaxInt);  
-       end;
-431 : begin
-         // source: delphi.y line#1163
-         yyval.yyLiteral := ConstExpression(yyv[yysp-0].yyExpression).ResolveToLiteral(); 
-       end;
-432 : begin
-         // source: delphi.y line#1167
-         yyval.yyStringObject := Nil;  
-       end;
-433 : begin
-         // source: delphi.y line#1168
-         yyval.yyStringObject := yyv[yysp-0].yyStringObject; 
-       end;
-434 : begin
+         _CurrentValue.yyDeclarationNode := PropertyDeclarationNode.Create(yyv[yysp-2].yyStringObject, Nil, yyv[yysp-1].yyPropertySpecifiersNode); 
+			End;
+412 :		Begin
+         // source: delphi.y line#1110
+         _CurrentValue.yyBoolean := false;
+			End;
+413 :		Begin
+         // source: delphi.y line#1111
+         _CurrentValue.yyBoolean := CheckDirectiveId('default', yyv[yysp-0].yyStringObject); 
+			End;
+414 :		Begin
+         // source: delphi.y line#1115
+         _CurrentValue.yyDeclarationListNode := yyv[yysp-1].yyDeclarationListNode; 
+			End;
+415 :		Begin
+         // source: delphi.y line#1119
+         _CurrentValue.yyDeclarationListNode := CreateVarParamDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyTypeNode); 
+			End;
+416 :		Begin
+         // source: delphi.y line#1120
+         _CurrentValue.yyDeclarationListNode := CreateConstParamDecls(yyv[yysp-2].yyIdentifierListNode, yyv[yysp-0].yyTypeNode); 
+			End;
+417 :		Begin
+         // source: delphi.y line#1125
+         _CurrentValue.yyPropertySpecifiersNode := PropertySpecifiersNode.Create(yyv[yysp-4].yyIntLiteralNode, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyStringObject, yyv[yysp-1].yyConstExpressionNode, yyv[yysp-0].yyLiteralNode); 
+			End;
+418 :		Begin
+         // source: delphi.y line#1129
+         _CurrentValue.yyPropertySpecifiersNode := PropertySpecifiersNode.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyStringObject); 
+			End;
+419 :		Begin
+         // source: delphi.y line#1133
+         _CurrentValue.yyPropertySpecifiersNode := PropertySpecifiersNode.Create(yyv[yysp-5].yyIntLiteralNode, yyv[yysp-4].yyStringObject, yyv[yysp-3].yyStringObject, yyv[yysp-2].yyConstExpressionNode, yyv[yysp-1].yyLiteralNode, yyv[yysp-0].yyStringObject); 
+			End;
+420 :		Begin
+         // source: delphi.y line#1137
+         _CurrentValue.yyIntLiteralNode := Nil; 
+			End;
+421 :		Begin
+         // source: delphi.y line#1138
+         _CurrentValue.yyIntLiteralNode := IntLiteralNode.Create(yyv[yysp-0].yyCardinal);  
+			End;
+422 :		Begin
+         // source: delphi.y line#1142
+         _CurrentValue.yyStringObject := Nil; 
+			End;
+423 :		Begin
+         // source: delphi.y line#1143
+         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+			End;
+424 :		Begin
+         // source: delphi.y line#1147
+         _CurrentValue.yyStringObject := Nil; 
+			End;
+425 :		Begin
+         // source: delphi.y line#1148
+         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+			End;
+426 :		Begin
+         // source: delphi.y line#1152
+         _CurrentValue.yyConstExpressionNode := BoolLiteralNode.Create(true);  
+			End;
+427 :		Begin
+         // source: delphi.y line#1153
+         _CurrentValue.yyConstExpressionNode := ConstIdentifierNode.Create(yyv[yysp-0].yyStringObject);  
+			End;
+428 :		Begin
+         // source: delphi.y line#1154
+         _CurrentValue.yyConstExpressionNode := BoolLiteralNode.Create(yyv[yysp-0].yyBoolean);  
+			End;
+429 :		Begin
+         // source: delphi.y line#1158
+         _CurrentValue.yyLiteralNode := IntLiteralNode.Create(MaxInt);  
+			End;
+430 :		Begin
+         // source: delphi.y line#1159
+         _CurrentValue.yyLiteralNode := IntLiteralNode.Create(MaxInt);  
+			End;
+431 :		Begin
+         // source: delphi.y line#1160
+         _CurrentValue.yyLiteralNode := ConstExpressionNode(yyv[yysp-0].yyExpressionNode).ResolveToLiteral(); 
+			End;
+432 :		Begin
+         // source: delphi.y line#1164
+         _CurrentValue.yyStringObject := Nil;  
+			End;
+433 :		Begin
+         // source: delphi.y line#1165
+         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+			End;
+434 :		Begin
+         // source: delphi.y line#1170
+         _CurrentValue.yyTypeDeclarationNode := TypeDeclarationNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-1].yyTypeNode); 
+			End;
+435 :		Begin
+         // source: delphi.y line#1171
+         _CurrentValue.yyTypeDeclarationNode := TypeDeclarationNode.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyProceduralTypeNode); 
+			End;
+436 :		Begin
+         // source: delphi.y line#1172
+         _CurrentValue.yyTypeDeclarationNode := ClassDeclarationNode.Create(yyv[yysp-2].yyStringObject,yyv[yysp-1].yyClassTypeNode); yyv[yysp-1].yyClassTypeNode.Name := yyv[yysp-2].yyStringObject; 
+			End;
+437 :		Begin
          // source: delphi.y line#1173
-         yyval.yyTypeDeclaration := TypeDeclaration.Create(yyv[yysp-2].yyStringObject, yyv[yysp-1].yyTypeNode); 
-       end;
-435 : begin
-         // source: delphi.y line#1174
-         yyval.yyTypeDeclaration := TypeDeclaration.Create(yyv[yysp-1].yyStringObject, yyv[yysp-0].yyProceduralType); 
-       end;
-436 : begin
-         // source: delphi.y line#1175
-         yyval.yyTypeDeclaration := ClassDeclaration.Create(yyv[yysp-2].yyStringObject,yyv[yysp-1].yyClassTypeNode); yyv[yysp-1].yyClassTypeNode.Name := yyv[yysp-2].yyStringObject; 
-       end;
-437 : begin
-         // source: delphi.y line#1176
-         yyval.yyTypeDeclaration := InterfaceDeclaration.Create(yyv[yysp-2].yyStringObject, yyv[yysp-1].yyInterfaceType); yyv[yysp-1].yyInterfaceType.Name := yyv[yysp-2].yyStringObject; 
-       end;
-438 : begin
-         // source: delphi.y line#1180
-         yyval.yyStringObject := yyv[yysp-2].yyStringObject; _lastObjName := yyv[yysp-2].yyStringObject; 
-       end;
-439 : begin
-       end;
-440 : begin
-         yyval := yyv[yysp-0];
-       end;
-441 : begin
+         _CurrentValue.yyTypeDeclarationNode := InterfaceDeclarationNode.Create(yyv[yysp-2].yyStringObject, yyv[yysp-1].yyInterfaceTypeNode); yyv[yysp-1].yyInterfaceTypeNode.Name := yyv[yysp-2].yyStringObject; 
+			End;
+438 :		Begin
+         // source: delphi.y line#1177
+         _CurrentValue.yyStringObject := yyv[yysp-2].yyStringObject; _lastObjName := yyv[yysp-2].yyStringObject; 
+			End;
+439 :		Begin
+			End;
+440 :		Begin
+         _CurrentValue := yyv[yysp-0];
+			End;
+441 :		Begin
+         // source: delphi.y line#1186
+         _CurrentValue.yyTypeNode := UnresolvedTypeNode.Create(yyv[yysp-0].yyStringObject); 
+			End;
+442 :		Begin
+         // source: delphi.y line#1187
+         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+			End;
+443 :		Begin
+         // source: delphi.y line#1188
+         _CurrentValue.yyTypeNode := PointerTypeNode.Create(yyv[yysp-0].yyTypeNode); 
+			End;
+444 :		Begin
          // source: delphi.y line#1189
-         yyval.yyTypeNode := UnresolvedType.Create(yyv[yysp-0].yyStringObject); 
-       end;
-442 : begin
+         _CurrentValue.yyTypeNode := MetaTypeNode.Create(PointerTypeNode); 
+			End;
+445 :		Begin
          // source: delphi.y line#1190
-         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
-       end;
-443 : begin
+         _CurrentValue.yyTypeNode := MetaclassTypeNode.Create(ClassRefTypeNode.Create(yyv[yysp-0].yyStringObject)); 
+			End;
+446 :		Begin
          // source: delphi.y line#1191
-         yyval.yyTypeNode := PointerType.Create(yyv[yysp-0].yyTypeNode); 
-       end;
-444 : begin
+         _CurrentValue.yyTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
+			End;
+447 :		Begin
          // source: delphi.y line#1192
-         yyval.yyTypeNode := MetaType.Create(PointerType); 
-       end;
-445 : begin
+         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+			End;
+448 :		Begin
          // source: delphi.y line#1193
-         yyval.yyTypeNode := MetaclassType.Create(ClassRefType.Create(yyv[yysp-0].yyStringObject)); 
-       end;
-446 : begin
-         // source: delphi.y line#1194
-         yyval.yyTypeNode := yyv[yysp-0].yyStructuredType; 
-       end;
-447 : begin
-         // source: delphi.y line#1195
-         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
-       end;
-448 : begin
-         // source: delphi.y line#1196
-         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
-       end;
-449 : begin
-         // source: delphi.y line#1200
-         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
-       end;
-450 : begin
-         // source: delphi.y line#1201
-         yyval.yyTypeNode := UnresolvedOrdinalType.Create(yyv[yysp-0].yyStringObject); 
-       end;
-451 : begin
+         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+			End;
+449 :		Begin
+         // source: delphi.y line#1197
+         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+			End;
+450 :		Begin
+         // source: delphi.y line#1198
+         _CurrentValue.yyTypeNode := UnresolvedOrdinalTypeNode.Create(yyv[yysp-0].yyStringObject); 
+			End;
+451 :		Begin
+         // source: delphi.y line#1202
+         _CurrentValue.yyTypeNode := UnresolvedVariableTypeNode.Create(yyv[yysp-0].yyStringObject); 
+			End;
+452 :		Begin
+         // source: delphi.y line#1203
+         _CurrentValue.yyTypeNode := ArrayTypeNode.Create(yyv[yysp-0].yyTypeNode); 
+			End;
+453 :		Begin
+         // source: delphi.y line#1204
+         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+			End;
+454 :		Begin
          // source: delphi.y line#1205
-         yyval.yyTypeNode := UnresolvedVariableType.Create(yyv[yysp-0].yyStringObject); 
-       end;
-452 : begin
-         // source: delphi.y line#1206
-         yyval.yyTypeNode := ArrayType.Create(yyv[yysp-0].yyTypeNode); 
-       end;
-453 : begin
-         // source: delphi.y line#1207
-         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
-       end;
-454 : begin
-         // source: delphi.y line#1208
-         yyval.yyTypeNode := MetaType.Create(PointerType); 
-       end;
-455 : begin
-         // source: delphi.y line#1212
-         yyval.yyTypeNode := UnresolvedType.Create(yyv[yysp-0].yyStringObject); 
-       end;
-456 : begin
-         // source: delphi.y line#1213
-         yyval.yyTypeNode := MetaType.Create(PointerType); 
-       end;
-457 : begin
-         // source: delphi.y line#1214
-         yyval.yyTypeNode := MetaType.Create(StringType); 
-       end;
-458 : begin
-         // source: delphi.y line#1218
-         yyval.yyClassTypeNode := yyv[yysp-0].yyClassTypeNode; 
-       end;
-459 : begin
-         // source: delphi.y line#1219
-         yyval.yyClassTypeNode := yyv[yysp-0].yyClassTypeNode; yyv[yysp-0].yyClassTypeNode.IsPacked := true; 
-       end;
-460 : begin
-         // source: delphi.y line#1223
-         yyval.yyInterfaceType := yyv[yysp-0].yyInterfaceType; 
-       end;
-461 : begin
-         // source: delphi.y line#1224
-         yyval.yyInterfaceType := yyv[yysp-0].yyInterfaceType; yyv[yysp-0].yyInterfaceType.IsPacked := true; 
-       end;
-462 : begin
-         // source: delphi.y line#1228
-         yyval.yyTypeNode := MetaType.Create(StringType); 
-       end;
-463 : begin
-         // source: delphi.y line#1229
-         yyval.yyTypeNode := StringType.Create(yyv[yysp-1].yyExpression); 
-       end;
-464 : begin
-         // source: delphi.y line#1234
-         yyval.yyStructuredType := yyv[yysp-0].yyStructuredType; 
-       end;
-465 : begin
-         // source: delphi.y line#1235
-         yyval.yyStructuredType := yyv[yysp-0].yyStructuredType; yyv[yysp-0].yyStructuredType.IsPacked := true; 
-       end;
-466 : begin
+         _CurrentValue.yyTypeNode := MetaTypeNode.Create(PointerTypeNode); 
+			End;
+455 :		Begin
+         // source: delphi.y line#1209
+         _CurrentValue.yyTypeNode := UnresolvedTypeNode.Create(yyv[yysp-0].yyStringObject); 
+			End;
+456 :		Begin
+         // source: delphi.y line#1210
+         _CurrentValue.yyTypeNode := MetaTypeNode.Create(PointerTypeNode); 
+			End;
+457 :		Begin
+         // source: delphi.y line#1211
+         _CurrentValue.yyTypeNode := MetaTypeNode.Create(StringTypeNode); 
+			End;
+458 :		Begin
+         // source: delphi.y line#1215
+         _CurrentValue.yyClassTypeNode := yyv[yysp-0].yyClassTypeNode; 
+			End;
+459 :		Begin
+         // source: delphi.y line#1216
+         _CurrentValue.yyClassTypeNode := yyv[yysp-0].yyClassTypeNode; yyv[yysp-0].yyClassTypeNode.IsPacked := true; 
+			End;
+460 :		Begin
+         // source: delphi.y line#1220
+         _CurrentValue.yyInterfaceTypeNode := yyv[yysp-0].yyInterfaceTypeNode; 
+			End;
+461 :		Begin
+         // source: delphi.y line#1221
+         _CurrentValue.yyInterfaceTypeNode := yyv[yysp-0].yyInterfaceTypeNode; yyv[yysp-0].yyInterfaceTypeNode.IsPacked := true; 
+			End;
+462 :		Begin
+         // source: delphi.y line#1225
+         _CurrentValue.yyTypeNode := MetaTypeNode.Create(StringTypeNode); 
+			End;
+463 :		Begin
+         // source: delphi.y line#1226
+         _CurrentValue.yyTypeNode := StringTypeNode.Create(yyv[yysp-1].yyExpressionNode); 
+			End;
+464 :		Begin
+         // source: delphi.y line#1231
+         _CurrentValue.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
+			End;
+465 :		Begin
+         // source: delphi.y line#1232
+         _CurrentValue.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; yyv[yysp-0].yyStructuredTypeNode.IsPacked := true; 
+			End;
+466 :		Begin
+         // source: delphi.y line#1236
+         _CurrentValue.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
+			End;
+467 :		Begin
+         // source: delphi.y line#1237
+         _CurrentValue.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
+			End;
+468 :		Begin
+         // source: delphi.y line#1238
+         _CurrentValue.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
+			End;
+469 :		Begin
          // source: delphi.y line#1239
-         yyval.yyStructuredType := yyv[yysp-0].yyStructuredType; 
-       end;
-467 : begin
-         // source: delphi.y line#1240
-         yyval.yyStructuredType := yyv[yysp-0].yyStructuredType; 
-       end;
-468 : begin
-         // source: delphi.y line#1241
-         yyval.yyStructuredType := yyv[yysp-0].yyStructuredType; 
-       end;
-469 : begin
-         // source: delphi.y line#1242
-         yyval.yyStructuredType := yyv[yysp-0].yyStructuredType; 
-       end;
-470 : begin
-         // source: delphi.y line#1246
-         yyval.yyTypeList := TypeList.Create(); yyval.yyTypeList.Add(yyv[yysp-0].yyTypeNode); 
-       end;
-471 : begin
-         // source: delphi.y line#1247
-         yyval.yyTypeList := yyv[yysp-2].yyTypeList; yyval.yyTypeList.Add(yyv[yysp-0].yyTypeNode); 
-       end;
-472 : begin
-         // source: delphi.y line#1251
-         yyval.yyStructuredType := ArrayType.Create(yyv[yysp-0].yyTypeNode, yyv[yysp-3].yyTypeList); 
-       end;
-473 : begin
-         // source: delphi.y line#1252
-         yyval.yyStructuredType := ArrayType.Create(yyv[yysp-0].yyTypeNode, UnresolvedIntegralType.Create(yyv[yysp-3].yyStringObject)); 
-       end;
-474 : begin
-         // source: delphi.y line#1253
-         yyval.yyStructuredType := ArrayType.Create(yyv[yysp-0].yyTypeNode); 
-       end;
-475 : begin
-         // source: delphi.y line#1257
-         yyval.yyStructuredType := SetType.Create(yyv[yysp-0].yyTypeNode);
-       end;
-476 : begin
-         // source: delphi.y line#1261
-         yyval.yyStructuredType := FileType.Create(yyv[yysp-0].yyTypeNode); 
-       end;
-477 : begin
-         // source: delphi.y line#1262
-         yyval.yyStructuredType := FileType.Create(Nil); 
-       end;
-478 : begin
+         _CurrentValue.yyStructuredTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
+			End;
+470 :		Begin
+         // source: delphi.y line#1243
+         _CurrentValue.yyTypeListNode := TypeListNode.Create(); _CurrentValue.yyTypeListNode.Add(yyv[yysp-0].yyTypeNode); 
+			End;
+471 :		Begin
+         // source: delphi.y line#1244
+         _CurrentValue.yyTypeListNode := yyv[yysp-2].yyTypeListNode; _CurrentValue.yyTypeListNode.Add(yyv[yysp-0].yyTypeNode); 
+			End;
+472 :		Begin
+         // source: delphi.y line#1248
+         _CurrentValue.yyStructuredTypeNode := ArrayTypeNode.Create(yyv[yysp-0].yyTypeNode, yyv[yysp-3].yyTypeListNode); 
+			End;
+473 :		Begin
+         // source: delphi.y line#1249
+         _CurrentValue.yyStructuredTypeNode := ArrayTypeNode.Create(yyv[yysp-0].yyTypeNode, UnresolvedIntegralTypeNode.Create(yyv[yysp-3].yyStringObject)); 
+			End;
+474 :		Begin
+         // source: delphi.y line#1250
+         _CurrentValue.yyStructuredTypeNode := ArrayTypeNode.Create(yyv[yysp-0].yyTypeNode); 
+			End;
+475 :		Begin
+         // source: delphi.y line#1254
+         _CurrentValue.yyStructuredTypeNode := SetTypeNode.Create(yyv[yysp-0].yyTypeNode);
+			End;
+476 :		Begin
+         // source: delphi.y line#1258
+         _CurrentValue.yyStructuredTypeNode := FileTypeNode.Create(yyv[yysp-0].yyTypeNode); 
+			End;
+477 :		Begin
+         // source: delphi.y line#1259
+         _CurrentValue.yyStructuredTypeNode := FileTypeNode.Create(Nil); 
+			End;
+478 :		Begin
+         // source: delphi.y line#1263
+         _CurrentValue.yyTypeNode := UnresolvedVariableTypeNode.Create(yyv[yysp-0].yyStringObject); 
+			End;
+479 :		Begin
+         // source: delphi.y line#1264
+         _CurrentValue.yyTypeNode := StringTypeNode.Create(yyv[yysp-1].yyExpressionNode); 
+			End;
+480 :		Begin
+         // source: delphi.y line#1265
+         _CurrentValue.yyTypeNode := yyv[yysp-0].yyStructuredTypeNode; 
+			End;
+481 :		Begin
          // source: delphi.y line#1266
-         yyval.yyTypeNode := UnresolvedVariableType.Create(yyv[yysp-0].yyStringObject); 
-       end;
-479 : begin
+         _CurrentValue.yyTypeNode := yyv[yysp-0].yyTypeNode; 
+			End;
+482 :		Begin
          // source: delphi.y line#1267
-         yyval.yyTypeNode := StringType.Create(yyv[yysp-1].yyExpression); 
-       end;
-480 : begin
-         // source: delphi.y line#1268
-         yyval.yyTypeNode := yyv[yysp-0].yyStructuredType; 
-       end;
-481 : begin
-         // source: delphi.y line#1269
-         yyval.yyTypeNode := yyv[yysp-0].yyTypeNode; 
-       end;
-482 : begin
-         // source: delphi.y line#1270
-         yyval.yyTypeNode := yyv[yysp-0].yyProceduralType; 
-       end;
-483 : begin
-         // source: delphi.y line#1274
-         yyval.yyStringObject := yyv[yysp-0].yyStringObject; 
-       end;
-484 : begin
-         // source: delphi.y line#1275
-         yyval.yyStringObject := StringObject.Create(yyv[yysp-2].yyStringObject.Value + '.' + yyv[yysp-0].yyStringObject.Value); 
-       end;
-// source: delphi_parser.cod line# 1456
+         _CurrentValue.yyTypeNode := yyv[yysp-0].yyProceduralTypeNode; 
+			End;
+483 :		Begin
+         // source: delphi.y line#1271
+         _CurrentValue.yyStringObject := yyv[yysp-0].yyStringObject; 
+			End;
+484 :		Begin
+         // source: delphi.y line#1272
+         _CurrentValue.yyStringObject := StringObject.Create(yyv[yysp-2].yyStringObject.Value + '.' + yyv[yysp-0].yyStringObject.Value); 
+			End;
   End;
 End(*yyaction*);
 
@@ -8381,49 +7027,49 @@ yya : array [1..yynacts] of YYARec = (
 
 yyg : array [1..yyngotos] of YYARec = (
 { 0: }
-  ( sym: -17; act: 1 ),
-  ( sym: -16; act: 2 ),
+  ( sym: -18; act: 1 ),
+  ( sym: -17; act: 2 ),
   ( sym: -12; act: 3 ),
   ( sym: -2; act: 4 ),
 { 1: }
 { 2: }
 { 3: }
-  ( sym: -24; act: 10 ),
+  ( sym: -25; act: 10 ),
 { 4: }
 { 5: }
-  ( sym: -18; act: 12 ),
+  ( sym: -19; act: 12 ),
   ( sym: -3; act: 13 ),
 { 6: }
-  ( sym: -19; act: 15 ),
+  ( sym: -20; act: 15 ),
   ( sym: -3; act: 16 ),
 { 7: }
   ( sym: -3; act: 17 ),
 { 8: }
-  ( sym: -20; act: 18 ),
+  ( sym: -21; act: 18 ),
   ( sym: -3; act: 19 ),
 { 9: }
 { 10: }
-  ( sym: -87; act: 20 ),
-  ( sym: -86; act: 21 ),
-  ( sym: -85; act: 22 ),
-  ( sym: -80; act: 23 ),
-  ( sym: -64; act: 24 ),
-  ( sym: -63; act: 25 ),
-  ( sym: -62; act: 26 ),
-  ( sym: -57; act: 27 ),
-  ( sym: -56; act: 28 ),
-  ( sym: -44; act: 29 ),
-  ( sym: -43; act: 30 ),
-  ( sym: -42; act: 31 ),
-  ( sym: -41; act: 32 ),
-  ( sym: -40; act: 33 ),
-  ( sym: -38; act: 34 ),
-  ( sym: -36; act: 35 ),
-  ( sym: -34; act: 36 ),
-  ( sym: -32; act: 37 ),
+  ( sym: -88; act: 20 ),
+  ( sym: -87; act: 21 ),
+  ( sym: -86; act: 22 ),
+  ( sym: -81; act: 23 ),
+  ( sym: -65; act: 24 ),
+  ( sym: -64; act: 25 ),
+  ( sym: -63; act: 26 ),
+  ( sym: -58; act: 27 ),
+  ( sym: -57; act: 28 ),
+  ( sym: -45; act: 29 ),
+  ( sym: -44; act: 30 ),
+  ( sym: -43; act: 31 ),
+  ( sym: -42; act: 32 ),
+  ( sym: -41; act: 33 ),
+  ( sym: -39; act: 34 ),
+  ( sym: -37; act: 35 ),
+  ( sym: -35; act: 36 ),
+  ( sym: -33; act: 37 ),
 { 11: }
-  ( sym: -25; act: 50 ),
-  ( sym: -22; act: 51 ),
+  ( sym: -26; act: 50 ),
+  ( sym: -23; act: 51 ),
   ( sym: -3; act: 52 ),
 { 12: }
 { 13: }
@@ -8435,135 +7081,135 @@ yyg : array [1..yyngotos] of YYARec = (
 { 19: }
 { 20: }
 { 21: }
-  ( sym: -83; act: 59 ),
+  ( sym: -84; act: 59 ),
 { 22: }
-  ( sym: -83; act: 62 ),
+  ( sym: -84; act: 62 ),
 { 23: }
   ( sym: -3; act: 64 ),
 { 24: }
 { 25: }
 { 26: }
-  ( sym: -89; act: 66 ),
-  ( sym: -88; act: 67 ),
-  ( sym: -87; act: 68 ),
-  ( sym: -86; act: 69 ),
-  ( sym: -85; act: 70 ),
-  ( sym: -64; act: 71 ),
-  ( sym: -57; act: 72 ),
-  ( sym: -55; act: 73 ),
-  ( sym: -44; act: 29 ),
-  ( sym: -43; act: 30 ),
-  ( sym: -42; act: 31 ),
-  ( sym: -41; act: 74 ),
-  ( sym: -36; act: 75 ),
-  ( sym: -35; act: 76 ),
-  ( sym: -33; act: 77 ),
+  ( sym: -90; act: 66 ),
+  ( sym: -89; act: 67 ),
+  ( sym: -88; act: 68 ),
+  ( sym: -87; act: 69 ),
+  ( sym: -86; act: 70 ),
+  ( sym: -65; act: 71 ),
+  ( sym: -58; act: 72 ),
+  ( sym: -56; act: 73 ),
+  ( sym: -45; act: 29 ),
+  ( sym: -44; act: 30 ),
+  ( sym: -43; act: 31 ),
+  ( sym: -42; act: 74 ),
+  ( sym: -37; act: 75 ),
+  ( sym: -36; act: 76 ),
+  ( sym: -34; act: 77 ),
 { 27: }
-  ( sym: -79; act: 79 ),
-  ( sym: -78; act: 80 ),
-  ( sym: -77; act: 81 ),
-  ( sym: -73; act: 82 ),
-  ( sym: -68; act: 83 ),
-  ( sym: -67; act: 84 ),
-  ( sym: -65; act: 85 ),
+  ( sym: -80; act: 79 ),
+  ( sym: -79; act: 80 ),
+  ( sym: -78; act: 81 ),
+  ( sym: -74; act: 82 ),
+  ( sym: -69; act: 83 ),
+  ( sym: -68; act: 84 ),
+  ( sym: -66; act: 85 ),
 { 28: }
 { 29: }
-  ( sym: -46; act: 99 ),
+  ( sym: -47; act: 99 ),
   ( sym: -15; act: 100 ),
   ( sym: -14; act: 101 ),
   ( sym: -3; act: 102 ),
 { 30: }
-  ( sym: -54; act: 103 ),
+  ( sym: -55; act: 103 ),
   ( sym: -5; act: 104 ),
   ( sym: -3; act: 105 ),
 { 31: }
-  ( sym: -52; act: 106 ),
+  ( sym: -53; act: 106 ),
   ( sym: -3; act: 107 ),
 { 32: }
 { 33: }
 { 34: }
-  ( sym: -46; act: 108 ),
+  ( sym: -47; act: 108 ),
   ( sym: -15; act: 100 ),
   ( sym: -14; act: 101 ),
   ( sym: -3; act: 102 ),
 { 35: }
 { 36: }
 { 37: }
-  ( sym: -87; act: 109 ),
-  ( sym: -86; act: 21 ),
-  ( sym: -85; act: 22 ),
-  ( sym: -80; act: 23 ),
-  ( sym: -64; act: 24 ),
-  ( sym: -63; act: 25 ),
-  ( sym: -62; act: 26 ),
-  ( sym: -57; act: 27 ),
-  ( sym: -56; act: 28 ),
-  ( sym: -44; act: 29 ),
-  ( sym: -43; act: 30 ),
-  ( sym: -42; act: 31 ),
-  ( sym: -41; act: 32 ),
-  ( sym: -40; act: 33 ),
-  ( sym: -38; act: 34 ),
-  ( sym: -36; act: 35 ),
-  ( sym: -34; act: 110 ),
+  ( sym: -88; act: 109 ),
+  ( sym: -87; act: 21 ),
+  ( sym: -86; act: 22 ),
+  ( sym: -81; act: 23 ),
+  ( sym: -65; act: 24 ),
+  ( sym: -64; act: 25 ),
+  ( sym: -63; act: 26 ),
+  ( sym: -58; act: 27 ),
+  ( sym: -57; act: 28 ),
+  ( sym: -45; act: 29 ),
+  ( sym: -44; act: 30 ),
+  ( sym: -43; act: 31 ),
+  ( sym: -42; act: 32 ),
+  ( sym: -41; act: 33 ),
+  ( sym: -39; act: 34 ),
+  ( sym: -37; act: 35 ),
+  ( sym: -35; act: 110 ),
 { 38: }
-  ( sym: -37; act: 111 ),
-  ( sym: -23; act: 112 ),
+  ( sym: -38; act: 111 ),
+  ( sym: -24; act: 112 ),
   ( sym: -11; act: 113 ),
   ( sym: -3; act: 114 ),
 { 39: }
-  ( sym: -86; act: 115 ),
-  ( sym: -85; act: 116 ),
-  ( sym: -63; act: 117 ),
+  ( sym: -87; act: 115 ),
+  ( sym: -86; act: 116 ),
+  ( sym: -64; act: 117 ),
 { 40: }
   ( sym: -3; act: 118 ),
 { 41: }
   ( sym: -3; act: 119 ),
 { 42: }
-  ( sym: -52; act: 120 ),
+  ( sym: -53; act: 120 ),
   ( sym: -3; act: 107 ),
 { 43: }
-  ( sym: -46; act: 121 ),
+  ( sym: -47; act: 121 ),
   ( sym: -15; act: 100 ),
   ( sym: -14; act: 101 ),
   ( sym: -3; act: 102 ),
 { 44: }
-  ( sym: -46; act: 122 ),
+  ( sym: -47; act: 122 ),
   ( sym: -15; act: 100 ),
   ( sym: -14; act: 101 ),
   ( sym: -3; act: 102 ),
 { 45: }
-  ( sym: -54; act: 123 ),
+  ( sym: -55; act: 123 ),
   ( sym: -5; act: 104 ),
   ( sym: -3; act: 105 ),
 { 46: }
 { 47: }
 { 48: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -121; act: 127 ),
-  ( sym: -110; act: 128 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 140 ),
-  ( sym: -92; act: 141 ),
-  ( sym: -90; act: 142 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -122; act: 127 ),
+  ( sym: -111; act: 128 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 140 ),
+  ( sym: -93; act: 141 ),
+  ( sym: -91; act: 142 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -6; act: 145 ),
   ( sym: -3; act: 146 ),
 { 49: }
-  ( sym: -121; act: 127 ),
+  ( sym: -122; act: 127 ),
   ( sym: -13; act: 162 ),
   ( sym: -6; act: 163 ),
   ( sym: -3; act: 164 ),
@@ -8571,20 +7217,20 @@ yyg : array [1..yyngotos] of YYARec = (
 { 51: }
 { 52: }
 { 53: }
-  ( sym: -24; act: 168 ),
+  ( sym: -25; act: 168 ),
 { 54: }
 { 55: }
-  ( sym: -49; act: 169 ),
+  ( sym: -50; act: 169 ),
 { 56: }
 { 57: }
 { 58: }
-  ( sym: -26; act: 171 ),
+  ( sym: -27; act: 171 ),
 { 59: }
 { 60: }
   ( sym: -3; act: 174 ),
 { 61: }
-  ( sym: -82; act: 175 ),
-  ( sym: -81; act: 176 ),
+  ( sym: -83; act: 175 ),
+  ( sym: -82; act: 176 ),
   ( sym: -14; act: 177 ),
   ( sym: -3; act: 102 ),
 { 62: }
@@ -8593,70 +7239,70 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -3; act: 184 ),
 { 64: }
 { 65: }
-  ( sym: -79; act: 79 ),
-  ( sym: -78; act: 80 ),
-  ( sym: -77; act: 81 ),
-  ( sym: -76; act: 186 ),
-  ( sym: -75; act: 187 ),
-  ( sym: -73; act: 188 ),
-  ( sym: -72; act: 189 ),
-  ( sym: -69; act: 190 ),
+  ( sym: -80; act: 79 ),
+  ( sym: -79; act: 80 ),
+  ( sym: -78; act: 81 ),
+  ( sym: -77; act: 186 ),
+  ( sym: -76; act: 187 ),
+  ( sym: -74; act: 188 ),
+  ( sym: -73; act: 189 ),
+  ( sym: -70; act: 190 ),
 { 66: }
 { 67: }
 { 68: }
 { 69: }
-  ( sym: -83; act: 59 ),
+  ( sym: -84; act: 59 ),
 { 70: }
-  ( sym: -83; act: 62 ),
+  ( sym: -84; act: 62 ),
 { 71: }
 { 72: }
-  ( sym: -79; act: 79 ),
-  ( sym: -78; act: 80 ),
-  ( sym: -77; act: 81 ),
-  ( sym: -73; act: 82 ),
-  ( sym: -67; act: 196 ),
-  ( sym: -65; act: 85 ),
+  ( sym: -80; act: 79 ),
+  ( sym: -79; act: 80 ),
+  ( sym: -78; act: 81 ),
+  ( sym: -74; act: 82 ),
+  ( sym: -68; act: 196 ),
+  ( sym: -66; act: 85 ),
 { 73: }
 { 74: }
 { 75: }
 { 76: }
 { 77: }
-  ( sym: -89; act: 66 ),
-  ( sym: -88; act: 198 ),
-  ( sym: -87; act: 68 ),
-  ( sym: -86; act: 69 ),
-  ( sym: -85; act: 70 ),
-  ( sym: -64; act: 71 ),
-  ( sym: -57; act: 72 ),
-  ( sym: -44; act: 29 ),
-  ( sym: -43; act: 30 ),
-  ( sym: -42; act: 31 ),
-  ( sym: -41; act: 74 ),
-  ( sym: -36; act: 75 ),
-  ( sym: -35; act: 199 ),
+  ( sym: -90; act: 66 ),
+  ( sym: -89; act: 198 ),
+  ( sym: -88; act: 68 ),
+  ( sym: -87; act: 69 ),
+  ( sym: -86; act: 70 ),
+  ( sym: -65; act: 71 ),
+  ( sym: -58; act: 72 ),
+  ( sym: -45; act: 29 ),
+  ( sym: -44; act: 30 ),
+  ( sym: -43; act: 31 ),
+  ( sym: -42; act: 74 ),
+  ( sym: -37; act: 75 ),
+  ( sym: -36; act: 199 ),
 { 78: }
-  ( sym: -111; act: 200 ),
+  ( sym: -112; act: 200 ),
 { 79: }
 { 80: }
 { 81: }
 { 82: }
 { 83: }
 { 84: }
-  ( sym: -89; act: 66 ),
-  ( sym: -88; act: 67 ),
-  ( sym: -87; act: 68 ),
-  ( sym: -86; act: 69 ),
-  ( sym: -85; act: 70 ),
-  ( sym: -64; act: 71 ),
-  ( sym: -57; act: 72 ),
-  ( sym: -55; act: 201 ),
-  ( sym: -44; act: 29 ),
-  ( sym: -43; act: 30 ),
-  ( sym: -42; act: 31 ),
-  ( sym: -41; act: 74 ),
-  ( sym: -36; act: 75 ),
-  ( sym: -35; act: 76 ),
-  ( sym: -33; act: 77 ),
+  ( sym: -90; act: 66 ),
+  ( sym: -89; act: 67 ),
+  ( sym: -88; act: 68 ),
+  ( sym: -87; act: 69 ),
+  ( sym: -86; act: 70 ),
+  ( sym: -65; act: 71 ),
+  ( sym: -58; act: 72 ),
+  ( sym: -56; act: 201 ),
+  ( sym: -45; act: 29 ),
+  ( sym: -44; act: 30 ),
+  ( sym: -43; act: 31 ),
+  ( sym: -42; act: 74 ),
+  ( sym: -37; act: 75 ),
+  ( sym: -36; act: 76 ),
+  ( sym: -34; act: 77 ),
 { 85: }
 { 86: }
 { 87: }
@@ -8685,11 +7331,11 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -197; act: 214 ),
   ( sym: -194; act: 215 ),
   ( sym: -193; act: 216 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 222 ),
   ( sym: -3; act: 223 ),
 { 101: }
@@ -8713,11 +7359,11 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -171; act: 247 ),
   ( sym: -170; act: 248 ),
   ( sym: -169; act: 249 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 222 ),
   ( sym: -3; act: 223 ),
 { 105: }
@@ -8729,7 +7375,7 @@ yyg : array [1..yyngotos] of YYARec = (
 { 111: }
 { 112: }
 { 113: }
-  ( sym: -83; act: 258 ),
+  ( sym: -84; act: 258 ),
 { 114: }
 { 115: }
 { 116: }
@@ -8766,164 +7412,164 @@ yyg : array [1..yyngotos] of YYARec = (
 { 147: }
   ( sym: -3; act: 269 ),
 { 148: }
-  ( sym: -139; act: 270 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 273 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -140; act: 270 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 273 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 149: }
-  ( sym: -128; act: 300 ),
+  ( sym: -129; act: 300 ),
   ( sym: -3; act: 289 ),
 { 150: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -121; act: 127 ),
-  ( sym: -110; act: 128 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 140 ),
-  ( sym: -92; act: 141 ),
-  ( sym: -90; act: 301 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -122; act: 127 ),
+  ( sym: -111; act: 128 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 140 ),
+  ( sym: -93; act: 141 ),
+  ( sym: -91; act: 301 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -6; act: 145 ),
   ( sym: -3; act: 146 ),
 { 151: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 302 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 302 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 152: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 303 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 303 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 153: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 304 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 304 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 154: }
-  ( sym: -121; act: 127 ),
+  ( sym: -122; act: 127 ),
   ( sym: -6; act: 305 ),
   ( sym: -3; act: 164 ),
 { 155: }
 { 156: }
 { 157: }
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 306 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 306 ),
   ( sym: -3; act: 289 ),
 { 158: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -121; act: 127 ),
-  ( sym: -110; act: 128 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 140 ),
-  ( sym: -92; act: 141 ),
-  ( sym: -90; act: 308 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -122; act: 127 ),
+  ( sym: -111; act: 128 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 140 ),
+  ( sym: -93; act: 141 ),
+  ( sym: -91; act: 308 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -6; act: 145 ),
   ( sym: -3; act: 146 ),
 { 159: }
 { 160: }
 { 161: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 310 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 310 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -8933,46 +7579,46 @@ yyg : array [1..yyngotos] of YYARec = (
 { 163: }
 { 164: }
 { 165: }
-  ( sym: -22; act: 313 ),
+  ( sym: -23; act: 313 ),
   ( sym: -3; act: 52 ),
 { 166: }
 { 167: }
-  ( sym: -125; act: 277 ),
+  ( sym: -126; act: 277 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 314 ),
   ( sym: -8; act: 315 ),
   ( sym: -7; act: 288 ),
 { 168: }
-  ( sym: -87; act: 316 ),
-  ( sym: -86; act: 21 ),
-  ( sym: -85; act: 22 ),
-  ( sym: -80; act: 23 ),
-  ( sym: -64; act: 24 ),
-  ( sym: -63; act: 25 ),
-  ( sym: -62; act: 26 ),
-  ( sym: -57; act: 27 ),
-  ( sym: -56; act: 28 ),
-  ( sym: -44; act: 29 ),
-  ( sym: -43; act: 30 ),
-  ( sym: -42; act: 31 ),
-  ( sym: -41; act: 32 ),
-  ( sym: -40; act: 33 ),
-  ( sym: -38; act: 34 ),
-  ( sym: -36; act: 35 ),
-  ( sym: -34; act: 36 ),
-  ( sym: -32; act: 317 ),
+  ( sym: -88; act: 316 ),
+  ( sym: -87; act: 21 ),
+  ( sym: -86; act: 22 ),
+  ( sym: -81; act: 23 ),
+  ( sym: -65; act: 24 ),
+  ( sym: -64; act: 25 ),
+  ( sym: -63; act: 26 ),
+  ( sym: -58; act: 27 ),
+  ( sym: -57; act: 28 ),
+  ( sym: -45; act: 29 ),
+  ( sym: -44; act: 30 ),
+  ( sym: -43; act: 31 ),
+  ( sym: -42; act: 32 ),
+  ( sym: -41; act: 33 ),
+  ( sym: -39; act: 34 ),
+  ( sym: -37; act: 35 ),
+  ( sym: -35; act: 36 ),
+  ( sym: -33; act: 317 ),
 { 169: }
-  ( sym: -48; act: 318 ),
+  ( sym: -49; act: 318 ),
 { 170: }
-  ( sym: -24; act: 320 ),
+  ( sym: -25; act: 320 ),
 { 171: }
-  ( sym: -29; act: 321 ),
+  ( sym: -30; act: 321 ),
 { 172: }
-  ( sym: -27; act: 323 ),
+  ( sym: -28; act: 323 ),
   ( sym: -3; act: 324 ),
 { 173: }
 { 174: }
-  ( sym: -83; act: 325 ),
+  ( sym: -84; act: 325 ),
 { 175: }
 { 176: }
 { 177: }
@@ -8993,7 +7639,7 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -4; act: 335 ),
   ( sym: -3; act: 223 ),
 { 184: }
-  ( sym: -83; act: 338 ),
+  ( sym: -84; act: 338 ),
 { 185: }
   ( sym: -3; act: 339 ),
 { 186: }
@@ -9007,43 +7653,43 @@ yyg : array [1..yyngotos] of YYARec = (
 { 194: }
 { 195: }
 { 196: }
-  ( sym: -89; act: 66 ),
-  ( sym: -88; act: 67 ),
-  ( sym: -87; act: 68 ),
-  ( sym: -86; act: 69 ),
-  ( sym: -85; act: 70 ),
-  ( sym: -64; act: 71 ),
-  ( sym: -57; act: 72 ),
-  ( sym: -55; act: 201 ),
-  ( sym: -44; act: 29 ),
-  ( sym: -43; act: 30 ),
-  ( sym: -42; act: 31 ),
-  ( sym: -41; act: 74 ),
-  ( sym: -36; act: 75 ),
-  ( sym: -35; act: 76 ),
-  ( sym: -33; act: 77 ),
+  ( sym: -90; act: 66 ),
+  ( sym: -89; act: 67 ),
+  ( sym: -88; act: 68 ),
+  ( sym: -87; act: 69 ),
+  ( sym: -86; act: 70 ),
+  ( sym: -65; act: 71 ),
+  ( sym: -58; act: 72 ),
+  ( sym: -56; act: 201 ),
+  ( sym: -45; act: 29 ),
+  ( sym: -44; act: 30 ),
+  ( sym: -43; act: 31 ),
+  ( sym: -42; act: 74 ),
+  ( sym: -37; act: 75 ),
+  ( sym: -36; act: 76 ),
+  ( sym: -34; act: 77 ),
 { 197: }
 { 198: }
 { 199: }
 { 200: }
 { 201: }
 { 202: }
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 344 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
-  ( sym: -84; act: 346 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 344 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
+  ( sym: -85; act: 346 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -9051,10 +7697,10 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -3; act: 289 ),
 { 203: }
 { 204: }
-  ( sym: -79; act: 79 ),
-  ( sym: -78; act: 80 ),
-  ( sym: -77; act: 81 ),
-  ( sym: -73; act: 348 ),
+  ( sym: -80; act: 79 ),
+  ( sym: -79; act: 80 ),
+  ( sym: -78; act: 81 ),
+  ( sym: -74; act: 348 ),
 { 205: }
 { 206: }
 { 207: }
@@ -9075,16 +7721,16 @@ yyg : array [1..yyngotos] of YYARec = (
 { 222: }
 { 223: }
 { 224: }
-  ( sym: -160; act: 355 ),
-  ( sym: -153; act: 356 ),
-  ( sym: -47; act: 357 ),
+  ( sym: -161; act: 355 ),
+  ( sym: -154; act: 356 ),
+  ( sym: -48; act: 357 ),
   ( sym: -14; act: 358 ),
   ( sym: -3; act: 102 ),
 { 225: }
 { 226: }
-  ( sym: -83; act: 362 ),
+  ( sym: -84; act: 362 ),
 { 227: }
-  ( sym: -83; act: 363 ),
+  ( sym: -84; act: 363 ),
 { 228: }
   ( sym: -206; act: 207 ),
   ( sym: -205; act: 208 ),
@@ -9099,38 +7745,38 @@ yyg : array [1..yyngotos] of YYARec = (
 { 234: }
 { 235: }
 { 236: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -129; act: 370 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -130; act: 370 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 237: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -129; act: 371 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -130; act: 371 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -9147,22 +7793,22 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -197; act: 214 ),
   ( sym: -194; act: 215 ),
   ( sym: -193; act: 216 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 222 ),
   ( sym: -3; act: 223 ),
 { 239: }
-  ( sym: -149; act: 373 ),
-  ( sym: -148; act: 374 ),
+  ( sym: -150; act: 373 ),
+  ( sym: -149; act: 374 ),
   ( sym: -3; act: 375 ),
 { 240: }
   ( sym: -3; act: 376 ),
 { 241: }
 { 242: }
-  ( sym: -165; act: 377 ),
+  ( sym: -16; act: 377 ),
 { 243: }
 { 244: }
 { 245: }
@@ -9171,7 +7817,7 @@ yyg : array [1..yyngotos] of YYARec = (
 { 248: }
 { 249: }
 { 250: }
-  ( sym: -165; act: 383 ),
+  ( sym: -16; act: 383 ),
 { 251: }
 { 252: }
 { 253: }
@@ -9197,65 +7843,65 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -197; act: 214 ),
   ( sym: -194; act: 215 ),
   ( sym: -193; act: 216 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 222 ),
   ( sym: -3; act: 223 ),
 { 256: }
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 391 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 391 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 257: }
-  ( sym: -23; act: 392 ),
+  ( sym: -24; act: 392 ),
   ( sym: -11; act: 113 ),
   ( sym: -3; act: 114 ),
 { 258: }
 { 259: }
   ( sym: -3; act: 395 ),
 { 260: }
-  ( sym: -79; act: 79 ),
-  ( sym: -78; act: 80 ),
-  ( sym: -77; act: 81 ),
-  ( sym: -76; act: 186 ),
-  ( sym: -75; act: 187 ),
-  ( sym: -73; act: 188 ),
-  ( sym: -72; act: 189 ),
-  ( sym: -69; act: 396 ),
+  ( sym: -80; act: 79 ),
+  ( sym: -79; act: 80 ),
+  ( sym: -78; act: 81 ),
+  ( sym: -77; act: 186 ),
+  ( sym: -76; act: 187 ),
+  ( sym: -74; act: 188 ),
+  ( sym: -73; act: 189 ),
+  ( sym: -70; act: 396 ),
 { 261: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 397 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 397 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -9265,100 +7911,100 @@ yyg : array [1..yyngotos] of YYARec = (
 { 263: }
   ( sym: -3; act: 398 ),
 { 264: }
-  ( sym: -139; act: 399 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 273 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -140; act: 399 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 273 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 265: }
-  ( sym: -141; act: 400 ),
-  ( sym: -139; act: 401 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 273 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -142; act: 400 ),
+  ( sym: -140; act: 401 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 273 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 266: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -121; act: 127 ),
-  ( sym: -110; act: 402 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 140 ),
-  ( sym: -92; act: 141 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -122; act: 127 ),
+  ( sym: -111; act: 402 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 140 ),
+  ( sym: -93; act: 141 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -6; act: 145 ),
   ( sym: -3; act: 146 ),
 { 267: }
 { 268: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 403 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 403 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -3; act: 289 ),
 { 269: }
-  ( sym: -144; act: 404 ),
+  ( sym: -145; act: 404 ),
 { 270: }
 { 271: }
 { 272: }
 { 273: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 274: }
 { 275: }
 { 276: }
@@ -9373,7 +8019,7 @@ yyg : array [1..yyngotos] of YYARec = (
 { 285: }
 { 286: }
 { 287: }
-  ( sym: -125; act: 434 ),
+  ( sym: -126; act: 434 ),
   ( sym: -10; act: 435 ),
 { 288: }
 { 289: }
@@ -9384,84 +8030,84 @@ yyg : array [1..yyngotos] of YYARec = (
 { 293: }
 { 294: }
 { 295: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -129; act: 438 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -130; act: 438 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 296: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -129; act: 439 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -130; act: 439 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 297: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -129; act: 440 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -130; act: 440 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 298: }
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 441 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 441 ),
   ( sym: -3; act: 289 ),
 { 299: }
-  ( sym: -142; act: 442 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 443 ),
-  ( sym: -133; act: 444 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -143; act: 442 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 443 ),
+  ( sym: -134; act: 444 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -9470,34 +8116,34 @@ yyg : array [1..yyngotos] of YYARec = (
 { 300: }
 { 301: }
 { 302: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 303: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 304: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 305: }
 { 306: }
 { 307: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 452 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 452 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -9505,80 +8151,80 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -3; act: 289 ),
 { 308: }
 { 309: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 455 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 455 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 310: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 311: }
-  ( sym: -121; act: 127 ),
+  ( sym: -122; act: 127 ),
   ( sym: -6; act: 457 ),
   ( sym: -3; act: 164 ),
 { 312: }
 { 313: }
 { 314: }
 { 315: }
-  ( sym: -125; act: 434 ),
+  ( sym: -126; act: 434 ),
   ( sym: -10; act: 435 ),
 { 316: }
 { 317: }
-  ( sym: -87; act: 458 ),
-  ( sym: -86; act: 21 ),
-  ( sym: -85; act: 22 ),
-  ( sym: -80; act: 23 ),
-  ( sym: -64; act: 24 ),
-  ( sym: -63; act: 25 ),
-  ( sym: -62; act: 26 ),
-  ( sym: -57; act: 27 ),
-  ( sym: -56; act: 28 ),
-  ( sym: -44; act: 29 ),
-  ( sym: -43; act: 30 ),
-  ( sym: -42; act: 31 ),
-  ( sym: -41; act: 32 ),
-  ( sym: -40; act: 33 ),
-  ( sym: -38; act: 34 ),
-  ( sym: -36; act: 35 ),
-  ( sym: -34; act: 110 ),
+  ( sym: -88; act: 458 ),
+  ( sym: -87; act: 21 ),
+  ( sym: -86; act: 22 ),
+  ( sym: -81; act: 23 ),
+  ( sym: -65; act: 24 ),
+  ( sym: -64; act: 25 ),
+  ( sym: -63; act: 26 ),
+  ( sym: -58; act: 27 ),
+  ( sym: -57; act: 28 ),
+  ( sym: -45; act: 29 ),
+  ( sym: -44; act: 30 ),
+  ( sym: -43; act: 31 ),
+  ( sym: -42; act: 32 ),
+  ( sym: -41; act: 33 ),
+  ( sym: -39; act: 34 ),
+  ( sym: -37; act: 35 ),
+  ( sym: -35; act: 110 ),
 { 318: }
-  ( sym: -51; act: 459 ),
-  ( sym: -50; act: 460 ),
+  ( sym: -52; act: 459 ),
+  ( sym: -51; act: 460 ),
 { 319: }
-  ( sym: -24; act: 464 ),
+  ( sym: -25; act: 464 ),
 { 320: }
-  ( sym: -30; act: 465 ),
+  ( sym: -31; act: 465 ),
 { 321: }
 { 322: }
-  ( sym: -28; act: 466 ),
-  ( sym: -21; act: 467 ),
+  ( sym: -29; act: 466 ),
+  ( sym: -22; act: 467 ),
   ( sym: -3; act: 468 ),
 { 323: }
 { 324: }
 { 325: }
 { 326: }
-  ( sym: -82; act: 471 ),
+  ( sym: -83; act: 471 ),
   ( sym: -14; act: 177 ),
   ( sym: -3; act: 102 ),
 { 327: }
 { 328: }
-  ( sym: -136; act: 472 ),
+  ( sym: -137; act: 472 ),
 { 329: }
   ( sym: -197; act: 474 ),
   ( sym: -192; act: 475 ),
@@ -9601,81 +8247,81 @@ yyg : array [1..yyngotos] of YYARec = (
 { 338: }
   ( sym: -200; act: 483 ),
 { 339: }
-  ( sym: -83; act: 484 ),
+  ( sym: -84; act: 484 ),
 { 340: }
-  ( sym: -79; act: 79 ),
-  ( sym: -78; act: 80 ),
-  ( sym: -77; act: 81 ),
-  ( sym: -76; act: 186 ),
-  ( sym: -75; act: 485 ),
-  ( sym: -73; act: 188 ),
+  ( sym: -80; act: 79 ),
+  ( sym: -79; act: 80 ),
+  ( sym: -78; act: 81 ),
+  ( sym: -77; act: 186 ),
+  ( sym: -76; act: 485 ),
+  ( sym: -74; act: 188 ),
 { 341: }
 { 342: }
 { 343: }
 { 344: }
 { 345: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 346: }
 { 347: }
-  ( sym: -79; act: 79 ),
-  ( sym: -78; act: 80 ),
-  ( sym: -77; act: 81 ),
-  ( sym: -73; act: 82 ),
-  ( sym: -67; act: 488 ),
-  ( sym: -65; act: 85 ),
+  ( sym: -80; act: 79 ),
+  ( sym: -79; act: 80 ),
+  ( sym: -78; act: 81 ),
+  ( sym: -74; act: 82 ),
+  ( sym: -68; act: 488 ),
+  ( sym: -66; act: 85 ),
 { 348: }
 { 349: }
-  ( sym: -79; act: 79 ),
-  ( sym: -78; act: 80 ),
-  ( sym: -77; act: 81 ),
-  ( sym: -73; act: 82 ),
-  ( sym: -67; act: 489 ),
-  ( sym: -66; act: 490 ),
-  ( sym: -65; act: 491 ),
+  ( sym: -80; act: 79 ),
+  ( sym: -79; act: 80 ),
+  ( sym: -78; act: 81 ),
+  ( sym: -74; act: 82 ),
+  ( sym: -68; act: 489 ),
+  ( sym: -67; act: 490 ),
+  ( sym: -66; act: 491 ),
 { 350: }
   ( sym: -3; act: 492 ),
 { 351: }
 { 352: }
-  ( sym: -152; act: 493 ),
-  ( sym: -151; act: 494 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -135; act: 495 ),
-  ( sym: -134; act: 496 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -153; act: 493 ),
+  ( sym: -152; act: 494 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -136; act: 495 ),
+  ( sym: -135; act: 496 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 353: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 498 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 498 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -9693,11 +8339,11 @@ yyg : array [1..yyngotos] of YYARec = (
 { 360: }
   ( sym: -195; act: 505 ),
   ( sym: -194; act: 506 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 507 ),
   ( sym: -3; act: 508 ),
 { 361: }
@@ -9709,21 +8355,21 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -211; act: 511 ),
 { 364: }
 { 365: }
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 513 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 513 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -9740,21 +8386,21 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -197; act: 214 ),
   ( sym: -194; act: 215 ),
   ( sym: -193; act: 216 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 222 ),
   ( sym: -3; act: 223 ),
 { 367: }
   ( sym: -194; act: 515 ),
-  ( sym: -145; act: 516 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -146; act: 516 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 517 ),
   ( sym: -3; act: 223 ),
 { 368: }
@@ -9768,21 +8414,21 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -201; act: 212 ),
   ( sym: -196; act: 520 ),
   ( sym: -194; act: 521 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 522 ),
   ( sym: -3; act: 223 ),
 { 369: }
   ( sym: -195; act: 524 ),
   ( sym: -194; act: 506 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 507 ),
   ( sym: -3; act: 223 ),
 { 370: }
@@ -9798,23 +8444,23 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -175; act: 530 ),
   ( sym: -167; act: 531 ),
   ( sym: -166; act: 532 ),
-  ( sym: -162; act: 533 ),
-  ( sym: -161; act: 534 ),
-  ( sym: -160; act: 535 ),
-  ( sym: -159; act: 536 ),
-  ( sym: -47; act: 357 ),
+  ( sym: -163; act: 533 ),
+  ( sym: -162; act: 534 ),
+  ( sym: -161; act: 535 ),
+  ( sym: -160; act: 536 ),
+  ( sym: -48; act: 357 ),
   ( sym: -14; act: 358 ),
   ( sym: -3; act: 102 ),
 { 378: }
   ( sym: -14; act: 539 ),
   ( sym: -3; act: 102 ),
 { 379: }
-  ( sym: -79; act: 79 ),
-  ( sym: -78; act: 80 ),
-  ( sym: -77; act: 81 ),
-  ( sym: -73; act: 82 ),
-  ( sym: -67; act: 489 ),
-  ( sym: -65; act: 85 ),
+  ( sym: -80; act: 79 ),
+  ( sym: -79; act: 80 ),
+  ( sym: -78; act: 81 ),
+  ( sym: -74; act: 82 ),
+  ( sym: -68; act: 489 ),
+  ( sym: -66; act: 85 ),
 { 380: }
 { 381: }
 { 382: }
@@ -9826,29 +8472,29 @@ yyg : array [1..yyngotos] of YYARec = (
 { 387: }
 { 388: }
 { 389: }
-  ( sym: -79; act: 79 ),
-  ( sym: -78; act: 80 ),
-  ( sym: -77; act: 81 ),
-  ( sym: -73; act: 82 ),
-  ( sym: -66; act: 542 ),
-  ( sym: -65; act: 543 ),
+  ( sym: -80; act: 79 ),
+  ( sym: -79; act: 80 ),
+  ( sym: -78; act: 81 ),
+  ( sym: -74; act: 82 ),
+  ( sym: -67; act: 542 ),
+  ( sym: -66; act: 543 ),
 { 390: }
 { 391: }
 { 392: }
 { 393: }
-  ( sym: -125; act: 277 ),
+  ( sym: -126; act: 277 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 546 ),
   ( sym: -8; act: 315 ),
   ( sym: -7; act: 288 ),
 { 394: }
-  ( sym: -121; act: 547 ),
+  ( sym: -122; act: 547 ),
 { 395: }
 { 396: }
 { 397: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 398: }
 { 399: }
 { 400: }
@@ -9857,121 +8503,121 @@ yyg : array [1..yyngotos] of YYARec = (
 { 403: }
 { 404: }
 { 405: }
-  ( sym: -141; act: 550 ),
-  ( sym: -139; act: 401 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 273 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -142; act: 550 ),
+  ( sym: -140; act: 401 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 273 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 406: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 551 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 551 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -3; act: 289 ),
 { 407: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 552 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 552 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 408: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 553 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 553 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 409: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 554 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 554 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 410: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 555 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 555 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -9984,20 +8630,20 @@ yyg : array [1..yyngotos] of YYARec = (
 { 415: }
 { 416: }
 { 417: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 556 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 556 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -10023,42 +8669,42 @@ yyg : array [1..yyngotos] of YYARec = (
 { 431: }
   ( sym: -3; act: 559 ),
 { 432: }
-  ( sym: -141; act: 560 ),
-  ( sym: -139; act: 401 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 273 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -142; act: 560 ),
+  ( sym: -140; act: 401 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 273 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 433: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 561 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 561 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -10067,22 +8713,22 @@ yyg : array [1..yyngotos] of YYARec = (
 { 434: }
 { 435: }
 { 436: }
-  ( sym: -144; act: 562 ),
+  ( sym: -145; act: 562 ),
 { 437: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 563 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 563 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -10097,295 +8743,295 @@ yyg : array [1..yyngotos] of YYARec = (
 { 444: }
 { 445: }
 { 446: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 567 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 567 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 447: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 568 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 568 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 448: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 569 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 569 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -3; act: 289 ),
 { 449: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 570 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 570 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -3; act: 289 ),
 { 450: }
-  ( sym: -138; act: 571 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 443 ),
-  ( sym: -133; act: 572 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
-  ( sym: -108; act: 573 ),
-  ( sym: -99; act: 574 ),
+  ( sym: -139; act: 571 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 443 ),
+  ( sym: -134; act: 572 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
+  ( sym: -109; act: 573 ),
+  ( sym: -100; act: 574 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 451: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 575 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 575 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 452: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 453: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -121; act: 127 ),
-  ( sym: -110; act: 128 ),
-  ( sym: -109; act: 576 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -103; act: 577 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 140 ),
-  ( sym: -92; act: 141 ),
-  ( sym: -91; act: 578 ),
-  ( sym: -90; act: 579 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -122; act: 127 ),
+  ( sym: -111; act: 128 ),
+  ( sym: -110; act: 576 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -104; act: 577 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 140 ),
+  ( sym: -93; act: 141 ),
+  ( sym: -92; act: 578 ),
+  ( sym: -91; act: 579 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -6; act: 145 ),
   ( sym: -3; act: 146 ),
 { 454: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -121; act: 127 ),
-  ( sym: -110; act: 128 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 140 ),
-  ( sym: -92; act: 141 ),
-  ( sym: -90; act: 581 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -122; act: 127 ),
+  ( sym: -111; act: 128 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 140 ),
+  ( sym: -93; act: 141 ),
+  ( sym: -91; act: 581 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -6; act: 145 ),
   ( sym: -3; act: 146 ),
 { 455: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 456: }
 { 457: }
 { 458: }
 { 459: }
 { 460: }
-  ( sym: -51; act: 583 ),
+  ( sym: -52; act: 583 ),
 { 461: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -121; act: 127 ),
-  ( sym: -110; act: 128 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 140 ),
-  ( sym: -92; act: 141 ),
-  ( sym: -90; act: 584 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -122; act: 127 ),
+  ( sym: -111; act: 128 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 140 ),
+  ( sym: -93; act: 141 ),
+  ( sym: -91; act: 584 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -6; act: 145 ),
   ( sym: -3; act: 146 ),
 { 462: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -121; act: 127 ),
-  ( sym: -110; act: 128 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 140 ),
-  ( sym: -92; act: 141 ),
-  ( sym: -90; act: 585 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -122; act: 127 ),
+  ( sym: -111; act: 128 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 140 ),
+  ( sym: -93; act: 141 ),
+  ( sym: -91; act: 585 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -6; act: 145 ),
   ( sym: -3; act: 146 ),
 { 463: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -121; act: 127 ),
-  ( sym: -110; act: 128 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 140 ),
-  ( sym: -92; act: 141 ),
-  ( sym: -90; act: 586 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -122; act: 127 ),
+  ( sym: -111; act: 128 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 140 ),
+  ( sym: -93; act: 141 ),
+  ( sym: -91; act: 586 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -6; act: 145 ),
   ( sym: -3; act: 146 ),
 { 464: }
-  ( sym: -86; act: 21 ),
-  ( sym: -85; act: 22 ),
-  ( sym: -80; act: 23 ),
-  ( sym: -64; act: 24 ),
-  ( sym: -63; act: 25 ),
-  ( sym: -62; act: 26 ),
-  ( sym: -57; act: 27 ),
-  ( sym: -56; act: 28 ),
-  ( sym: -44; act: 29 ),
-  ( sym: -43; act: 30 ),
-  ( sym: -42; act: 31 ),
-  ( sym: -41; act: 32 ),
-  ( sym: -40; act: 33 ),
-  ( sym: -38; act: 34 ),
-  ( sym: -36; act: 35 ),
-  ( sym: -34; act: 36 ),
-  ( sym: -32; act: 587 ),
+  ( sym: -87; act: 21 ),
+  ( sym: -86; act: 22 ),
+  ( sym: -81; act: 23 ),
+  ( sym: -65; act: 24 ),
+  ( sym: -64; act: 25 ),
+  ( sym: -63; act: 26 ),
+  ( sym: -58; act: 27 ),
+  ( sym: -57; act: 28 ),
+  ( sym: -45; act: 29 ),
+  ( sym: -44; act: 30 ),
+  ( sym: -43; act: 31 ),
+  ( sym: -42; act: 32 ),
+  ( sym: -41; act: 33 ),
+  ( sym: -39; act: 34 ),
+  ( sym: -37; act: 35 ),
+  ( sym: -35; act: 36 ),
+  ( sym: -33; act: 587 ),
 { 465: }
-  ( sym: -86; act: 69 ),
-  ( sym: -85; act: 70 ),
-  ( sym: -58; act: 588 ),
-  ( sym: -57; act: 589 ),
-  ( sym: -44; act: 29 ),
-  ( sym: -43; act: 30 ),
-  ( sym: -42; act: 31 ),
-  ( sym: -39; act: 590 ),
-  ( sym: -38; act: 591 ),
-  ( sym: -36; act: 592 ),
-  ( sym: -31; act: 593 ),
+  ( sym: -87; act: 69 ),
+  ( sym: -86; act: 70 ),
+  ( sym: -59; act: 588 ),
+  ( sym: -58; act: 589 ),
+  ( sym: -45; act: 29 ),
+  ( sym: -44; act: 30 ),
+  ( sym: -43; act: 31 ),
+  ( sym: -40; act: 590 ),
+  ( sym: -39; act: 591 ),
+  ( sym: -37; act: 592 ),
+  ( sym: -32; act: 593 ),
 { 466: }
 { 467: }
 { 468: }
@@ -10395,21 +9041,21 @@ yyg : array [1..yyngotos] of YYARec = (
 { 471: }
 { 472: }
 { 473: }
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 599 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 599 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -10423,43 +9069,43 @@ yyg : array [1..yyngotos] of YYARec = (
 { 479: }
 { 480: }
 { 481: }
-  ( sym: -136; act: 601 ),
+  ( sym: -137; act: 601 ),
 { 482: }
 { 483: }
 { 484: }
 { 485: }
 { 486: }
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 603 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 603 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 487: }
-  ( sym: -79; act: 79 ),
-  ( sym: -78; act: 80 ),
-  ( sym: -77; act: 81 ),
-  ( sym: -73; act: 82 ),
-  ( sym: -67; act: 604 ),
-  ( sym: -65; act: 85 ),
+  ( sym: -80; act: 79 ),
+  ( sym: -79; act: 80 ),
+  ( sym: -78; act: 81 ),
+  ( sym: -74; act: 82 ),
+  ( sym: -68; act: 604 ),
+  ( sym: -66; act: 85 ),
 { 488: }
 { 489: }
 { 490: }
-  ( sym: -150; act: 605 ),
+  ( sym: -151; act: 605 ),
 { 491: }
 { 492: }
 { 493: }
@@ -10467,40 +9113,40 @@ yyg : array [1..yyngotos] of YYARec = (
 { 495: }
 { 496: }
 { 497: }
-  ( sym: -152; act: 493 ),
-  ( sym: -151; act: 494 ),
-  ( sym: -147; act: 609 ),
-  ( sym: -146; act: 610 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -135; act: 611 ),
-  ( sym: -134; act: 496 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 612 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -153; act: 493 ),
+  ( sym: -152; act: 494 ),
+  ( sym: -148; act: 609 ),
+  ( sym: -147; act: 610 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -136; act: 611 ),
+  ( sym: -135; act: 496 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 612 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 613 ),
 { 498: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 499: }
 { 500: }
 { 501: }
-  ( sym: -153; act: 615 ),
-  ( sym: -47; act: 616 ),
+  ( sym: -154; act: 615 ),
+  ( sym: -48; act: 616 ),
   ( sym: -14; act: 358 ),
   ( sym: -3; act: 102 ),
 { 502: }
@@ -10517,11 +9163,11 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -197; act: 214 ),
   ( sym: -194; act: 215 ),
   ( sym: -193; act: 216 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 222 ),
   ( sym: -3; act: 223 ),
 { 505: }
@@ -10546,24 +9192,24 @@ yyg : array [1..yyngotos] of YYARec = (
 { 523: }
 { 524: }
 { 525: }
-  ( sym: -149; act: 629 ),
+  ( sym: -150; act: 629 ),
   ( sym: -3; act: 375 ),
 { 526: }
 { 527: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 630 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 630 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -10573,11 +9219,11 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -180; act: 631 ),
 { 529: }
 { 530: }
-  ( sym: -86; act: 633 ),
-  ( sym: -85; act: 634 ),
-  ( sym: -80; act: 635 ),
-  ( sym: -60; act: 636 ),
-  ( sym: -59; act: 637 ),
+  ( sym: -87; act: 633 ),
+  ( sym: -86; act: 634 ),
+  ( sym: -81; act: 635 ),
+  ( sym: -61; act: 636 ),
+  ( sym: -60; act: 637 ),
 { 531: }
 { 532: }
 { 533: }
@@ -10588,8 +9234,8 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -175; act: 530 ),
   ( sym: -167; act: 531 ),
   ( sym: -166; act: 532 ),
-  ( sym: -162; act: 533 ),
-  ( sym: -159; act: 640 ),
+  ( sym: -163; act: 533 ),
+  ( sym: -160; act: 640 ),
 { 535: }
 { 536: }
 { 537: }
@@ -10600,39 +9246,39 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -178; act: 645 ),
   ( sym: -168; act: 646 ),
   ( sym: -167; act: 647 ),
-  ( sym: -163; act: 648 ),
-  ( sym: -86; act: 633 ),
-  ( sym: -85; act: 634 ),
-  ( sym: -61; act: 649 ),
-  ( sym: -59; act: 650 ),
+  ( sym: -164; act: 648 ),
+  ( sym: -87; act: 633 ),
+  ( sym: -86; act: 634 ),
+  ( sym: -62; act: 649 ),
+  ( sym: -60; act: 650 ),
 { 541: }
-  ( sym: -125; act: 277 ),
-  ( sym: -116; act: 651 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -117; act: 651 ),
   ( sym: -10; act: 285 ),
   ( sym: -8; act: 315 ),
   ( sym: -7; act: 652 ),
 { 542: }
-  ( sym: -150; act: 653 ),
+  ( sym: -151; act: 653 ),
 { 543: }
 { 544: }
-  ( sym: -152; act: 493 ),
-  ( sym: -151; act: 494 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -135; act: 655 ),
-  ( sym: -134; act: 496 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -153; act: 493 ),
+  ( sym: -152; act: 494 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -136; act: 655 ),
+  ( sym: -135; act: 496 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -10646,55 +9292,55 @@ yyg : array [1..yyngotos] of YYARec = (
 { 550: }
 { 551: }
 { 552: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 553: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 554: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 555: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 556: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 557: }
 { 558: }
 { 559: }
 { 560: }
 { 561: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 562: }
 { 563: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 564: }
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 443 ),
-  ( sym: -133; act: 660 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 443 ),
+  ( sym: -134; act: 660 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -10702,48 +9348,48 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -3; act: 289 ),
 { 565: }
 { 566: }
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 661 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 661 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 567: }
-  ( sym: -120; act: 662 ),
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -121; act: 662 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 568: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 569: }
 { 570: }
 { 571: }
 { 572: }
 { 573: }
-  ( sym: -98; act: 668 ),
+  ( sym: -99; act: 668 ),
 { 574: }
 { 575: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 576: }
-  ( sym: -103; act: 671 ),
+  ( sym: -104; act: 671 ),
 { 577: }
 { 578: }
 { 579: }
@@ -10756,42 +9402,42 @@ yyg : array [1..yyngotos] of YYARec = (
 { 585: }
 { 586: }
 { 587: }
-  ( sym: -86; act: 21 ),
-  ( sym: -85; act: 22 ),
-  ( sym: -80; act: 23 ),
-  ( sym: -64; act: 24 ),
-  ( sym: -63; act: 25 ),
-  ( sym: -62; act: 26 ),
-  ( sym: -57; act: 27 ),
-  ( sym: -56; act: 28 ),
-  ( sym: -44; act: 29 ),
-  ( sym: -43; act: 30 ),
-  ( sym: -42; act: 31 ),
-  ( sym: -41; act: 32 ),
-  ( sym: -40; act: 33 ),
-  ( sym: -38; act: 34 ),
-  ( sym: -36; act: 35 ),
-  ( sym: -34; act: 110 ),
+  ( sym: -87; act: 21 ),
+  ( sym: -86; act: 22 ),
+  ( sym: -81; act: 23 ),
+  ( sym: -65; act: 24 ),
+  ( sym: -64; act: 25 ),
+  ( sym: -63; act: 26 ),
+  ( sym: -58; act: 27 ),
+  ( sym: -57; act: 28 ),
+  ( sym: -45; act: 29 ),
+  ( sym: -44; act: 30 ),
+  ( sym: -43; act: 31 ),
+  ( sym: -42; act: 32 ),
+  ( sym: -41; act: 33 ),
+  ( sym: -39; act: 34 ),
+  ( sym: -37; act: 35 ),
+  ( sym: -35; act: 110 ),
 { 588: }
 { 589: }
 { 590: }
 { 591: }
-  ( sym: -46; act: 108 ),
+  ( sym: -47; act: 108 ),
   ( sym: -15; act: 100 ),
   ( sym: -14; act: 101 ),
   ( sym: -3; act: 102 ),
 { 592: }
 { 593: }
 { 594: }
-  ( sym: -53; act: 676 ),
-  ( sym: -45; act: 677 ),
+  ( sym: -54; act: 676 ),
+  ( sym: -46; act: 677 ),
   ( sym: -3; act: 678 ),
 { 595: }
-  ( sym: -21; act: 679 ),
+  ( sym: -22; act: 679 ),
   ( sym: -3; act: 468 ),
 { 596: }
 { 597: }
-  ( sym: -125; act: 277 ),
+  ( sym: -126; act: 277 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 680 ),
   ( sym: -8; act: 315 ),
@@ -10805,15 +9451,15 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -3; act: 223 ),
 { 601: }
 { 602: }
-  ( sym: -76; act: 682 ),
-  ( sym: -74; act: 683 ),
-  ( sym: -71; act: 684 ),
-  ( sym: -70; act: 685 ),
+  ( sym: -77; act: 682 ),
+  ( sym: -75; act: 683 ),
+  ( sym: -72; act: 684 ),
+  ( sym: -71; act: 685 ),
 { 603: }
 { 604: }
 { 605: }
 { 606: }
-  ( sym: -122; act: 688 ),
+  ( sym: -123; act: 688 ),
   ( sym: -3; act: 689 ),
 { 607: }
 { 608: }
@@ -10822,9 +9468,9 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -209; act: 690 ),
 { 611: }
 { 612: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 613: }
 { 614: }
 { 615: }
@@ -10834,24 +9480,24 @@ yyg : array [1..yyngotos] of YYARec = (
 { 618: }
 { 619: }
 { 620: }
-  ( sym: -156; act: 696 ),
-  ( sym: -154; act: 697 ),
-  ( sym: -140; act: 698 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 699 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -157; act: 696 ),
+  ( sym: -155; act: 697 ),
+  ( sym: -141; act: 698 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 699 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -10860,11 +9506,11 @@ yyg : array [1..yyngotos] of YYARec = (
 { 621: }
   ( sym: -195; act: 700 ),
   ( sym: -194; act: 506 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 507 ),
   ( sym: -3; act: 223 ),
 { 622: }
@@ -10872,29 +9518,29 @@ yyg : array [1..yyngotos] of YYARec = (
 { 624: }
 { 625: }
   ( sym: -194; act: 701 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
 { 626: }
 { 627: }
 { 628: }
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 704 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 704 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -10902,44 +9548,44 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -3; act: 289 ),
 { 629: }
 { 630: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 631: }
   ( sym: -174; act: 705 ),
 { 632: }
 { 633: }
-  ( sym: -83; act: 710 ),
+  ( sym: -84; act: 710 ),
 { 634: }
-  ( sym: -83; act: 711 ),
+  ( sym: -84; act: 711 ),
 { 635: }
   ( sym: -3; act: 712 ),
 { 636: }
 { 637: }
-  ( sym: -79; act: 79 ),
-  ( sym: -78; act: 80 ),
-  ( sym: -77; act: 81 ),
-  ( sym: -76; act: 186 ),
-  ( sym: -75; act: 187 ),
-  ( sym: -73; act: 188 ),
-  ( sym: -72; act: 189 ),
-  ( sym: -69; act: 713 ),
+  ( sym: -80; act: 79 ),
+  ( sym: -79; act: 80 ),
+  ( sym: -78; act: 81 ),
+  ( sym: -77; act: 186 ),
+  ( sym: -76; act: 187 ),
+  ( sym: -74; act: 188 ),
+  ( sym: -73; act: 189 ),
+  ( sym: -70; act: 713 ),
 { 638: }
 { 639: }
 { 640: }
 { 641: }
-  ( sym: -47; act: 616 ),
+  ( sym: -48; act: 616 ),
   ( sym: -14; act: 358 ),
   ( sym: -3; act: 102 ),
 { 642: }
-  ( sym: -160; act: 714 ),
-  ( sym: -47; act: 357 ),
+  ( sym: -161; act: 714 ),
+  ( sym: -48; act: 357 ),
   ( sym: -14; act: 358 ),
   ( sym: -3; act: 102 ),
 { 643: }
   ( sym: -188; act: 715 ),
   ( sym: -184; act: 716 ),
-  ( sym: -164; act: 717 ),
+  ( sym: -165; act: 717 ),
 { 644: }
 { 645: }
 { 646: }
@@ -10947,20 +9593,20 @@ yyg : array [1..yyngotos] of YYARec = (
 { 648: }
   ( sym: -168; act: 721 ),
   ( sym: -167; act: 647 ),
-  ( sym: -86; act: 633 ),
-  ( sym: -85; act: 634 ),
-  ( sym: -61; act: 649 ),
-  ( sym: -59; act: 650 ),
+  ( sym: -87; act: 633 ),
+  ( sym: -86; act: 634 ),
+  ( sym: -62; act: 649 ),
+  ( sym: -60; act: 650 ),
 { 649: }
 { 650: }
 { 651: }
 { 652: }
 { 653: }
 { 654: }
-  ( sym: -79; act: 79 ),
-  ( sym: -78; act: 80 ),
-  ( sym: -77; act: 81 ),
-  ( sym: -73; act: 348 ),
+  ( sym: -80; act: 79 ),
+  ( sym: -79; act: 80 ),
+  ( sym: -78; act: 81 ),
+  ( sym: -74; act: 348 ),
 { 655: }
 { 656: }
 { 657: }
@@ -10969,20 +9615,20 @@ yyg : array [1..yyngotos] of YYARec = (
 { 660: }
 { 661: }
 { 662: }
-  ( sym: -137; act: 271 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 726 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 726 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -10991,104 +9637,104 @@ yyg : array [1..yyngotos] of YYARec = (
 { 663: }
 { 664: }
 { 665: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 727 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 727 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -3; act: 289 ),
 { 666: }
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 443 ),
-  ( sym: -133; act: 728 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 443 ),
+  ( sym: -134; act: 728 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 667: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 729 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 729 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -3; act: 289 ),
 { 668: }
 { 669: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 731 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 731 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -3; act: 289 ),
 { 670: }
-  ( sym: -138; act: 571 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 443 ),
-  ( sym: -133; act: 572 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
-  ( sym: -99; act: 732 ),
+  ( sym: -139; act: 571 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 443 ),
+  ( sym: -134; act: 572 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
+  ( sym: -100; act: 732 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -11096,27 +9742,27 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -3; act: 289 ),
 { 671: }
 { 672: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -121; act: 127 ),
-  ( sym: -110; act: 128 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 140 ),
-  ( sym: -92; act: 141 ),
-  ( sym: -90; act: 733 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -122; act: 127 ),
+  ( sym: -111; act: 128 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 140 ),
+  ( sym: -93; act: 141 ),
+  ( sym: -91; act: 733 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -6; act: 145 ),
   ( sym: -3; act: 146 ),
 { 673: }
@@ -11124,7 +9770,7 @@ yyg : array [1..yyngotos] of YYARec = (
 { 675: }
 { 676: }
 { 677: }
-  ( sym: -53; act: 736 ),
+  ( sym: -54; act: 736 ),
   ( sym: -3; act: 678 ),
 { 678: }
 { 679: }
@@ -11140,52 +9786,52 @@ yyg : array [1..yyngotos] of YYARec = (
 { 689: }
 { 690: }
 { 691: }
-  ( sym: -147; act: 740 ),
+  ( sym: -148; act: 740 ),
   ( sym: -3; act: 741 ),
 { 692: }
-  ( sym: -152; act: 493 ),
-  ( sym: -151; act: 494 ),
-  ( sym: -143; act: 742 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -135; act: 743 ),
-  ( sym: -134; act: 496 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -153; act: 493 ),
+  ( sym: -152; act: 494 ),
+  ( sym: -144; act: 742 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -136; act: 743 ),
+  ( sym: -135; act: 496 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 693: }
-  ( sym: -152; act: 493 ),
-  ( sym: -151; act: 494 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -135; act: 744 ),
-  ( sym: -134; act: 496 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -153; act: 493 ),
+  ( sym: -152; act: 494 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -136; act: 744 ),
+  ( sym: -135; act: 496 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -11193,11 +9839,11 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -3; act: 289 ),
 { 694: }
 { 695: }
-  ( sym: -79; act: 79 ),
-  ( sym: -78; act: 80 ),
-  ( sym: -77; act: 81 ),
-  ( sym: -73; act: 82 ),
-  ( sym: -65; act: 746 ),
+  ( sym: -80; act: 79 ),
+  ( sym: -79; act: 80 ),
+  ( sym: -78; act: 81 ),
+  ( sym: -74; act: 82 ),
+  ( sym: -66; act: 746 ),
 { 696: }
 { 697: }
 { 698: }
@@ -11215,11 +9861,11 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -197; act: 214 ),
   ( sym: -194; act: 215 ),
   ( sym: -193; act: 216 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 222 ),
   ( sym: -3; act: 223 ),
 { 703: }
@@ -11233,11 +9879,11 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -197; act: 214 ),
   ( sym: -194; act: 215 ),
   ( sym: -193; act: 216 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 222 ),
   ( sym: -3; act: 223 ),
 { 704: }
@@ -11245,11 +9891,11 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -175; act: 530 ),
   ( sym: -167; act: 531 ),
   ( sym: -166; act: 532 ),
-  ( sym: -162; act: 533 ),
-  ( sym: -161; act: 754 ),
-  ( sym: -160; act: 535 ),
-  ( sym: -159; act: 755 ),
-  ( sym: -47; act: 357 ),
+  ( sym: -163; act: 533 ),
+  ( sym: -162; act: 754 ),
+  ( sym: -161; act: 535 ),
+  ( sym: -160; act: 755 ),
+  ( sym: -48; act: 357 ),
   ( sym: -14; act: 358 ),
   ( sym: -3; act: 102 ),
 { 706: }
@@ -11260,7 +9906,7 @@ yyg : array [1..yyngotos] of YYARec = (
 { 711: }
   ( sym: -200; act: 757 ),
 { 712: }
-  ( sym: -83; act: 758 ),
+  ( sym: -84; act: 758 ),
 { 713: }
 { 714: }
 { 715: }
@@ -11268,13 +9914,13 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -182; act: 761 ),
 { 717: }
 { 718: }
-  ( sym: -121; act: 764 ),
+  ( sym: -122; act: 764 ),
 { 719: }
   ( sym: -199; act: 765 ),
   ( sym: -4; act: 335 ),
   ( sym: -3; act: 223 ),
 { 720: }
-  ( sym: -157; act: 766 ),
+  ( sym: -158; act: 766 ),
   ( sym: -14; act: 767 ),
   ( sym: -3; act: 102 ),
 { 721: }
@@ -11283,9 +9929,9 @@ yyg : array [1..yyngotos] of YYARec = (
 { 724: }
 { 725: }
 { 726: }
-  ( sym: -119; act: 408 ),
-  ( sym: -118; act: 409 ),
-  ( sym: -117; act: 410 ),
+  ( sym: -120; act: 408 ),
+  ( sym: -119; act: 409 ),
+  ( sym: -118; act: 410 ),
 { 727: }
 { 728: }
 { 729: }
@@ -11294,36 +9940,36 @@ yyg : array [1..yyngotos] of YYARec = (
 { 732: }
 { 733: }
 { 734: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 771 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 771 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -3; act: 289 ),
 { 735: }
   ( sym: -3; act: 772 ),
 { 736: }
 { 737: }
-  ( sym: -125; act: 277 ),
-  ( sym: -116; act: 773 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -117; act: 773 ),
   ( sym: -10; act: 285 ),
   ( sym: -8; act: 315 ),
   ( sym: -7; act: 652 ),
 { 738: }
-  ( sym: -76; act: 682 ),
-  ( sym: -74; act: 774 ),
+  ( sym: -77; act: 682 ),
+  ( sym: -75; act: 774 ),
 { 739: }
 { 740: }
 { 741: }
@@ -11333,45 +9979,45 @@ yyg : array [1..yyngotos] of YYARec = (
 { 745: }
 { 746: }
 { 747: }
-  ( sym: -156; act: 777 ),
-  ( sym: -154; act: 697 ),
-  ( sym: -140; act: 698 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 699 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -157; act: 777 ),
+  ( sym: -155; act: 697 ),
+  ( sym: -141; act: 698 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 699 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
   ( sym: -7; act: 288 ),
   ( sym: -3; act: 289 ),
 { 748: }
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 778 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 778 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -11379,24 +10025,24 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -3; act: 289 ),
 { 749: }
 { 750: }
-  ( sym: -156; act: 780 ),
-  ( sym: -154; act: 697 ),
-  ( sym: -140; act: 698 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 699 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -157; act: 780 ),
+  ( sym: -155; act: 697 ),
+  ( sym: -141; act: 698 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 699 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -11409,14 +10055,14 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -175; act: 530 ),
   ( sym: -167; act: 531 ),
   ( sym: -166; act: 532 ),
-  ( sym: -162; act: 533 ),
-  ( sym: -159; act: 781 ),
+  ( sym: -163; act: 533 ),
+  ( sym: -160; act: 781 ),
 { 755: }
 { 756: }
 { 757: }
 { 758: }
 { 759: }
-  ( sym: -47; act: 616 ),
+  ( sym: -48; act: 616 ),
   ( sym: -14; act: 358 ),
   ( sym: -3; act: 102 ),
 { 760: }
@@ -11438,23 +10084,23 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -14; act: 792 ),
   ( sym: -3; act: 102 ),
 { 769: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 793 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 793 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -3; act: 289 ),
 { 770: }
 { 771: }
@@ -11462,24 +10108,24 @@ yyg : array [1..yyngotos] of YYARec = (
 { 773: }
 { 774: }
 { 775: }
-  ( sym: -152; act: 493 ),
-  ( sym: -151; act: 494 ),
-  ( sym: -137; act: 271 ),
-  ( sym: -135; act: 797 ),
-  ( sym: -134; act: 496 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -153; act: 493 ),
+  ( sym: -152; act: 494 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -136; act: 797 ),
+  ( sym: -135; act: 496 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -11489,20 +10135,20 @@ yyg : array [1..yyngotos] of YYARec = (
 { 777: }
 { 778: }
 { 779: }
-  ( sym: -158; act: 798 ),
-  ( sym: -155; act: 799 ),
-  ( sym: -153; act: 800 ),
-  ( sym: -47; act: 801 ),
+  ( sym: -159; act: 798 ),
+  ( sym: -156; act: 799 ),
+  ( sym: -154; act: 800 ),
+  ( sym: -48; act: 801 ),
   ( sym: -14; act: 358 ),
   ( sym: -3; act: 102 ),
 { 780: }
 { 781: }
 { 782: }
 { 783: }
-  ( sym: -76; act: 682 ),
-  ( sym: -74; act: 683 ),
-  ( sym: -71; act: 802 ),
-  ( sym: -70; act: 685 ),
+  ( sym: -77; act: 682 ),
+  ( sym: -75; act: 683 ),
+  ( sym: -72; act: 802 ),
+  ( sym: -71; act: 685 ),
 { 784: }
   ( sym: -186; act: 803 ),
 { 785: }
@@ -11526,34 +10172,34 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -197; act: 214 ),
   ( sym: -194; act: 215 ),
   ( sym: -193; act: 216 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 222 ),
   ( sym: -3; act: 223 ),
 { 792: }
 { 793: }
 { 794: }
 { 795: }
-  ( sym: -128; act: 124 ),
-  ( sym: -127; act: 125 ),
-  ( sym: -126; act: 126 ),
-  ( sym: -107; act: 129 ),
-  ( sym: -106; act: 130 ),
-  ( sym: -105; act: 131 ),
-  ( sym: -104; act: 132 ),
-  ( sym: -102; act: 133 ),
-  ( sym: -101; act: 134 ),
-  ( sym: -100; act: 135 ),
-  ( sym: -97; act: 136 ),
-  ( sym: -96; act: 137 ),
-  ( sym: -95; act: 138 ),
-  ( sym: -94; act: 139 ),
-  ( sym: -93; act: 812 ),
-  ( sym: -89; act: 143 ),
-  ( sym: -87; act: 144 ),
+  ( sym: -129; act: 124 ),
+  ( sym: -128; act: 125 ),
+  ( sym: -127; act: 126 ),
+  ( sym: -108; act: 129 ),
+  ( sym: -107; act: 130 ),
+  ( sym: -106; act: 131 ),
+  ( sym: -105; act: 132 ),
+  ( sym: -103; act: 133 ),
+  ( sym: -102; act: 134 ),
+  ( sym: -101; act: 135 ),
+  ( sym: -98; act: 136 ),
+  ( sym: -97; act: 137 ),
+  ( sym: -96; act: 138 ),
+  ( sym: -95; act: 139 ),
+  ( sym: -94; act: 812 ),
+  ( sym: -90; act: 143 ),
+  ( sym: -88; act: 144 ),
   ( sym: -3; act: 289 ),
 { 796: }
 { 797: }
@@ -11566,7 +10212,7 @@ yyg : array [1..yyngotos] of YYARec = (
 { 803: }
   ( sym: -185; act: 815 ),
 { 804: }
-  ( sym: -123; act: 818 ),
+  ( sym: -124; act: 818 ),
   ( sym: -3; act: 819 ),
 { 805: }
 { 806: }
@@ -11587,39 +10233,39 @@ yyg : array [1..yyngotos] of YYARec = (
   ( sym: -197; act: 214 ),
   ( sym: -194; act: 215 ),
   ( sym: -193; act: 216 ),
-  ( sym: -131; act: 217 ),
-  ( sym: -125; act: 218 ),
-  ( sym: -123; act: 219 ),
-  ( sym: -121; act: 220 ),
-  ( sym: -114; act: 221 ),
+  ( sym: -132; act: 217 ),
+  ( sym: -126; act: 218 ),
+  ( sym: -124; act: 219 ),
+  ( sym: -122; act: 220 ),
+  ( sym: -115; act: 221 ),
   ( sym: -4; act: 222 ),
   ( sym: -3; act: 223 ),
 { 812: }
 { 813: }
 { 814: }
-  ( sym: -155; act: 826 ),
-  ( sym: -153; act: 800 ),
-  ( sym: -47; act: 801 ),
+  ( sym: -156; act: 826 ),
+  ( sym: -154; act: 800 ),
+  ( sym: -48; act: 801 ),
   ( sym: -14; act: 358 ),
   ( sym: -3; act: 102 ),
 { 815: }
   ( sym: -181; act: 827 ),
 { 816: }
-  ( sym: -137; act: 271 ),
-  ( sym: -134; act: 829 ),
-  ( sym: -132; act: 272 ),
-  ( sym: -130; act: 345 ),
-  ( sym: -129; act: 274 ),
-  ( sym: -128; act: 275 ),
-  ( sym: -126; act: 276 ),
-  ( sym: -125; act: 277 ),
-  ( sym: -124; act: 278 ),
-  ( sym: -123; act: 279 ),
-  ( sym: -122; act: 280 ),
-  ( sym: -121; act: 281 ),
-  ( sym: -115; act: 282 ),
-  ( sym: -113; act: 283 ),
-  ( sym: -112; act: 284 ),
+  ( sym: -138; act: 271 ),
+  ( sym: -135; act: 829 ),
+  ( sym: -133; act: 272 ),
+  ( sym: -131; act: 345 ),
+  ( sym: -130; act: 274 ),
+  ( sym: -129; act: 275 ),
+  ( sym: -127; act: 276 ),
+  ( sym: -126; act: 277 ),
+  ( sym: -125; act: 278 ),
+  ( sym: -124; act: 279 ),
+  ( sym: -123; act: 280 ),
+  ( sym: -122; act: 281 ),
+  ( sym: -116; act: 282 ),
+  ( sym: -114; act: 283 ),
+  ( sym: -113; act: 284 ),
   ( sym: -10; act: 285 ),
   ( sym: -9; act: 286 ),
   ( sym: -8; act: 287 ),
@@ -15842,117 +14488,117 @@ yygh : array [0..yynstates-1] of Integer = (
 
 yyr : array [1..yynrules] of YYRRec = (
 { 1: } ( len: 2; sym: -2; symname: 'goal' ),
-{ 2: } ( len: 1; sym: -16; symname: 'file' ),
-{ 3: } ( len: 3; sym: -16; symname: 'file' ),
-{ 4: } ( len: 2; sym: -16; symname: 'file' ),
-{ 5: } ( len: 3; sym: -16; symname: 'file' ),
+{ 2: } ( len: 1; sym: -17; symname: 'file' ),
+{ 3: } ( len: 3; sym: -17; symname: 'file' ),
+{ 4: } ( len: 2; sym: -17; symname: 'file' ),
+{ 5: } ( len: 3; sym: -17; symname: 'file' ),
 { 6: } ( len: 0; sym: -209; symname: 'scolopt' ),
 { 7: } ( len: 1; sym: -209; symname: 'scolopt' ),
-{ 8: } ( len: 4; sym: -17; symname: 'program' ),
-{ 9: } ( len: 3; sym: -17; symname: 'program' ),
+{ 8: } ( len: 4; sym: -18; symname: 'program' ),
+{ 9: } ( len: 3; sym: -18; symname: 'program' ),
 { 10: } ( len: 0; sym: -12; symname: 'programid' ),
 { 11: } ( len: 3; sym: -12; symname: 'programid' ),
-{ 12: } ( len: 5; sym: -18; symname: 'library' ),
-{ 13: } ( len: 4; sym: -18; symname: 'library' ),
-{ 14: } ( len: 4; sym: -20; symname: 'package' ),
-{ 15: } ( len: 0; sym: -26; symname: 'requires' ),
-{ 16: } ( len: 3; sym: -26; symname: 'requires' ),
-{ 17: } ( len: 1; sym: -27; symname: 'requireslst' ),
-{ 18: } ( len: 3; sym: -27; symname: 'requireslst' ),
-{ 19: } ( len: 3; sym: -29; symname: 'contains' ),
-{ 20: } ( len: 1; sym: -28; symname: 'containslst' ),
-{ 21: } ( len: 3; sym: -28; symname: 'containslst' ),
-{ 22: } ( len: 1; sym: -21; symname: 'containsitem' ),
-{ 23: } ( len: 3; sym: -21; symname: 'containsitem' ),
-{ 24: } ( len: 0; sym: -24; symname: 'usesopt' ),
-{ 25: } ( len: 3; sym: -24; symname: 'usesopt' ),
-{ 26: } ( len: 1; sym: -25; symname: 'useslst' ),
-{ 27: } ( len: 3; sym: -25; symname: 'useslst' ),
-{ 28: } ( len: 1; sym: -22; symname: 'usesitem' ),
-{ 29: } ( len: 3; sym: -22; symname: 'usesitem' ),
-{ 30: } ( len: 6; sym: -19; symname: 'unit' ),
-{ 31: } ( len: 5; sym: -19; symname: 'unit' ),
-{ 32: } ( len: 5; sym: -19; symname: 'unit' ),
-{ 33: } ( len: 4; sym: -19; symname: 'unit' ),
-{ 34: } ( len: 3; sym: -48; symname: 'implsec' ),
-{ 35: } ( len: 2; sym: -48; symname: 'implsec' ),
-{ 36: } ( len: 3; sym: -49; symname: 'interfsec' ),
-{ 37: } ( len: 0; sym: -30; symname: 'interfdecllst' ),
-{ 38: } ( len: 2; sym: -30; symname: 'interfdecllst' ),
-{ 39: } ( len: 2; sym: -50; symname: 'initsec' ),
-{ 40: } ( len: 2; sym: -50; symname: 'initsec' ),
-{ 41: } ( len: 2; sym: -51; symname: 'finalsec' ),
-{ 42: } ( len: 1; sym: -32; symname: 'maindecllst' ),
-{ 43: } ( len: 2; sym: -32; symname: 'maindecllst' ),
-{ 44: } ( len: 1; sym: -33; symname: 'declseclst' ),
-{ 45: } ( len: 2; sym: -33; symname: 'declseclst' ),
-{ 46: } ( len: 1; sym: -31; symname: 'interfdecl' ),
-{ 47: } ( len: 1; sym: -31; symname: 'interfdecl' ),
-{ 48: } ( len: 1; sym: -31; symname: 'interfdecl' ),
-{ 49: } ( len: 1; sym: -31; symname: 'interfdecl' ),
-{ 50: } ( len: 1; sym: -34; symname: 'maindeclsec' ),
-{ 51: } ( len: 1; sym: -34; symname: 'maindeclsec' ),
-{ 52: } ( len: 1; sym: -34; symname: 'maindeclsec' ),
-{ 53: } ( len: 1; sym: -34; symname: 'maindeclsec' ),
-{ 54: } ( len: 1; sym: -34; symname: 'maindeclsec' ),
-{ 55: } ( len: 1; sym: -35; symname: 'funcdeclsec' ),
-{ 56: } ( len: 1; sym: -35; symname: 'funcdeclsec' ),
-{ 57: } ( len: 1; sym: -35; symname: 'funcdeclsec' ),
-{ 58: } ( len: 1; sym: -36; symname: 'basicdeclsec' ),
-{ 59: } ( len: 1; sym: -36; symname: 'basicdeclsec' ),
-{ 60: } ( len: 1; sym: -36; symname: 'basicdeclsec' ),
-{ 61: } ( len: 2; sym: -43; symname: 'typesec' ),
-{ 62: } ( len: 2; sym: -43; symname: 'typesec' ),
-{ 63: } ( len: 2; sym: -44; symname: 'varsec' ),
-{ 64: } ( len: 2; sym: -44; symname: 'varsec' ),
-{ 65: } ( len: 2; sym: -38; symname: 'thrvarsec' ),
-{ 66: } ( len: 2; sym: -38; symname: 'thrvarsec' ),
-{ 67: } ( len: 3; sym: -46; symname: 'vardecl' ),
-{ 68: } ( len: 5; sym: -46; symname: 'vardecl' ),
-{ 69: } ( len: 5; sym: -46; symname: 'vardecl' ),
-{ 70: } ( len: 2; sym: -46; symname: 'vardecl' ),
-{ 71: } ( len: 6; sym: -46; symname: 'vardecl' ),
+{ 12: } ( len: 5; sym: -19; symname: 'library' ),
+{ 13: } ( len: 4; sym: -19; symname: 'library' ),
+{ 14: } ( len: 4; sym: -21; symname: 'package' ),
+{ 15: } ( len: 0; sym: -27; symname: 'requires' ),
+{ 16: } ( len: 3; sym: -27; symname: 'requires' ),
+{ 17: } ( len: 1; sym: -28; symname: 'requireslst' ),
+{ 18: } ( len: 3; sym: -28; symname: 'requireslst' ),
+{ 19: } ( len: 3; sym: -30; symname: 'contains' ),
+{ 20: } ( len: 1; sym: -29; symname: 'containslst' ),
+{ 21: } ( len: 3; sym: -29; symname: 'containslst' ),
+{ 22: } ( len: 1; sym: -22; symname: 'containsitem' ),
+{ 23: } ( len: 3; sym: -22; symname: 'containsitem' ),
+{ 24: } ( len: 0; sym: -25; symname: 'usesopt' ),
+{ 25: } ( len: 3; sym: -25; symname: 'usesopt' ),
+{ 26: } ( len: 1; sym: -26; symname: 'useslst' ),
+{ 27: } ( len: 3; sym: -26; symname: 'useslst' ),
+{ 28: } ( len: 1; sym: -23; symname: 'usesitem' ),
+{ 29: } ( len: 3; sym: -23; symname: 'usesitem' ),
+{ 30: } ( len: 6; sym: -20; symname: 'unit' ),
+{ 31: } ( len: 5; sym: -20; symname: 'unit' ),
+{ 32: } ( len: 5; sym: -20; symname: 'unit' ),
+{ 33: } ( len: 4; sym: -20; symname: 'unit' ),
+{ 34: } ( len: 3; sym: -49; symname: 'implsec' ),
+{ 35: } ( len: 2; sym: -49; symname: 'implsec' ),
+{ 36: } ( len: 3; sym: -50; symname: 'interfsec' ),
+{ 37: } ( len: 0; sym: -31; symname: 'interfdecllst' ),
+{ 38: } ( len: 2; sym: -31; symname: 'interfdecllst' ),
+{ 39: } ( len: 2; sym: -51; symname: 'initsec' ),
+{ 40: } ( len: 2; sym: -51; symname: 'initsec' ),
+{ 41: } ( len: 2; sym: -52; symname: 'finalsec' ),
+{ 42: } ( len: 1; sym: -33; symname: 'maindecllst' ),
+{ 43: } ( len: 2; sym: -33; symname: 'maindecllst' ),
+{ 44: } ( len: 1; sym: -34; symname: 'declseclst' ),
+{ 45: } ( len: 2; sym: -34; symname: 'declseclst' ),
+{ 46: } ( len: 1; sym: -32; symname: 'interfdecl' ),
+{ 47: } ( len: 1; sym: -32; symname: 'interfdecl' ),
+{ 48: } ( len: 1; sym: -32; symname: 'interfdecl' ),
+{ 49: } ( len: 1; sym: -32; symname: 'interfdecl' ),
+{ 50: } ( len: 1; sym: -35; symname: 'maindeclsec' ),
+{ 51: } ( len: 1; sym: -35; symname: 'maindeclsec' ),
+{ 52: } ( len: 1; sym: -35; symname: 'maindeclsec' ),
+{ 53: } ( len: 1; sym: -35; symname: 'maindeclsec' ),
+{ 54: } ( len: 1; sym: -35; symname: 'maindeclsec' ),
+{ 55: } ( len: 1; sym: -36; symname: 'funcdeclsec' ),
+{ 56: } ( len: 1; sym: -36; symname: 'funcdeclsec' ),
+{ 57: } ( len: 1; sym: -36; symname: 'funcdeclsec' ),
+{ 58: } ( len: 1; sym: -37; symname: 'basicdeclsec' ),
+{ 59: } ( len: 1; sym: -37; symname: 'basicdeclsec' ),
+{ 60: } ( len: 1; sym: -37; symname: 'basicdeclsec' ),
+{ 61: } ( len: 2; sym: -44; symname: 'typesec' ),
+{ 62: } ( len: 2; sym: -44; symname: 'typesec' ),
+{ 63: } ( len: 2; sym: -45; symname: 'varsec' ),
+{ 64: } ( len: 2; sym: -45; symname: 'varsec' ),
+{ 65: } ( len: 2; sym: -39; symname: 'thrvarsec' ),
+{ 66: } ( len: 2; sym: -39; symname: 'thrvarsec' ),
+{ 67: } ( len: 3; sym: -47; symname: 'vardecl' ),
+{ 68: } ( len: 5; sym: -47; symname: 'vardecl' ),
+{ 69: } ( len: 5; sym: -47; symname: 'vardecl' ),
+{ 70: } ( len: 2; sym: -47; symname: 'vardecl' ),
+{ 71: } ( len: 6; sym: -47; symname: 'vardecl' ),
 { 72: } ( len: 2; sym: -15; symname: 'varids' ),
-{ 73: } ( len: 2; sym: -39; symname: 'rscstringsec' ),
-{ 74: } ( len: 1; sym: -45; symname: 'rscstringlst' ),
-{ 75: } ( len: 2; sym: -45; symname: 'rscstringlst' ),
-{ 76: } ( len: 4; sym: -53; symname: 'rscstring' ),
-{ 77: } ( len: 3; sym: -41; symname: 'labeldeclsec' ),
+{ 73: } ( len: 2; sym: -40; symname: 'rscstringsec' ),
+{ 74: } ( len: 1; sym: -46; symname: 'rscstringlst' ),
+{ 75: } ( len: 2; sym: -46; symname: 'rscstringlst' ),
+{ 76: } ( len: 4; sym: -54; symname: 'rscstring' ),
+{ 77: } ( len: 3; sym: -42; symname: 'labeldeclsec' ),
 { 78: } ( len: 1; sym: -13; symname: 'labelidlst' ),
 { 79: } ( len: 3; sym: -13; symname: 'labelidlst' ),
 { 80: } ( len: 1; sym: -6; symname: 'labelid' ),
 { 81: } ( len: 1; sym: -6; symname: 'labelid' ),
-{ 82: } ( len: 2; sym: -40; symname: 'exportsec' ),
-{ 83: } ( len: 1; sym: -37; symname: 'expitemlst' ),
-{ 84: } ( len: 3; sym: -37; symname: 'expitemlst' ),
-{ 85: } ( len: 2; sym: -23; symname: 'expitem' ),
-{ 86: } ( len: 4; sym: -23; symname: 'expitem' ),
-{ 87: } ( len: 4; sym: -23; symname: 'expitem' ),
+{ 82: } ( len: 2; sym: -41; symname: 'exportsec' ),
+{ 83: } ( len: 1; sym: -38; symname: 'expitemlst' ),
+{ 84: } ( len: 3; sym: -38; symname: 'expitemlst' ),
+{ 85: } ( len: 2; sym: -24; symname: 'expitem' ),
+{ 86: } ( len: 4; sym: -24; symname: 'expitem' ),
+{ 87: } ( len: 4; sym: -24; symname: 'expitem' ),
 { 88: } ( len: 1; sym: -11; symname: 'expid' ),
 { 89: } ( len: 3; sym: -11; symname: 'expid' ),
 { 90: } ( len: 1; sym: -210; symname: 'kwclass' ),
 { 91: } ( len: 1; sym: -210; symname: 'kwclass' ),
-{ 92: } ( len: 1; sym: -56; symname: 'routinedeclmain' ),
-{ 93: } ( len: 2; sym: -56; symname: 'routinedeclmain' ),
-{ 94: } ( len: 3; sym: -56; symname: 'routinedeclmain' ),
-{ 95: } ( len: 4; sym: -64; symname: 'routinedef' ),
-{ 96: } ( len: 4; sym: -59; symname: 'methoddecl' ),
-{ 97: } ( len: 3; sym: -59; symname: 'methoddecl' ),
-{ 98: } ( len: 4; sym: -57; symname: 'routineproto' ),
-{ 99: } ( len: 3; sym: -57; symname: 'routineproto' ),
-{ 100: } ( len: 3; sym: -62; symname: 'methoddef' ),
-{ 101: } ( len: 4; sym: -62; symname: 'methoddef' ),
-{ 102: } ( len: 7; sym: -62; symname: 'methoddef' ),
-{ 103: } ( len: 5; sym: -63; symname: 'metdefproto' ),
-{ 104: } ( len: 4; sym: -63; symname: 'metdefproto' ),
-{ 105: } ( len: 1; sym: -58; symname: 'routinedeclinterf' ),
-{ 106: } ( len: 2; sym: -60; symname: 'classmetdecl' ),
-{ 107: } ( len: 5; sym: -60; symname: 'classmetdecl' ),
-{ 108: } ( len: 1; sym: -61; symname: 'interfmetdecl' ),
-{ 109: } ( len: 2; sym: -85; symname: 'kwfunction' ),
-{ 110: } ( len: 2; sym: -86; symname: 'kwprocedure' ),
-{ 111: } ( len: 1; sym: -80; symname: 'kwmetspec' ),
-{ 112: } ( len: 1; sym: -80; symname: 'kwmetspec' ),
+{ 92: } ( len: 1; sym: -57; symname: 'routinedeclmain' ),
+{ 93: } ( len: 2; sym: -57; symname: 'routinedeclmain' ),
+{ 94: } ( len: 3; sym: -57; symname: 'routinedeclmain' ),
+{ 95: } ( len: 4; sym: -65; symname: 'routinedef' ),
+{ 96: } ( len: 4; sym: -60; symname: 'methoddecl' ),
+{ 97: } ( len: 3; sym: -60; symname: 'methoddecl' ),
+{ 98: } ( len: 4; sym: -58; symname: 'routineproto' ),
+{ 99: } ( len: 3; sym: -58; symname: 'routineproto' ),
+{ 100: } ( len: 3; sym: -63; symname: 'methoddef' ),
+{ 101: } ( len: 4; sym: -63; symname: 'methoddef' ),
+{ 102: } ( len: 7; sym: -63; symname: 'methoddef' ),
+{ 103: } ( len: 5; sym: -64; symname: 'metdefproto' ),
+{ 104: } ( len: 4; sym: -64; symname: 'metdefproto' ),
+{ 105: } ( len: 1; sym: -59; symname: 'routinedeclinterf' ),
+{ 106: } ( len: 2; sym: -61; symname: 'classmetdecl' ),
+{ 107: } ( len: 5; sym: -61; symname: 'classmetdecl' ),
+{ 108: } ( len: 1; sym: -62; symname: 'interfmetdecl' ),
+{ 109: } ( len: 2; sym: -86; symname: 'kwfunction' ),
+{ 110: } ( len: 2; sym: -87; symname: 'kwprocedure' ),
+{ 111: } ( len: 1; sym: -81; symname: 'kwmetspec' ),
+{ 112: } ( len: 1; sym: -81; symname: 'kwmetspec' ),
 { 113: } ( len: 3; sym: -207; symname: 'proceduraltype' ),
 { 114: } ( len: 2; sym: -208; symname: 'proceduralsign' ),
 { 115: } ( len: 3; sym: -208; symname: 'proceduralsign' ),
@@ -15960,195 +14606,195 @@ yyr : array [1..yynrules] of YYRRec = (
 { 117: } ( len: 4; sym: -208; symname: 'proceduralsign' ),
 { 118: } ( len: 2; sym: -211; symname: 'typeobj' ),
 { 119: } ( len: 2; sym: -200; symname: 'funcret' ),
-{ 120: } ( len: 2; sym: -55; symname: 'funcdefine' ),
-{ 121: } ( len: 1; sym: -55; symname: 'funcdefine' ),
-{ 122: } ( len: 1; sym: -88; symname: 'funcblock' ),
-{ 123: } ( len: 1; sym: -88; symname: 'funcblock' ),
-{ 124: } ( len: 0; sym: -83; symname: 'formalparams' ),
-{ 125: } ( len: 2; sym: -83; symname: 'formalparams' ),
-{ 126: } ( len: 3; sym: -83; symname: 'formalparams' ),
-{ 127: } ( len: 1; sym: -81; symname: 'formalparamslst' ),
-{ 128: } ( len: 3; sym: -81; symname: 'formalparamslst' ),
-{ 129: } ( len: 3; sym: -82; symname: 'formalparm' ),
-{ 130: } ( len: 3; sym: -82; symname: 'formalparm' ),
-{ 131: } ( len: 3; sym: -82; symname: 'formalparm' ),
-{ 132: } ( len: 4; sym: -82; symname: 'formalparm' ),
+{ 120: } ( len: 2; sym: -56; symname: 'funcdefine' ),
+{ 121: } ( len: 1; sym: -56; symname: 'funcdefine' ),
+{ 122: } ( len: 1; sym: -89; symname: 'funcblock' ),
+{ 123: } ( len: 1; sym: -89; symname: 'funcblock' ),
+{ 124: } ( len: 0; sym: -84; symname: 'formalparams' ),
+{ 125: } ( len: 2; sym: -84; symname: 'formalparams' ),
+{ 126: } ( len: 3; sym: -84; symname: 'formalparams' ),
+{ 127: } ( len: 1; sym: -82; symname: 'formalparamslst' ),
+{ 128: } ( len: 3; sym: -82; symname: 'formalparamslst' ),
+{ 129: } ( len: 3; sym: -83; symname: 'formalparm' ),
+{ 130: } ( len: 3; sym: -83; symname: 'formalparm' ),
+{ 131: } ( len: 3; sym: -83; symname: 'formalparm' ),
+{ 132: } ( len: 4; sym: -83; symname: 'formalparm' ),
 { 133: } ( len: 0; sym: -190; symname: 'paramtypeopt' ),
 { 134: } ( len: 1; sym: -190; symname: 'paramtypeopt' ),
 { 135: } ( len: 2; sym: -191; symname: 'paramtypespec' ),
-{ 136: } ( len: 0; sym: -136; symname: 'paraminitopt' ),
-{ 137: } ( len: 2; sym: -136; symname: 'paraminitopt' ),
-{ 138: } ( len: 2; sym: -150; symname: 'functypeinit' ),
-{ 139: } ( len: 2; sym: -150; symname: 'functypeinit' ),
-{ 140: } ( len: 5; sym: -68; symname: 'importdirforced' ),
-{ 141: } ( len: 4; sym: -68; symname: 'importdirforced' ),
-{ 142: } ( len: 3; sym: -84; symname: 'externarg' ),
-{ 143: } ( len: 1; sym: -84; symname: 'externarg' ),
-{ 144: } ( len: 0; sym: -84; symname: 'externarg' ),
-{ 145: } ( len: 0; sym: -66; symname: 'funcdir_noterm_opt' ),
-{ 146: } ( len: 1; sym: -66; symname: 'funcdir_noterm_opt' ),
-{ 147: } ( len: 0; sym: -67; symname: 'funcdiropt' ),
-{ 148: } ( len: 2; sym: -67; symname: 'funcdiropt' ),
-{ 149: } ( len: 0; sym: -69; symname: 'metdirectopt' ),
-{ 150: } ( len: 2; sym: -69; symname: 'metdirectopt' ),
-{ 151: } ( len: 0; sym: -71; symname: 'smetdirs' ),
-{ 152: } ( len: 2; sym: -71; symname: 'smetdirs' ),
-{ 153: } ( len: 1; sym: -65; symname: 'funcdirectlst' ),
-{ 154: } ( len: 3; sym: -65; symname: 'funcdirectlst' ),
-{ 155: } ( len: 1; sym: -70; symname: 'smetdirslst' ),
-{ 156: } ( len: 3; sym: -70; symname: 'smetdirslst' ),
-{ 157: } ( len: 1; sym: -72; symname: 'metdirectlst' ),
-{ 158: } ( len: 3; sym: -72; symname: 'metdirectlst' ),
-{ 159: } ( len: 1; sym: -74; symname: 'smetqualif' ),
-{ 160: } ( len: 1; sym: -74; symname: 'smetqualif' ),
-{ 161: } ( len: 1; sym: -75; symname: 'metdirective' ),
-{ 162: } ( len: 1; sym: -75; symname: 'metdirective' ),
-{ 163: } ( len: 1; sym: -73; symname: 'funcdirective' ),
-{ 164: } ( len: 1; sym: -73; symname: 'funcdirective' ),
-{ 165: } ( len: 1; sym: -73; symname: 'funcdirective' ),
-{ 166: } ( len: 1; sym: -78; symname: 'funcdeprecated' ),
-{ 167: } ( len: 1; sym: -78; symname: 'funcdeprecated' ),
-{ 168: } ( len: 1; sym: -78; symname: 'funcdeprecated' ),
-{ 169: } ( len: 1; sym: -76; symname: 'metqualif' ),
-{ 170: } ( len: 1; sym: -76; symname: 'metqualif' ),
-{ 171: } ( len: 1; sym: -76; symname: 'metqualif' ),
-{ 172: } ( len: 1; sym: -76; symname: 'metqualif' ),
-{ 173: } ( len: 1; sym: -76; symname: 'metqualif' ),
-{ 174: } ( len: 1; sym: -77; symname: 'funcqualif' ),
-{ 175: } ( len: 1; sym: -77; symname: 'funcqualif' ),
-{ 176: } ( len: 1; sym: -77; symname: 'funcqualif' ),
-{ 177: } ( len: 1; sym: -77; symname: 'funcqualif' ),
-{ 178: } ( len: 1; sym: -77; symname: 'funcqualif' ),
-{ 179: } ( len: 1; sym: -79; symname: 'routinecallconv' ),
-{ 180: } ( len: 1; sym: -79; symname: 'routinecallconv' ),
-{ 181: } ( len: 1; sym: -79; symname: 'routinecallconv' ),
-{ 182: } ( len: 1; sym: -79; symname: 'routinecallconv' ),
-{ 183: } ( len: 1; sym: -79; symname: 'routinecallconv' ),
-{ 184: } ( len: 3; sym: -87; symname: 'block' ),
-{ 185: } ( len: 1; sym: -90; symname: 'blockstmt' ),
-{ 186: } ( len: 1; sym: -110; symname: 'stmtlist' ),
-{ 187: } ( len: 3; sym: -110; symname: 'stmtlist' ),
-{ 188: } ( len: 1; sym: -92; symname: 'stmt' ),
-{ 189: } ( len: 3; sym: -92; symname: 'stmt' ),
-{ 190: } ( len: 0; sym: -93; symname: 'nonlblstmt' ),
-{ 191: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 192: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 193: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 194: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 195: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 196: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 197: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 198: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 199: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 200: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 201: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 202: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 203: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 204: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 205: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 206: } ( len: 1; sym: -93; symname: 'nonlblstmt' ),
-{ 207: } ( len: 3; sym: -94; symname: 'assign' ),
-{ 208: } ( len: 2; sym: -95; symname: 'goto_stmt' ),
-{ 209: } ( len: 6; sym: -96; symname: 'ifstmt' ),
-{ 210: } ( len: 4; sym: -96; symname: 'ifstmt' ),
-{ 211: } ( len: 6; sym: -97; symname: 'casestmt' ),
-{ 212: } ( len: 0; sym: -98; symname: 'elsecase' ),
-{ 213: } ( len: 2; sym: -98; symname: 'elsecase' ),
-{ 214: } ( len: 3; sym: -98; symname: 'elsecase' ),
-{ 215: } ( len: 1; sym: -108; symname: 'casesellst' ),
-{ 216: } ( len: 3; sym: -108; symname: 'casesellst' ),
-{ 217: } ( len: 0; sym: -99; symname: 'caseselector' ),
-{ 218: } ( len: 3; sym: -99; symname: 'caseselector' ),
-{ 219: } ( len: 1; sym: -138; symname: 'caselabellst' ),
-{ 220: } ( len: 3; sym: -138; symname: 'caselabellst' ),
-{ 221: } ( len: 4; sym: -104; symname: 'repeatstmt' ),
-{ 222: } ( len: 4; sym: -105; symname: 'whilestmt' ),
-{ 223: } ( len: 8; sym: -106; symname: 'forstmt' ),
-{ 224: } ( len: 1; sym: -120; symname: 'fordir' ),
-{ 225: } ( len: 1; sym: -120; symname: 'fordir' ),
-{ 226: } ( len: 4; sym: -107; symname: 'withstmt' ),
-{ 227: } ( len: 5; sym: -100; symname: 'tryexceptstmt' ),
-{ 228: } ( len: 3; sym: -91; symname: 'exceptionblock' ),
-{ 229: } ( len: 1; sym: -91; symname: 'exceptionblock' ),
-{ 230: } ( len: 1; sym: -91; symname: 'exceptionblock' ),
-{ 231: } ( len: 1; sym: -109; symname: 'onlst' ),
-{ 232: } ( len: 2; sym: -109; symname: 'onlst' ),
-{ 233: } ( len: 7; sym: -103; symname: 'ondef' ),
-{ 234: } ( len: 5; sym: -103; symname: 'ondef' ),
-{ 235: } ( len: 5; sym: -101; symname: 'tryfinallystmt' ),
-{ 236: } ( len: 1; sym: -102; symname: 'raisestmt' ),
-{ 237: } ( len: 2; sym: -102; symname: 'raisestmt' ),
-{ 238: } ( len: 3; sym: -102; symname: 'raisestmt' ),
-{ 239: } ( len: 4; sym: -102; symname: 'raisestmt' ),
-{ 240: } ( len: 3; sym: -89; symname: 'assemblerstmt' ),
-{ 241: } ( len: 0; sym: -111; symname: 'asmcode' ),
-{ 242: } ( len: 2; sym: -111; symname: 'asmcode' ),
-{ 243: } ( len: 1; sym: -128; symname: 'identifier' ),
-{ 244: } ( len: 1; sym: -127; symname: 'lvalstmt' ),
-{ 245: } ( len: 4; sym: -127; symname: 'lvalstmt' ),
-{ 246: } ( len: 4; sym: -127; symname: 'lvalstmt' ),
-{ 247: } ( len: 3; sym: -127; symname: 'lvalstmt' ),
-{ 248: } ( len: 1; sym: -127; symname: 'lvalstmt' ),
-{ 249: } ( len: 3; sym: -127; symname: 'lvalstmt' ),
-{ 250: } ( len: 1; sym: -126; symname: 'lvalue' ),
-{ 251: } ( len: 4; sym: -126; symname: 'lvalue' ),
-{ 252: } ( len: 4; sym: -126; symname: 'lvalue' ),
-{ 253: } ( len: 3; sym: -126; symname: 'lvalue' ),
-{ 254: } ( len: 2; sym: -126; symname: 'lvalue' ),
-{ 255: } ( len: 4; sym: -126; symname: 'lvalue' ),
-{ 256: } ( len: 3; sym: -126; symname: 'lvalue' ),
-{ 257: } ( len: 1; sym: -137; symname: 'lvalasval' ),
-{ 258: } ( len: 1; sym: -129; symname: 'unaryexpr' ),
-{ 259: } ( len: 1; sym: -129; symname: 'unaryexpr' ),
-{ 260: } ( len: 1; sym: -129; symname: 'unaryexpr' ),
-{ 261: } ( len: 2; sym: -129; symname: 'unaryexpr' ),
-{ 262: } ( len: 2; sym: -129; symname: 'unaryexpr' ),
-{ 263: } ( len: 2; sym: -129; symname: 'unaryexpr' ),
-{ 264: } ( len: 2; sym: -129; symname: 'unaryexpr' ),
-{ 265: } ( len: 1; sym: -129; symname: 'unaryexpr' ),
-{ 266: } ( len: 3; sym: -129; symname: 'unaryexpr' ),
-{ 267: } ( len: 4; sym: -129; symname: 'unaryexpr' ),
-{ 268: } ( len: 0; sym: -144; symname: 'callparams' ),
-{ 269: } ( len: 3; sym: -144; symname: 'callparams' ),
-{ 270: } ( len: 1; sym: -130; symname: 'expr' ),
-{ 271: } ( len: 3; sym: -130; symname: 'expr' ),
-{ 272: } ( len: 3; sym: -130; symname: 'expr' ),
-{ 273: } ( len: 3; sym: -130; symname: 'expr' ),
-{ 274: } ( len: 3; sym: -130; symname: 'expr' ),
-{ 275: } ( len: 3; sym: -130; symname: 'expr' ),
-{ 276: } ( len: 3; sym: -130; symname: 'expr' ),
-{ 277: } ( len: 1; sym: -117; symname: 'mulop' ),
-{ 278: } ( len: 1; sym: -117; symname: 'mulop' ),
-{ 279: } ( len: 1; sym: -117; symname: 'mulop' ),
-{ 280: } ( len: 1; sym: -117; symname: 'mulop' ),
-{ 281: } ( len: 1; sym: -117; symname: 'mulop' ),
-{ 282: } ( len: 1; sym: -117; symname: 'mulop' ),
-{ 283: } ( len: 1; sym: -117; symname: 'mulop' ),
-{ 284: } ( len: 1; sym: -118; symname: 'addop' ),
-{ 285: } ( len: 1; sym: -118; symname: 'addop' ),
-{ 286: } ( len: 1; sym: -118; symname: 'addop' ),
-{ 287: } ( len: 1; sym: -118; symname: 'addop' ),
-{ 288: } ( len: 1; sym: -119; symname: 'relop' ),
-{ 289: } ( len: 1; sym: -119; symname: 'relop' ),
-{ 290: } ( len: 1; sym: -119; symname: 'relop' ),
-{ 291: } ( len: 1; sym: -119; symname: 'relop' ),
-{ 292: } ( len: 1; sym: -119; symname: 'relop' ),
-{ 293: } ( len: 1; sym: -119; symname: 'relop' ),
-{ 294: } ( len: 1; sym: -139; symname: 'exprlst' ),
-{ 295: } ( len: 3; sym: -139; symname: 'exprlst' ),
-{ 296: } ( len: 0; sym: -141; symname: 'exprlstopt' ),
-{ 297: } ( len: 1; sym: -141; symname: 'exprlstopt' ),
-{ 298: } ( len: 1; sym: -112; symname: 'literal' ),
-{ 299: } ( len: 1; sym: -112; symname: 'literal' ),
-{ 300: } ( len: 1; sym: -113; symname: 'basicliteral' ),
-{ 301: } ( len: 1; sym: -113; symname: 'basicliteral' ),
-{ 302: } ( len: 1; sym: -113; symname: 'basicliteral' ),
-{ 303: } ( len: 1; sym: -113; symname: 'basicliteral' ),
-{ 304: } ( len: 1; sym: -114; symname: 'discrete' ),
-{ 305: } ( len: 1; sym: -114; symname: 'discrete' ),
-{ 306: } ( len: 1; sym: -114; symname: 'discrete' ),
-{ 307: } ( len: 1; sym: -115; symname: 'strorcharlit' ),
-{ 308: } ( len: 1; sym: -116; symname: 'stringlit' ),
+{ 136: } ( len: 0; sym: -137; symname: 'paraminitopt' ),
+{ 137: } ( len: 2; sym: -137; symname: 'paraminitopt' ),
+{ 138: } ( len: 2; sym: -151; symname: 'functypeinit' ),
+{ 139: } ( len: 2; sym: -151; symname: 'functypeinit' ),
+{ 140: } ( len: 5; sym: -69; symname: 'importdirforced' ),
+{ 141: } ( len: 4; sym: -69; symname: 'importdirforced' ),
+{ 142: } ( len: 3; sym: -85; symname: 'externarg' ),
+{ 143: } ( len: 1; sym: -85; symname: 'externarg' ),
+{ 144: } ( len: 0; sym: -85; symname: 'externarg' ),
+{ 145: } ( len: 0; sym: -67; symname: 'funcdir_noterm_opt' ),
+{ 146: } ( len: 1; sym: -67; symname: 'funcdir_noterm_opt' ),
+{ 147: } ( len: 0; sym: -68; symname: 'funcdiropt' ),
+{ 148: } ( len: 2; sym: -68; symname: 'funcdiropt' ),
+{ 149: } ( len: 0; sym: -70; symname: 'metdirectopt' ),
+{ 150: } ( len: 2; sym: -70; symname: 'metdirectopt' ),
+{ 151: } ( len: 0; sym: -72; symname: 'smetdirs' ),
+{ 152: } ( len: 2; sym: -72; symname: 'smetdirs' ),
+{ 153: } ( len: 1; sym: -66; symname: 'funcdirectlst' ),
+{ 154: } ( len: 3; sym: -66; symname: 'funcdirectlst' ),
+{ 155: } ( len: 1; sym: -71; symname: 'smetdirslst' ),
+{ 156: } ( len: 3; sym: -71; symname: 'smetdirslst' ),
+{ 157: } ( len: 1; sym: -73; symname: 'metdirectlst' ),
+{ 158: } ( len: 3; sym: -73; symname: 'metdirectlst' ),
+{ 159: } ( len: 1; sym: -75; symname: 'smetqualif' ),
+{ 160: } ( len: 1; sym: -75; symname: 'smetqualif' ),
+{ 161: } ( len: 1; sym: -76; symname: 'metdirective' ),
+{ 162: } ( len: 1; sym: -76; symname: 'metdirective' ),
+{ 163: } ( len: 1; sym: -74; symname: 'funcdirective' ),
+{ 164: } ( len: 1; sym: -74; symname: 'funcdirective' ),
+{ 165: } ( len: 1; sym: -74; symname: 'funcdirective' ),
+{ 166: } ( len: 1; sym: -79; symname: 'funcdeprecated' ),
+{ 167: } ( len: 1; sym: -79; symname: 'funcdeprecated' ),
+{ 168: } ( len: 1; sym: -79; symname: 'funcdeprecated' ),
+{ 169: } ( len: 1; sym: -77; symname: 'metqualif' ),
+{ 170: } ( len: 1; sym: -77; symname: 'metqualif' ),
+{ 171: } ( len: 1; sym: -77; symname: 'metqualif' ),
+{ 172: } ( len: 1; sym: -77; symname: 'metqualif' ),
+{ 173: } ( len: 1; sym: -77; symname: 'metqualif' ),
+{ 174: } ( len: 1; sym: -78; symname: 'funcqualif' ),
+{ 175: } ( len: 1; sym: -78; symname: 'funcqualif' ),
+{ 176: } ( len: 1; sym: -78; symname: 'funcqualif' ),
+{ 177: } ( len: 1; sym: -78; symname: 'funcqualif' ),
+{ 178: } ( len: 1; sym: -78; symname: 'funcqualif' ),
+{ 179: } ( len: 1; sym: -80; symname: 'routinecallconv' ),
+{ 180: } ( len: 1; sym: -80; symname: 'routinecallconv' ),
+{ 181: } ( len: 1; sym: -80; symname: 'routinecallconv' ),
+{ 182: } ( len: 1; sym: -80; symname: 'routinecallconv' ),
+{ 183: } ( len: 1; sym: -80; symname: 'routinecallconv' ),
+{ 184: } ( len: 3; sym: -88; symname: 'block' ),
+{ 185: } ( len: 1; sym: -91; symname: 'blockstmt' ),
+{ 186: } ( len: 1; sym: -111; symname: 'stmtlist' ),
+{ 187: } ( len: 3; sym: -111; symname: 'stmtlist' ),
+{ 188: } ( len: 1; sym: -93; symname: 'stmt' ),
+{ 189: } ( len: 3; sym: -93; symname: 'stmt' ),
+{ 190: } ( len: 0; sym: -94; symname: 'nonlblstmt' ),
+{ 191: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 192: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 193: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 194: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 195: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 196: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 197: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 198: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 199: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 200: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 201: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 202: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 203: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 204: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 205: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 206: } ( len: 1; sym: -94; symname: 'nonlblstmt' ),
+{ 207: } ( len: 3; sym: -95; symname: 'assign' ),
+{ 208: } ( len: 2; sym: -96; symname: 'goto_stmt' ),
+{ 209: } ( len: 6; sym: -97; symname: 'ifstmt' ),
+{ 210: } ( len: 4; sym: -97; symname: 'ifstmt' ),
+{ 211: } ( len: 6; sym: -98; symname: 'casestmt' ),
+{ 212: } ( len: 0; sym: -99; symname: 'elsecase' ),
+{ 213: } ( len: 2; sym: -99; symname: 'elsecase' ),
+{ 214: } ( len: 3; sym: -99; symname: 'elsecase' ),
+{ 215: } ( len: 1; sym: -109; symname: 'casesellst' ),
+{ 216: } ( len: 3; sym: -109; symname: 'casesellst' ),
+{ 217: } ( len: 0; sym: -100; symname: 'caseselector' ),
+{ 218: } ( len: 3; sym: -100; symname: 'caseselector' ),
+{ 219: } ( len: 1; sym: -139; symname: 'caselabellst' ),
+{ 220: } ( len: 3; sym: -139; symname: 'caselabellst' ),
+{ 221: } ( len: 4; sym: -105; symname: 'repeatstmt' ),
+{ 222: } ( len: 4; sym: -106; symname: 'whilestmt' ),
+{ 223: } ( len: 8; sym: -107; symname: 'forstmt' ),
+{ 224: } ( len: 1; sym: -121; symname: 'fordir' ),
+{ 225: } ( len: 1; sym: -121; symname: 'fordir' ),
+{ 226: } ( len: 4; sym: -108; symname: 'withstmt' ),
+{ 227: } ( len: 5; sym: -101; symname: 'tryexceptstmt' ),
+{ 228: } ( len: 3; sym: -92; symname: 'exceptionblock' ),
+{ 229: } ( len: 1; sym: -92; symname: 'exceptionblock' ),
+{ 230: } ( len: 1; sym: -92; symname: 'exceptionblock' ),
+{ 231: } ( len: 1; sym: -110; symname: 'onlst' ),
+{ 232: } ( len: 2; sym: -110; symname: 'onlst' ),
+{ 233: } ( len: 7; sym: -104; symname: 'ondef' ),
+{ 234: } ( len: 5; sym: -104; symname: 'ondef' ),
+{ 235: } ( len: 5; sym: -102; symname: 'tryfinallystmt' ),
+{ 236: } ( len: 1; sym: -103; symname: 'raisestmt' ),
+{ 237: } ( len: 2; sym: -103; symname: 'raisestmt' ),
+{ 238: } ( len: 3; sym: -103; symname: 'raisestmt' ),
+{ 239: } ( len: 4; sym: -103; symname: 'raisestmt' ),
+{ 240: } ( len: 3; sym: -90; symname: 'assemblerstmt' ),
+{ 241: } ( len: 0; sym: -112; symname: 'asmcode' ),
+{ 242: } ( len: 2; sym: -112; symname: 'asmcode' ),
+{ 243: } ( len: 1; sym: -129; symname: 'identifier' ),
+{ 244: } ( len: 1; sym: -128; symname: 'lvalstmt' ),
+{ 245: } ( len: 4; sym: -128; symname: 'lvalstmt' ),
+{ 246: } ( len: 4; sym: -128; symname: 'lvalstmt' ),
+{ 247: } ( len: 3; sym: -128; symname: 'lvalstmt' ),
+{ 248: } ( len: 1; sym: -128; symname: 'lvalstmt' ),
+{ 249: } ( len: 3; sym: -128; symname: 'lvalstmt' ),
+{ 250: } ( len: 1; sym: -127; symname: 'lvalue' ),
+{ 251: } ( len: 4; sym: -127; symname: 'lvalue' ),
+{ 252: } ( len: 4; sym: -127; symname: 'lvalue' ),
+{ 253: } ( len: 3; sym: -127; symname: 'lvalue' ),
+{ 254: } ( len: 2; sym: -127; symname: 'lvalue' ),
+{ 255: } ( len: 4; sym: -127; symname: 'lvalue' ),
+{ 256: } ( len: 3; sym: -127; symname: 'lvalue' ),
+{ 257: } ( len: 1; sym: -138; symname: 'lvalasval' ),
+{ 258: } ( len: 1; sym: -130; symname: 'unaryexpr' ),
+{ 259: } ( len: 1; sym: -130; symname: 'unaryexpr' ),
+{ 260: } ( len: 1; sym: -130; symname: 'unaryexpr' ),
+{ 261: } ( len: 2; sym: -130; symname: 'unaryexpr' ),
+{ 262: } ( len: 2; sym: -130; symname: 'unaryexpr' ),
+{ 263: } ( len: 2; sym: -130; symname: 'unaryexpr' ),
+{ 264: } ( len: 2; sym: -130; symname: 'unaryexpr' ),
+{ 265: } ( len: 1; sym: -130; symname: 'unaryexpr' ),
+{ 266: } ( len: 3; sym: -130; symname: 'unaryexpr' ),
+{ 267: } ( len: 4; sym: -130; symname: 'unaryexpr' ),
+{ 268: } ( len: 0; sym: -145; symname: 'callparams' ),
+{ 269: } ( len: 3; sym: -145; symname: 'callparams' ),
+{ 270: } ( len: 1; sym: -131; symname: 'expr' ),
+{ 271: } ( len: 3; sym: -131; symname: 'expr' ),
+{ 272: } ( len: 3; sym: -131; symname: 'expr' ),
+{ 273: } ( len: 3; sym: -131; symname: 'expr' ),
+{ 274: } ( len: 3; sym: -131; symname: 'expr' ),
+{ 275: } ( len: 3; sym: -131; symname: 'expr' ),
+{ 276: } ( len: 3; sym: -131; symname: 'expr' ),
+{ 277: } ( len: 1; sym: -118; symname: 'mulop' ),
+{ 278: } ( len: 1; sym: -118; symname: 'mulop' ),
+{ 279: } ( len: 1; sym: -118; symname: 'mulop' ),
+{ 280: } ( len: 1; sym: -118; symname: 'mulop' ),
+{ 281: } ( len: 1; sym: -118; symname: 'mulop' ),
+{ 282: } ( len: 1; sym: -118; symname: 'mulop' ),
+{ 283: } ( len: 1; sym: -118; symname: 'mulop' ),
+{ 284: } ( len: 1; sym: -119; symname: 'addop' ),
+{ 285: } ( len: 1; sym: -119; symname: 'addop' ),
+{ 286: } ( len: 1; sym: -119; symname: 'addop' ),
+{ 287: } ( len: 1; sym: -119; symname: 'addop' ),
+{ 288: } ( len: 1; sym: -120; symname: 'relop' ),
+{ 289: } ( len: 1; sym: -120; symname: 'relop' ),
+{ 290: } ( len: 1; sym: -120; symname: 'relop' ),
+{ 291: } ( len: 1; sym: -120; symname: 'relop' ),
+{ 292: } ( len: 1; sym: -120; symname: 'relop' ),
+{ 293: } ( len: 1; sym: -120; symname: 'relop' ),
+{ 294: } ( len: 1; sym: -140; symname: 'exprlst' ),
+{ 295: } ( len: 3; sym: -140; symname: 'exprlst' ),
+{ 296: } ( len: 0; sym: -142; symname: 'exprlstopt' ),
+{ 297: } ( len: 1; sym: -142; symname: 'exprlstopt' ),
+{ 298: } ( len: 1; sym: -113; symname: 'literal' ),
+{ 299: } ( len: 1; sym: -113; symname: 'literal' ),
+{ 300: } ( len: 1; sym: -114; symname: 'basicliteral' ),
+{ 301: } ( len: 1; sym: -114; symname: 'basicliteral' ),
+{ 302: } ( len: 1; sym: -114; symname: 'basicliteral' ),
+{ 303: } ( len: 1; sym: -114; symname: 'basicliteral' ),
+{ 304: } ( len: 1; sym: -115; symname: 'discrete' ),
+{ 305: } ( len: 1; sym: -115; symname: 'discrete' ),
+{ 306: } ( len: 1; sym: -115; symname: 'discrete' ),
+{ 307: } ( len: 1; sym: -116; symname: 'strorcharlit' ),
+{ 308: } ( len: 1; sym: -117; symname: 'stringlit' ),
 { 309: } ( len: 1; sym: -8; symname: 'stringorchar' ),
 { 310: } ( len: 1; sym: -8; symname: 'stringorchar' ),
 { 311: } ( len: 2; sym: -8; symname: 'stringorchar' ),
@@ -16158,63 +14804,63 @@ yyr : array [1..yynrules] of YYRRec = (
 { 315: } ( len: 1; sym: -14; symname: 'idlst' ),
 { 316: } ( len: 3; sym: -14; symname: 'idlst' ),
 { 317: } ( len: 1; sym: -3; symname: 'id' ),
-{ 318: } ( len: 1; sym: -122; symname: 'constnil' ),
-{ 319: } ( len: 1; sym: -121; symname: 'constint' ),
-{ 320: } ( len: 1; sym: -125; symname: 'constchar' ),
-{ 321: } ( len: 1; sym: -124; symname: 'constreal' ),
-{ 322: } ( len: 1; sym: -123; symname: 'constbool' ),
+{ 318: } ( len: 1; sym: -123; symname: 'constnil' ),
+{ 319: } ( len: 1; sym: -122; symname: 'constint' ),
+{ 320: } ( len: 1; sym: -126; symname: 'constchar' ),
+{ 321: } ( len: 1; sym: -125; symname: 'constreal' ),
+{ 322: } ( len: 1; sym: -124; symname: 'constbool' ),
 { 323: } ( len: 1; sym: -10; symname: 'conststr' ),
 { 324: } ( len: 3; sym: -194; symname: 'rangetype' ),
-{ 325: } ( len: 1; sym: -131; symname: 'rangestart' ),
-{ 326: } ( len: 2; sym: -131; symname: 'rangestart' ),
-{ 327: } ( len: 2; sym: -131; symname: 'rangestart' ),
+{ 325: } ( len: 1; sym: -132; symname: 'rangestart' ),
+{ 326: } ( len: 2; sym: -132; symname: 'rangestart' ),
+{ 327: } ( len: 2; sym: -132; symname: 'rangestart' ),
 { 328: } ( len: 3; sym: -193; symname: 'enumtype' ),
-{ 329: } ( len: 1; sym: -148; symname: 'enumelemlst' ),
-{ 330: } ( len: 3; sym: -148; symname: 'enumelemlst' ),
-{ 331: } ( len: 1; sym: -149; symname: 'enumelem' ),
-{ 332: } ( len: 3; sym: -149; symname: 'enumelem' ),
-{ 333: } ( len: 2; sym: -132; symname: 'set' ),
-{ 334: } ( len: 3; sym: -132; symname: 'set' ),
-{ 335: } ( len: 1; sym: -142; symname: 'setelemlst' ),
-{ 336: } ( len: 3; sym: -142; symname: 'setelemlst' ),
-{ 337: } ( len: 1; sym: -133; symname: 'setelem' ),
-{ 338: } ( len: 3; sym: -133; symname: 'setelem' ),
-{ 339: } ( len: 2; sym: -42; symname: 'constsec' ),
-{ 340: } ( len: 2; sym: -42; symname: 'constsec' ),
-{ 341: } ( len: 4; sym: -52; symname: 'constdecl' ),
-{ 342: } ( len: 6; sym: -52; symname: 'constdecl' ),
-{ 343: } ( len: 6; sym: -52; symname: 'constdecl' ),
-{ 344: } ( len: 1; sym: -135; symname: 'constinit' ),
-{ 345: } ( len: 1; sym: -135; symname: 'constinit' ),
-{ 346: } ( len: 1; sym: -135; symname: 'constinit' ),
-{ 347: } ( len: 1; sym: -134; symname: 'constexpr' ),
-{ 348: } ( len: 1; sym: -140; symname: 'constexprlst' ),
-{ 349: } ( len: 3; sym: -140; symname: 'constexprlst' ),
-{ 350: } ( len: 5; sym: -151; symname: 'arrayconst' ),
-{ 351: } ( len: 1; sym: -143; symname: 'arrexprlst' ),
-{ 352: } ( len: 3; sym: -143; symname: 'arrexprlst' ),
-{ 353: } ( len: 4; sym: -152; symname: 'recordconst' ),
-{ 354: } ( len: 1; sym: -146; symname: 'fieldconstlst' ),
-{ 355: } ( len: 3; sym: -146; symname: 'fieldconstlst' ),
-{ 356: } ( len: 3; sym: -147; symname: 'fieldconst' ),
+{ 329: } ( len: 1; sym: -149; symname: 'enumelemlst' ),
+{ 330: } ( len: 3; sym: -149; symname: 'enumelemlst' ),
+{ 331: } ( len: 1; sym: -150; symname: 'enumelem' ),
+{ 332: } ( len: 3; sym: -150; symname: 'enumelem' ),
+{ 333: } ( len: 2; sym: -133; symname: 'set' ),
+{ 334: } ( len: 3; sym: -133; symname: 'set' ),
+{ 335: } ( len: 1; sym: -143; symname: 'setelemlst' ),
+{ 336: } ( len: 3; sym: -143; symname: 'setelemlst' ),
+{ 337: } ( len: 1; sym: -134; symname: 'setelem' ),
+{ 338: } ( len: 3; sym: -134; symname: 'setelem' ),
+{ 339: } ( len: 2; sym: -43; symname: 'constsec' ),
+{ 340: } ( len: 2; sym: -43; symname: 'constsec' ),
+{ 341: } ( len: 4; sym: -53; symname: 'constdecl' ),
+{ 342: } ( len: 6; sym: -53; symname: 'constdecl' ),
+{ 343: } ( len: 6; sym: -53; symname: 'constdecl' ),
+{ 344: } ( len: 1; sym: -136; symname: 'constinit' ),
+{ 345: } ( len: 1; sym: -136; symname: 'constinit' ),
+{ 346: } ( len: 1; sym: -136; symname: 'constinit' ),
+{ 347: } ( len: 1; sym: -135; symname: 'constexpr' ),
+{ 348: } ( len: 1; sym: -141; symname: 'constexprlst' ),
+{ 349: } ( len: 3; sym: -141; symname: 'constexprlst' ),
+{ 350: } ( len: 5; sym: -152; symname: 'arrayconst' ),
+{ 351: } ( len: 1; sym: -144; symname: 'arrexprlst' ),
+{ 352: } ( len: 3; sym: -144; symname: 'arrexprlst' ),
+{ 353: } ( len: 4; sym: -153; symname: 'recordconst' ),
+{ 354: } ( len: 1; sym: -147; symname: 'fieldconstlst' ),
+{ 355: } ( len: 3; sym: -147; symname: 'fieldconstlst' ),
+{ 356: } ( len: 3; sym: -148; symname: 'fieldconst' ),
 { 357: } ( len: 2; sym: -203; symname: 'recordtype' ),
 { 358: } ( len: 4; sym: -203; symname: 'recordtype' ),
 { 359: } ( len: 6; sym: -203; symname: 'recordtype' ),
 { 360: } ( len: 4; sym: -203; symname: 'recordtype' ),
-{ 361: } ( len: 6; sym: -153; symname: 'recvariant' ),
-{ 362: } ( len: 4; sym: -153; symname: 'recvariant' ),
-{ 363: } ( len: 1; sym: -156; symname: 'recfieldlst' ),
-{ 364: } ( len: 2; sym: -156; symname: 'recfieldlst' ),
-{ 365: } ( len: 3; sym: -156; symname: 'recfieldlst' ),
-{ 366: } ( len: 6; sym: -154; symname: 'recfield' ),
-{ 367: } ( len: 1; sym: -158; symname: 'recvarlst' ),
-{ 368: } ( len: 3; sym: -158; symname: 'recvarlst' ),
-{ 369: } ( len: 1; sym: -155; symname: 'recvarfield' ),
-{ 370: } ( len: 1; sym: -155; symname: 'recvarfield' ),
+{ 361: } ( len: 6; sym: -154; symname: 'recvariant' ),
+{ 362: } ( len: 4; sym: -154; symname: 'recvariant' ),
+{ 363: } ( len: 1; sym: -157; symname: 'recfieldlst' ),
+{ 364: } ( len: 2; sym: -157; symname: 'recfieldlst' ),
+{ 365: } ( len: 3; sym: -157; symname: 'recfieldlst' ),
+{ 366: } ( len: 6; sym: -155; symname: 'recfield' ),
+{ 367: } ( len: 1; sym: -159; symname: 'recvarlst' ),
+{ 368: } ( len: 3; sym: -159; symname: 'recvarlst' ),
+{ 369: } ( len: 1; sym: -156; symname: 'recvarfield' ),
+{ 370: } ( len: 1; sym: -156; symname: 'recvarfield' ),
 { 371: } ( len: 4; sym: -171; symname: 'classtype' ),
 { 372: } ( len: 2; sym: -171; symname: 'classtype' ),
-{ 373: } ( len: 0; sym: -165; symname: 'heritage' ),
-{ 374: } ( len: 3; sym: -165; symname: 'heritage' ),
+{ 373: } ( len: 0; sym: -16; symname: 'heritage' ),
+{ 374: } ( len: 3; sym: -16; symname: 'heritage' ),
 { 375: } ( len: 2; sym: -177; symname: 'classbody' ),
 { 376: } ( len: 2; sym: -179; symname: 'class1stsec' ),
 { 377: } ( len: 1; sym: -179; symname: 'class1stsec' ),
@@ -16225,17 +14871,17 @@ yyr : array [1..yynrules] of YYRRec = (
 { 382: } ( len: 1; sym: -174; symname: 'scope' ),
 { 383: } ( len: 1; sym: -174; symname: 'scope' ),
 { 384: } ( len: 1; sym: -174; symname: 'scope' ),
-{ 385: } ( len: 2; sym: -161; symname: 'cfieldlst' ),
-{ 386: } ( len: 4; sym: -161; symname: 'cfieldlst' ),
-{ 387: } ( len: 1; sym: -160; symname: 'fieldlst' ),
-{ 388: } ( len: 3; sym: -160; symname: 'fieldlst' ),
-{ 389: } ( len: 3; sym: -47; symname: 'objfield' ),
-{ 390: } ( len: 3; sym: -47; symname: 'objfield' ),
-{ 391: } ( len: 5; sym: -47; symname: 'objfield' ),
-{ 392: } ( len: 0; sym: -159; symname: 'ccomplstopt' ),
-{ 393: } ( len: 1; sym: -159; symname: 'ccomplstopt' ),
-{ 394: } ( len: 1; sym: -162; symname: 'classcomplst' ),
-{ 395: } ( len: 2; sym: -162; symname: 'classcomplst' ),
+{ 385: } ( len: 2; sym: -162; symname: 'cfieldlst' ),
+{ 386: } ( len: 4; sym: -162; symname: 'cfieldlst' ),
+{ 387: } ( len: 1; sym: -161; symname: 'fieldlst' ),
+{ 388: } ( len: 3; sym: -161; symname: 'fieldlst' ),
+{ 389: } ( len: 3; sym: -48; symname: 'objfield' ),
+{ 390: } ( len: 3; sym: -48; symname: 'objfield' ),
+{ 391: } ( len: 5; sym: -48; symname: 'objfield' ),
+{ 392: } ( len: 0; sym: -160; symname: 'ccomplstopt' ),
+{ 393: } ( len: 1; sym: -160; symname: 'ccomplstopt' ),
+{ 394: } ( len: 1; sym: -163; symname: 'classcomplst' ),
+{ 395: } ( len: 2; sym: -163; symname: 'classcomplst' ),
 { 396: } ( len: 2; sym: -166; symname: 'classcomp' ),
 { 397: } ( len: 1; sym: -166; symname: 'classcomp' ),
 { 398: } ( len: 0; sym: -175; symname: 'staticopt' ),
@@ -16243,8 +14889,8 @@ yyr : array [1..yynrules] of YYRRec = (
 { 400: } ( len: 4; sym: -170; symname: 'interftype' ),
 { 401: } ( len: 2; sym: -170; symname: 'interftype' ),
 { 402: } ( len: 2; sym: -178; symname: 'interfbody' ),
-{ 403: } ( len: 1; sym: -163; symname: 'interfcomplst' ),
-{ 404: } ( len: 2; sym: -163; symname: 'interfcomplst' ),
+{ 403: } ( len: 1; sym: -164; symname: 'interfcomplst' ),
+{ 404: } ( len: 2; sym: -164; symname: 'interfcomplst' ),
 { 405: } ( len: 1; sym: -168; symname: 'interfcomp' ),
 { 406: } ( len: 1; sym: -168; symname: 'interfcomp' ),
 { 407: } ( len: 0; sym: -173; symname: 'guid' ),
@@ -16254,9 +14900,9 @@ yyr : array [1..yynrules] of YYRRec = (
 { 411: } ( len: 4; sym: -167; symname: 'property' ),
 { 412: } ( len: 0; sym: -176; symname: 'defaultdiropt' ),
 { 413: } ( len: 1; sym: -176; symname: 'defaultdiropt' ),
-{ 414: } ( len: 3; sym: -164; symname: 'arrayprops' ),
-{ 415: } ( len: 3; sym: -157; symname: 'propfield' ),
-{ 416: } ( len: 4; sym: -157; symname: 'propfield' ),
+{ 414: } ( len: 3; sym: -165; symname: 'arrayprops' ),
+{ 415: } ( len: 3; sym: -158; symname: 'propfield' ),
+{ 416: } ( len: 4; sym: -158; symname: 'propfield' ),
 { 417: } ( len: 5; sym: -187; symname: 'spropspecsnormal' ),
 { 418: } ( len: 2; sym: -189; symname: 'spropspecsarray' ),
 { 419: } ( len: 6; sym: -188; symname: 'spropspecsoverride' ),
@@ -16274,10 +14920,10 @@ yyr : array [1..yynrules] of YYRRec = (
 { 431: } ( len: 2; sym: -185; symname: 'defaultopt' ),
 { 432: } ( len: 0; sym: -181; symname: 'implopt' ),
 { 433: } ( len: 2; sym: -181; symname: 'implopt' ),
-{ 434: } ( len: 3; sym: -54; symname: 'typedecl' ),
-{ 435: } ( len: 2; sym: -54; symname: 'typedecl' ),
-{ 436: } ( len: 3; sym: -54; symname: 'typedecl' ),
-{ 437: } ( len: 3; sym: -54; symname: 'typedecl' ),
+{ 434: } ( len: 3; sym: -55; symname: 'typedecl' ),
+{ 435: } ( len: 2; sym: -55; symname: 'typedecl' ),
+{ 436: } ( len: 3; sym: -55; symname: 'typedecl' ),
+{ 437: } ( len: 3; sym: -55; symname: 'typedecl' ),
 { 438: } ( len: 3; sym: -5; symname: 'idtypeopt' ),
 { 439: } ( len: 0; sym: -212; symname: 'typeopt' ),
 { 440: } ( len: 1; sym: -212; symname: 'typeopt' ),
@@ -16310,8 +14956,8 @@ yyr : array [1..yynrules] of YYRRec = (
 { 467: } ( len: 1; sym: -201; symname: 'structuredtype' ),
 { 468: } ( len: 1; sym: -201; symname: 'structuredtype' ),
 { 469: } ( len: 1; sym: -201; symname: 'structuredtype' ),
-{ 470: } ( len: 1; sym: -145; symname: 'arrayszlst' ),
-{ 471: } ( len: 3; sym: -145; symname: 'arrayszlst' ),
+{ 470: } ( len: 1; sym: -146; symname: 'arrayszlst' ),
+{ 471: } ( len: 3; sym: -146; symname: 'arrayszlst' ),
 { 472: } ( len: 6; sym: -204; symname: 'arraytype' ),
 { 473: } ( len: 6; sym: -204; symname: 'arraytype' ),
 { 474: } ( len: 3; sym: -204; symname: 'arraytype' ),
@@ -16495,41 +15141,45 @@ yytokens : array [256..yymaxtoken] of YYTokenRec = (
 { 420: } ( tokenname: 'MAXPREC' )
 );
 
-// source: delphi_parser.cod line# 1461
 
 const _error = 256; (* error token *)
 
-function PascalParser.yyact(state, sym : Integer; var act : Integer) : Boolean;
-  (* search action table *)
-  var k : Integer;
-  Begin
-    k := yyal[state];
-    while (k<=yyah[state]) and (yya[k].sym<>sym) do inc(k);
-    if k>yyah[state] then
+
+Function PascalParser.yyact(state, sym : Integer; var act : Integer) : Boolean;
+// search action table
+Var
+  K:Integer;
+Begin
+  k := yyal[state];
+  While (k<=yyah[state]) and (yya[k].sym<>sym) do inc(k);
+  If k>yyah[state] then
       yyact := false
-    else
-      Begin
-        act := yya[k].act;
-        yyact := true;
-      End;
-  End(*yyact*);
+  Else
+    Begin
+      act := yya[k].act;
+      yyact := true;
+    End;
+End;
 
-function PascalParser.yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
-  (* search goto table *)
-  var k : Integer;
+Function PascalParser.yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
+//  search goto table
+Var
+  k:Integer;
+Begin
+  k := yygl[state];
+  While (k<=yygh[state]) and (yyg[k].sym<>sym) Do
+    Inc(k);
+
+  If k>yygh[state] Then
+    Result := false
+  Else
   Begin
-    k := yygl[state];
-    while (k<=yygh[state]) and (yyg[k].sym<>sym) do inc(k);
-    if k>yygh[state] then
-      yygoto := false
-    else
-      Begin
-        nstate := yyg[k].act;
-        yygoto := true;
-      End;
-  End(*yygoto*);
+    nstate := yyg[k].act;
+    Result := true;
+  End;
+End;
 
-function PascalParser.yycharsym(i : Integer) : String;
+Function PascalParser.yycharsym(i : Integer) : String;
 Begin
   if (i >= 1) and (i <= 255) then
     Begin
@@ -16571,7 +15221,7 @@ Begin
   Result := Result + ' ' + IntToString(yychar);
 End;
 
-Function PascalParser.parse():Integer;
+Function PascalParser.Parse():ASTNode;
 label parse, next, error, errlab, shift, reduce, accept, abort;
 
 Begin(*yyparse*)
@@ -16579,6 +15229,7 @@ Begin(*yyparse*)
   (* initialize: *)
 
   yystate := 0; yychar := -1; yynerrs := 0; yyerrflag := 0; yysp := 0;
+  _Root := Nil;
 
 parse:
 
@@ -16594,9 +15245,13 @@ parse:
 
 next:
 
-  If (yyd[yystate]=0) and (yychar=-1) Then // get next symbol
+    If (yyd[yystate]=0) and (yychar=-1) Then // get next symbol
     Begin
-      yychar := lexer.parse(); 
+      If _CurrentValue = Nil Then
+        _CurrentValue := YYSType.Create();
+
+      yychar := lexer.parse(_CurrentValue); 
+    
       If yychar<0 Then 
         yychar := 0;
     End;
@@ -16664,7 +15319,7 @@ shift:
 
   (* go to new state, clear lookahead character: *)
 
-  yystate := yyn; yychar := -1; yyval := yylval;
+  yystate := yyn; yychar := -1; yyval := YYSType.Create();
   if yyerrflag>0 then dec(yyerrflag);
 
   goto parse;
@@ -16691,1165 +15346,13 @@ reduce:
 
 accept:
 
-  Result := 0; exit;
+  Result := _Root; Exit;
 
 abort:
 
-  Result := 1; exit;
+  Result := Nil; exit;
 
 End(*yyparse*);
-
-// nodes implementation
-
-// nodes implementation
-
-
-{ MetaType }
-Constructor MetaType.Create(TypeClass: MetaTypeClass);
-Begin
-  Self.Value := TypeClass;
-End;
-
-{ Declaration }
-Constructor Declaration.Create(Name: StringObject; T: TypeNode);
-Begin
-  Self.Name := Name;
-  Self.DeclType := T;
-End;
-
-{ DeclarationList }
-Constructor DeclarationList.Create(Decl: Declaration);
-Begin
-  Self.Count := 0;
-  Self.Add(Decl);
-End;
-
-Procedure DeclarationList.Add(Decl: Declaration);
-Begin
-  If Decl = Nil Then
-    Exit;
-
-  Inc(Count);
-  SetLength(Declarations, Count);
-  Declarations[Pred(Count)] := Decl;
-End;
-
-Procedure DeclarationList.Add(DeclList: DeclarationList);
-Var
-  I:Integer;
-Begin
-  If DeclList = Nil Then
-    Exit;
-
-  For I:=0 To Pred(DeclList.Count) Do
-    Self.Add(DeclList.Declarations[I]);
-End;
-
-Procedure DeclarationList.InsertAt(Index:Integer; DeclList:DeclarationList);
-Var
-  I, Prev:Integer;
-Begin
-  If DeclList = Nil Then
-    Exit;
-
-  If (Index>=Count) Then
-  Begin
-    Self.Add(DeclList);
-    Exit;
-  End;
-
-  Prev := Count;
-  Inc(Count, DeclList.Count);
-  SetLength(Declarations, Count);
-
-  For I:=Index To Pred(Prev) Do
-    Declarations[I+DeclList.Count] := Declarations[I];
-
-  For I:=0 To Pred(DeclList.Count) Do
-    Declarations[I+Prev] := DeclList.Declarations[I];
-End;
-
-{ UnitItem }
-Constructor UnitItem.Create(Name, Location: StringObject);
-Begin
-  Self.Name := Name;
-  Self.Location := Location;
-  Self.DeclType := Nil;
-End;
-
-Constructor UnitItem.Create(Name: StringObject);
-Begin
-  Self.Create(Name, Nil);
-End;
-
-{ ProgramNode }
-Constructor ProgramNode.Create(Name:StringObject; UsesList:NodeList; Decls:DeclarationList; Body:BlockStatement);
-Begin
-  Self.Name := Name;
-  Self.Section := ProgramSection.Create(UsesList, Decls, Body);
-End;
-
-{ CompositeType }
-Function CompositeType.IsForward: Boolean;
-Begin
-  Result := (Section = Nil);
-End;
-
-{ Section }
-Constructor Section.Create(Decls: DeclarationList);
-Begin
-  Self.Decls := Decls;
-End;
-
-{ TopLevelDeclarationSection }
-Constructor TopLevelDeclarationSection.Create(UsesList:NodeList; Decls:DeclarationList);
-Begin
-  Self.Useslist := UsesList;
-  Self.Decls := Decls;
-End;
-
-{ StatementList }
-Constructor StatementList.Create(St: Statement);
-Begin
-  Self.Count := 0;
-  Self.Add(St);
-End;
-
-Procedure StatementList.Add(St: Statement);
-Begin
-  If St = Nil Then
-    Exit;
-
-  Inc(Count);
-  SetLength(Statements, Count);
-
-  Statements[Pred(Count)] := St;
-End;
-
-{ BlockStatement }
-
-Constructor BlockStatement.Create(List: StatementList);
-Begin
-  Self.List := List;
-End;
-
-{ ProgramSection }
-Constructor ProgramSection.Create(UsesList: NodeList; Decls: DeclarationList; Code: BlockStatement);
-Begin
-  Self.Block := Code;
-  Self.Useslist := UsesList;
-  Self.Decls := Decls;
-End;
-
-{ ExpressionList }
-Constructor ExpressionList.Create(Exp: Expression);
-Begin
-  Self.Count := 0;
-  Self.Add(Exp);
-End;
-
-Procedure ExpressionList.Add(Exp: Expression);
-Begin
-  If Exp = Nil Then
-    Exit;
-
-  Inc(Count);
-  SetLength(Expressions, Count);
-  Expressions[Pred(Count)] := Exp;
-End;
-
-Procedure ExpressionList.InsertAt(Index:Integer; Exp:Expression);
-Var
-  Prev, I:Integer;
-Begin
-  If (Exp = Nil) Then
-    Exit;
-
-  If (Index>=Count) Then
-  Begin
-    Self.Add(Exp);
-    Exit;
-  End;
-
-  Prev := Count;
-  Inc(Count);
-  For I:=Pred(Prev) DownTo Index Do
-    Expressions[I+1] := Expressions[I];
-
-  Expressions[Index] := Exp;
-End;
-
-{ ConstExpression }
-Function ConstExpression.ResolveToLiteral: Literal;
-Begin
-  Result := Nil; //TODO
-End;
-
-{ VarDeclaration }
-Constructor VarDeclaration.Create(Name:StringObject; VarType:TypeNode; Init:Expression; AbsoluteId:StringObject);
-Begin
-  Self.Name := Name;
-  Self.DeclType := VarType;
-  Self.Init := Init;
-  Self.AbsoluteID := AbsoluteID;
-End;
-
-Constructor VarDeclaration.Create(Name:StringObject; VarType:TypeNode; Init:Expression);
-Begin
-  Self.Create(Name, VarType, Init, Nil);
-End;
-
-{ ParamDeclaration }
-Constructor ParamDeclaration.Create(Name:StringObject; ParamType:TypeNode; Init:Expression; Kind:ParameterKind);
-Begin
-  Self.Name := Name;
-  Self.DeclType := ParamType;
-  Self.Init := Init;
-  Self.Kind := Kind;
-End;
-
-{ VarParamDeclaration }
-Constructor VarParamDeclaration.Create(Name:StringObject; VarType:TypeNode);
-Begin
-  Self.Name := Name;
-  Self.DeclType := VarType;
-End;
-
-{ ConstParamDeclaration }
-Constructor ConstParamDeclaration.Create(Name:StringObject; ConstType:TypeNode; Init:Expression);
-Begin
-  Self.Name := Name;
-  Self.DeclType := ConstType;
-  Self.Init := Init;
-End;
-
-{ OutParamDeclaration }
-Constructor OutParamDeclaration.Create(Name:StringObject; VarType:TypeNode);
-Begin
-  Self.Name := Name;
-  Self.DeclType := VarType;
-End;
-
-{ ParametersSection }
-Constructor ParametersSection.Create(Decls: DeclarationList);
-Begin
-  Self.Decls := Decls;
-End;
-
-{ FunctionDirectiveList }
-Constructor FunctionDirectiveList.Create(Dir:FunctionDirective);
-Begin
-  Self.Add(Dir);
-End;
-
-Procedure FunctionDirectiveList.Add(Dir:FunctionDirective);
-Begin
-  Inc(Count);
-  SetLength(Directives, Count);
-  Directives[Pred(Count)] := Count;
-End;
-
-Procedure FunctionDirectiveList.Add(Dirs: FunctionDirectiveList);
-Var
-  I:Integer;
-Begin
-  If Dirs = Nil Then
-    Exit;
-
-  For I:=0 To Pred(Dirs.Count) Do
-    Self.Add(Dirs.Directives[I]);
-End;
-
-
-Function FunctionDirectiveList.Contains(dir: FunctionDirective): Boolean;
-Var
-  I:Integer;
-Begin
-  Result := False;
-
-  For I:=0 To Pred(Count) Do
-  If (Directives[I] = Dir) Then
-  Begin
-    Result := True;
-    Exit;
-  End;
-End;
-
-
-Function FunctionDirectiveList.CheckDirectives: Boolean;
-Begin
-  // TODO
-End;
-
-{ CallableDeclaration }
-
-Constructor CallableDeclaration.Create(Name: StringObject;
-  Params: ParametersSection; RetType: TypeNode;
-  Dirs: FunctionDirectiveList);
-Begin
-  Self.Name := Name;
-  Self.DeclaringSection := Params;
-  Self.ResultType := RetType;
-  Self.Directives := Dirs;
-End;
-
-{ RoutineSection }
-
-Constructor RoutineSection.Create(Decls: DeclarationList; Block: Statement);
-Begin
-  Self.Decls := Decls;
-  Self.Block := Block;
-End;
-
-{ LibraryNode }
-Constructor LibraryNode.Create(Name:StringObject; UsesList:NodeList; Decls:DeclarationList; Body:BlockStatement);
-Begin
-  Self.Name := Name;
-  Self.Section := ProgramSection.Create(UsesList, Decls, Body);
-End;
-
-{ UnitNode }
-Constructor UnitNode.Create(Name: StringObject; Interfce:InterfaceSection; Impl:ImplementationSection; Init, Final: BlockStatement);
-Begin
-  Self.Name := Name;
-  Self.Interfaces := Interfce;
-  Self.Implements := Impl;
-  Self.Inits := Init;
-  Self.Final := Final;
-End;
-
-{ PackageNode }
-Constructor PackageNode.Create(Name: StringObject; Requires, Contains: NodeList);
-Begin
-  Self.Name := Name;
-  Self.Requires := Requires;
-  Self.Contains := Contains;
-End;
-
-{ StructuredConstant }
-
-Constructor StructuredConstant.Create(ExprList: ExpressionList);
-Begin
-  Self.ExprList := ExprList;
-End;
-
-{ ArrayConst }
-Constructor ArrayConst.Create(ExprList: ExpressionList);
-Begin
-  Self.ExprList := ExprList;
-End;
-
-Constructor ArrayConst.Create(ArrayElems: StringObject);
-Begin
-  RaiseError('TODO');
-End;
-
-{ FieldInit }
-Constructor FieldInit.Create(Name: StringObject; Expr: Expression);
-Begin
-  Self.FieldName := Name;
-  Self.Expr := Expr;
-End;
-
-{ FieldInitList }
-Constructor FieldInitList.Create(F: FieldInit);
-Begin
-  RaiseError('TODO');
-End;
-
-{ RecordConst }
-Constructor RecordConst.Create(ExprList: FieldInitList);
-Begin
-  Self.ExprList := ExprList;
-End;
-
-{ ConstIdentifier }
-
-Constructor ConstIdentifier.Create(Name: StringObject);
-Begin
-  Self.Name := Name;
-End;
-
-{ UnsignedInt8Type }
-
-function UnsignedInt8Type.GetMaxValue: Int64;
-Begin
-  Result := 255;
-End;
-
-function UnsignedInt8Type.GetMinValue: Int64;
-Begin
-  Result := 0;
-End;
-
-{ UnsignedInt16Type }
-
-function UnsignedInt16Type.GetMaxValue: Int64;
-Begin
-  Result := 65535;
-End;
-
-function UnsignedInt16Type.GetMinValue: Int64;
-Begin
-  Result := 0;
-End;
-
-{ UnsignedInt32Type }
-
-function UnsignedInt32Type.GetMaxValue: Int64;
-Begin
-  Result := 4294967295;
-End;
-
-function UnsignedInt32Type.GetMinValue: Int64;
-Begin
-  Result := 0;
-End;
-
-{ UnsignedInt64Type }
-function UnsignedInt64Type.GetMaxValue: Int64;
-Begin
-  Result := 9223372036854775807;
-End;
-
-function UnsignedInt64Type.GetMinValue: Int64;
-Begin
-  Result := -9223372036854775807;
-End;
-
-{ SignedInt8Type }
-
-function SignedInt8Type.GetMaxValue: Int64;
-Begin
-  Result := 127;
-End;
-
-function SignedInt8Type.GetMinValue: Int64;
-Begin
-  Result := -127;
-End;
-
-{ SignedInt16Type }
-
-function SignedInt16Type.GetMaxValue: Int64;
-Begin
-  Result := 32767;
-End;
-
-Function SignedInt16Type.GetMinValue: Int64;
-Begin
-  Result := -32768;
-End;
-
-{ SignedInt32Type }
-Function SignedInt32Type.GetMaxValue: Int64;
-Begin
-  Result := 2147483647;
-End;
-
-Function SignedInt32Type.GetMinValue: Int64;
-Begin
-  Result := 2147483647;
-End;
-
-{ SignedInt64Type }
-
-function SignedInt64Type.GetMaxValue: Int64;
-Begin
-  Result := 9223372036854775807;
-End;
-
-function SignedInt64Type.GetMinValue: Int64;
-Begin
-  Result := -9223372036854775807;
-End;
-
-{ StringType }
-
-Constructor StringType.Create(Len: Expression);
-Begin
-  Self.Length := Len;
-End;
-
-{ FixedStringType }
-
-Constructor FixedStringType.Create(Expr: Expression);
-Begin
-  Self.Expr := Expr;
-End;
-
-{ RangeType }
-
-Constructor RangeType.Create(Min, Max: Expression);
-Begin
-  Self.Min := Min;
-  Self.Max := Max;
-End;
-
-{ EnumValueList }
-Constructor EnumValueList.Create(Val: EnumValue);
-Begin
-  Count := 0;
-  Self.Add(Val);
-End;
-
-procedure EnumValueList.Add(Val: EnumValue);
-Begin
-  Inc(Count);
-  SetLength(Values, Count);
-  Values[Pred(Count)] := Val;
-End;
-
-
-{ EnumType }
-
-Constructor EnumType.Create(enumVals: EnumValueList);
-Begin
-  List := EnumVals;
-End;
-
-{ PointerType }
-
-Constructor PointerType.Create(PointedType: TypeNode);
-Begin
-  Self.PointedType := PointedType;
-End;
-
-{ FieldDeclaration }
-Constructor FieldDeclaration.FieldDeclaration(Id: StringObject; T: TypeNode; IsStatic: Boolean);
-Begin
-  Self.Name := Id;
-  Self.DeclType := T;
-  Self.isStatic := isStatic;
-End;
-
-{ PropertySpecifiers }
-
-Constructor PropertySpecifiers.Create(Read, Write: StringObject);
-Begin
-
-End;
-
-Constructor PropertySpecifiers.Create(Index: IntLiteral; Read,
-  Write: StringObject; Stored: ConstExpression; Default: Literal;
-  Impl: StringObject);
-Begin
-  Self.Index := Index;
-  Self.Read := Read;
-  Self.Write := Write;
-  Self.Stored := Stored;
-  Self.Default := Default;
-  Self.Impl := Impl; 
-End;
-
-{ PropertyDeclaration }
-
-Constructor PropertyDeclaration.Create(ID: StringObject; T: TypeNode;
-  Specs: PropertySpecifiers);
-Begin
-  Self.Name := ID;
-  Self.DeclType := T;
-  Self.Specifiers := Specs;
-End;
-
-{ ArrayProperty }
-
-Constructor ArrayProperty.Create(Id: StringObject; T: TypeNode;
-  Indexes: DeclarationList; Specs: PropertySpecifiers; Def: Boolean);
-Begin
-  Self.Name := ID;
-  Self.DeclType := T;
-  Self.Indexes := Indexes;
-  Self.Specifiers := Specs;
-  Self.IsDefault := Def;
-End;
-
-{ ObjectSection }
-Constructor ObjectSection.Create(Fields, Decls: DeclarationList; Scope: Integer);
-Begin
-  Self.Fields := Fields;
-  Self.Decls := Decls;
-  //SCOPE?
-End;
-
-procedure ObjectSection.Add(Sec: ObjectSection);
-Begin
-RaiseError('TODO');
-End;
-
-procedure ObjectSection.AddDecls(Decls: DeclarationList; Scope: Integer);
-Begin
-RaiseError('TODO');
-End;
-
-procedure ObjectSection.AddFields(Fields: DeclarationList; Scope: Integer);
-Begin
-RaiseError('TODO');
-End;
-
-procedure ObjectSection.AddMethods(Methods: DeclarationList;
-  Scope: Integer);
-Begin
-RaiseError('TODO');
-End;
-
-procedure ObjectSection.AddProperties(Properties: DeclarationList;
-  Scope: Integer);
-Begin
-RaiseError('TODO');
-End;
-
-function ObjectSection.GetField(id: AnsiString): FieldDeclaration;
-Begin
-RaiseError('TODO');
-End;
-
-function ObjectSection.GetMember(id: AnsiString): Declaration;
-Begin
-RaiseError('TODO');
-End;
-
-function ObjectSection.GetMethod(id: AnsiString): MethodDeclaration;
-Begin
-RaiseError('TODO');
-End;
-
-function ObjectSection.GetProperty(id: AnsiString): PropertyDeclaration;
-Begin
-RaiseError('TODO');
-End;
-
-{ ClassTypeNode }
-
-Constructor ClassTypeNode.Create(Heritage: NodeList; Sec: ObjectSection);
-Begin
-  RaiseError('TODO');
-End;
-
-{ ClassRefType }
-Constructor ClassRefType.Create(reftype: ClassTypeNode);
-Begin
-  Self.RefType := RefType;
-End;
-
-Constructor ClassRefType.Create(qualifid: StringObject;
-  reftype: ClassTypeNode);
-Begin
-  Self.RefType :=RefType;
-  Self.QualifID := Qualifid;
-End;
-
-{ MetaClassType }
-
-Constructor MetaClassType.Create(baseType: TypeNode);
-Begin
-  Self.BaseType := BaseType;
-End;
-
-{ IntLiteral }
-
-Constructor IntLiteral.Create(Value: Int64);
-Begin
-  Self.Value := Value;
-End;
-
-{ CharLiteral }
-
-Constructor CharLiteral.Create(Value: AnsiChar);
-Begin
-  Self.Value := Value;
-End;
-
-{ BoolLiteral }
-
-Constructor BoolLiteral.Create(Value: Boolean);
-Begin
-  Self.Value := Value;
-End;
-
-{ StringLiteral }
-
-Constructor StringLiteral.Create(Value: StringObject);
-Begin
-  Self.Value := Value;
-End;
-
-{ RealLiteral }
-
-Constructor RealLiteral.Create(Value: Double);
-Begin
-  Self.Value := Value;
-End;
-
-{ PointerLiteral }
-
-Constructor PointerLiteral.Create(val: Int64);
-Begin
-  Self.Value := Value;
-End;
-
-{ BinaryExpression }
-
-Constructor BinaryExpression.Create(A, B: Expression);
-Begin
-  Self.Left := A;
-  Self.Right := B;
-End;
-
-{ SetIn }
-
-Constructor SetIn.Create(A, B: Expression);
-Begin
-  Self.Expr := A;
-  Self._Set := B;
-End;
-
-{ SetRange }
-
-Constructor SetRange.Create(_type: RangeType);
-Begin
-  RaiseError('TODO');
-End;
-
-{ TypeBinaryExpression }
-
-Constructor TypeBinaryExpression.Create(Expr: Expression;
-  ExprType: TypeNode);
-Begin
-  Self.Expr := Expr;
-  Self.Types := ExprType;
-End;
-
-{ SimpleUnaryExpression }
-
-Constructor SimpleUnaryExpression.Create(Expr: Expression);
-Begin
-  Self.Expr := Expr;
-End;
-
-{ SetExpression }
-
-Constructor SetExpression.Create(Elements: ExpressionList);
-Begin
-  Self.Elements := Elements;
-End;
-
-{ LvalueAsExpr }
-
-Constructor LvalueAsExpr.Create(lval: LvalueExpression);
-Begin
-  Self.lval := LVal;
-End;
-
-{ ExprAsLvalue }
-
-Constructor ExprAsLvalue.Create(Expr: Expression);
-Begin
-  Self.Expr := Expr;
-End;
-
-{ StaticCast }
-Constructor StaticCast.Create(t: TypeNode; e: Expression);
-Begin
-  Self.CastType := T;
-  Self.Expr := E;
-End;
-
-Constructor StaticCast.Create(t: TypeClass; e: Expression);
-Begin
-  Self.CastPrimitive := T;
-  Self.Expr := Expr;
-End;
-
-{ ArrayAccess }
-Constructor ArrayAccess.Create(_array: ArrayConst;
-  acessors: ExpressionList);
-Begin
-  Self._Array := _Array;
-  Self.Acessors := Acessors;
-End;
-
-Constructor ArrayAccess.Create(lvalue: LvalueExpression;
-  acessors: ExpressionList);
-Begin
-  Self.LValue := LValue;
-  Self.Acessors := Acessors;
-End;
-
-{ PointerDereference }
-Constructor PointerDereference.Create(Expr: Expression);
-Begin
-  Self.Expr := Expr;
-End;
-
-{ RoutineCall }
-Constructor RoutineCall.Create(Func: LvalueExpression; RetType: TypeNode);
-Begin
-  Self.Func := Func;
-  Self.ForcedType := RetType;
-End;
-
-{ InheritedCall }
-Constructor InheritedCall.Create(FuncName: StringObject; Args: ExpressionList);
-Begin
-  Self.FuncName := FuncName;
-  Self.Args := Args;
-End;
-
-{ ObjectAccess }
-Constructor ObjectAccess.Create(Obj: LvalueExpression; Field: StringObject);
-Begin
-  Self.Obj := Obj;
-  Self.Field := Field;
-End;
-
-{ Identifier }
-Constructor Identifier.Create(Name: StringObject; T: TypeNode);
-Begin
-  Self.Name := Name;
-  Self.ForcedType := T;
-End;
-
-{ UnresolvedId }
-Constructor UnresolvedId.Create(ID: Identifier);
-Begin
-  Self.ID := ID;
-End;
-
-{ UnresolvedCall }
-Constructor UnresolvedCall.Create(lval: LvalueExpression;
-  Args: ExpressionList);
-Begin
-  Self.Func := LVal;
-  Self.Args := Args;
-End;
-
-{ ConstDeclaration }
-Constructor ConstDeclaration.Create(Name: StringObject; Init: Expression;  T: TypeNode);
-Begin
-  Self.Name := Name;
-  Self.Init := Init;
-  Self.DeclType := T;
-End;
-
-{ EnumValue }
-Constructor EnumValue.Create(Name: StringObject; Init: Expression);
-Begin
-  Self.Name := Name;
-  Self.Init := Init;
-End;
-
-{ ProceduralType }
-Constructor ProceduralType.Create(Params: ParametersSection; ret: TypeNode;  Dirs: FunctionDirectiveList);
-Begin
-  Self.Params := Params;
-  Self.FuncRet := Ret;
-  Self.Directives := Dirs;
-End;
-
-{ RoutineDeclaration }
-Constructor RoutineDeclaration.Create(Name: StringObject; Params: ParametersSection; Ret: TypeNode; Dirs: FunctionDirectiveList);
-Begin
-  Self.Name := Name;
-  Self.DeclaringSection := Params;
-  Self.ResultType := Ret;
-  Self.Directives := Dirs;
-End;
-
-{ MethodDeclaration }
-Constructor MethodDeclaration.Create(objname, name: StringObject;
-  params: ParametersSection; ret: TypeNode; dirs: FunctionDirectiveList;
-  kind: MethodKind);
-Begin
-  Self.Objname := ObjName;
-  Self.Name := Name;
-  Self.DeclaringSection := Params;
-  Self.ResultType := Ret;
-  Self.Directives := Dirs;
-  Self.Kind := Kind;
-End;
-
-{ RoutineDefinition }
-Constructor RoutineDefinition.Create(name: StringObject;
-  params: ParametersSection; ret: TypeNode; dirs: FunctionDirectiveList;
-  body: RoutineSection);
-Begin
-
-End;
-
-Constructor RoutineDefinition.Create(name: StringObject;
-  signatureType: ProceduralType; dirs: FunctionDirectiveList;
-  body: RoutineSection);
-Begin
-  Self.Name := Name;
-  Self.SignatureType := SignatureType;
-  Self.Directives := Dirs;
-  Self.Body := Body;
-End;
-
-{ MethodDefinition }
-Constructor MethodDefinition.Create(objname, name: StringObject;
-  params: ParametersSection; ret: TypeNode; dirs: FunctionDirectiveList;
-  kind: MethodKind; body: RoutineSection);
-Begin
-  Self.Objname := ObjName;
-  Self.Name := Name;
-  Self.DeclaringSection := Params;
-  Self.ResultType := Ret;
-  Self.Directives := Dirs;
-  Self.Kind := Kind;
-  Self.Body := Body;
-End;
-
-{ CompositeDeclaration }
-Constructor CompositeDeclaration.Create(Name: StringObject; ctype: CompositeType);
-Begin
-  Self.Name := Name;
-  Self.DeclType := Ctype;
-End;
-
-{ ExternalDirective }
-Constructor ExternalDirective.Create(_file, name: Expression);
-Begin
-  Self._File := _File;
-  Self.Name := Name;
-End;
-
-{ ImportDirectives }
-Constructor ImportDirectives.Create(ImportDir: FunctionDirective);
-Begin
-  RaiseError('TODO');
-  //Self.
-End;
-
-{ LabelStatement }
-Constructor LabelStatement.Create(Name: StringObject; stmt: Statement);
-Begin
-  Self.Name := Name;
-  Self.Stmt := stMT;
-End;
-
-{ GotoStatement }
-Constructor GotoStatement.Create(LabelName: StringObject);
-Begin
-  Self.GotoLabel := LabelName;
-End;
-
-{ Assignment }
-Constructor Assignment.Create(lvalue: LvalueExpression; expr: Expression);
-Begin
-  Self.lvalue := LValue;
-  Self.Expr := Expr;
-End;
-
-{ IfStatement }
-Constructor IfStatement.Create(condition: Expression; ifTrue, ifFalse: Statement);
-Begin
-  Self.Condition := Condition;
-  Self.ThenBlock := ifTrue;
-  Self.ElseBlock := ifFalse;
-End;
-
-{ ExpressionStatement }
-Constructor ExpressionStatement.Create(Expr: Expression);
-Begin
-  Self.Expr := Expr;
-End;
-
-{ CaseSelector }
-Constructor CaseSelector.Create(list: ExpressionList; stmt: Statement);
-Begin
-  Self.List := List;
-  Self.Stmt := Stmt;
-End;
-
-{ CaseStatement }
-Constructor CaseStatement.Create(condition: Expression;  selectors: StatementList; caseelse: Statement);
-Begin
-  Self.Condition := Condition;
-  Self.Selectors := Selectors;
-  Self.CaseElse := CaseElse;
-End;
-
-{ LoopStatement }
-
-Constructor LoopStatement.Create(Block: Statement; Condition: Expression);
-Begin
-  Self.Block := Block;
-  Self.Condition := Condition;
-End;
-
-{ ForLoop }
-
-Constructor ForLoop.Create(_var: Identifier; start, _End: Expression;  body: Statement; dir: Integer);
-Begin
-  Self._var := _Var;
-  Self.Start := Start;
-  Self._End := _End;
-  Self.Block := Body;
-  Self.Direction := Dir;
-End;
-
-{ WithStatement }
-Constructor WithStatement.Create(_with: ExpressionList; Body: Statement);
-Begin
-  Self._With := _With;
-  Self.Body := Body;
-End;
-
-{ TryFinallyStatement }
-Constructor TryFinallyStatement.Create(Body, Final: BlockStatement);
-Begin
-  Self.Body := Body;
-  Self.Final := Final;
-End;
-
-{ ExceptionBlock }
-Constructor ExceptionBlock.Create(onList: StatementList; default: BlockStatement);
-Begin
-  Self.onList := OnList;
-  Self.Default := Default;
-End;
-
-{ TryExceptStatement }
-Constructor TryExceptStatement.Create(Body: BlockStatement;  Final: ExceptionBlock);
-Begin
-  Self.Body := Body;
-  Self.Final := Final;
-End;
-
-{ RaiseStatement }
-Constructor RaiseStatement.Create(lvalue: LvalueExpression; Expr: Expression);
-Begin
-  Self.LValue := LValue;
-  Self.Expr := Expr;
-End;
-
-{ OnStatement }
-
-Constructor OnStatement.Create(Ident, _type: StringObject; Body: Statement);
-Begin
-  Self.Ident := Ident;
-  Self._type := _Type;
-  Self.Body := Body;
-End;
-
-{ AssemblerBlock }
-Constructor AssemblerBlock.AssemblerBlock(asmInstrs: StatementList);
-Begin
-  Self.List := asmInstrs;
-End;
-
-{ InterfaceType }
-Constructor InterfaceType.Create(Heritage: InterfaceList; Ssec: ObjectSection; guid: StringLiteral);
-Begin
-  Self.Heritage := Heritage;
-  Self.Ssec := Ssec;
-  Self.Guid := Guid;
-End;
-
-{ RecordType }
-Constructor RecordType.Create(compTypes: DeclarationList);
-Begin
-  Self.CompTypes := compTypes;
-End;
-
-{ ArrayType }
-Constructor ArrayType.Create(baseType: TypeNode; dims: List);
-Begin
-  Self.BaseType := BaseType;
-  RaiseError('TODO');
-  //Self.Dimensions := Dims;
-End;
-
-Constructor ArrayType.Create(sizeType: TypeNode);
-Begin
-  RaiseError('TODO');
-End;
-
-Constructor ArrayType.Create(baseType, sizeType: TypeNode);
-Begin
-  Self.BaseType := BaseType;
-  RaiseError('TODO');
-End;
-
-Procedure ArrayType.AddDimension(size: Integer);
-Begin
-  Inc(DimensionCount);
-  SetLength(Dimensions, DimensionCount);
-  Dimensions[Pred(DimensionCount)] := Size;
-End;
-
-{ SetType }
-Constructor SetType.Create(T: TypeNode);
-Begin
-  Self.BaseType := T;
-End;
-
-{ FileType }
-Constructor FileType.Create(T: TypeNode);
-Begin
-  Self.BaseType := T;
-End;
-
-{ VariantDeclaration }
-Constructor VariantDeclaration.Create(ID: StringObject; T: TypeNode; Fields: DeclarationList);
-Begin
-  Self.Name := Name;
-  Self.DeclType := T;
-  Self.Fields := Fields;
-End;
-
-{ VarEntryDeclaration }
-Constructor VarEntryDeclaration.Create(TagValue: Expression; Fields: DeclarationList);
-Begin
-  Self.TagValue := TagValue;
-  //Self.Fields := Fields;
-  RaiseError('TODO');
-End;
-
-{ ExportItem }
-Constructor ExportItem.Create(name: StringObject; pars: ParametersSection; exportname: StringObject);
-Begin
-  Self.Name := Name;
-  Self.FormalParams := Pars;
-  Self.ExportName := ExportName;
-End;
-
-Constructor ExportItem.Create(name: StringObject; pars: ParametersSection; Index: Integer);
-Begin
-  Self.Name := Name;
-  Self.FormalParams := Pars;
-  Self.Index := Index;
-End;
-
-{ UnresolvedType }
-
-Constructor UnresolvedType.Create(ID: StringObject);
-Begin
-  Self.ID := ID;
-End;
-
-{ UnresolvedVariableType }
-
-Constructor UnresolvedVariableType.Create(ID: StringObject);
-Begin
-  Self.ID := ID;
-End;
-
-{ UnresolvedIntegralType }
-
-Constructor UnresolvedIntegralType.Create(ID: StringObject);
-Begin
-  Self.ID := ID;
-End;
-
-{ UnresolvedOrdinalType }
-
-Constructor UnresolvedOrdinalType.Create(ID: StringObject);
-Begin
-  Self.ID := ID;
-End;
 
 End.
    

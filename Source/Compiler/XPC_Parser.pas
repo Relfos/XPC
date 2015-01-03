@@ -1,13 +1,6 @@
 {
-  Delphi Yacc & Lex
-  Copyright (c) 2003,2004 by Michiel Rook
-  Based on Turbo Pascal Lex and Yacc Version 4.1
-
-  Copyright (c) 1990-92  Albert Graef <ag@muwiinfa.geschichte.uni-mainz.de>
-  Copyright (C) 1996     Berend de Boer <berend@pobox.com>
-  Copyright (c) 1998     Michael Van Canneyt <Michael.VanCanneyt@fys.kuleuven.ac.be>
-
-  ## $Id: yacclib.pas 1697 2005-12-19 16:27:41Z druid $
+  XPC_Parser.pas
+  Copyright (c) 2015 by Sergio Flores <relfos@gmail.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -24,91 +17,87 @@
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 }
 
-{$I-}
-unit XPC_Parser;
 
-interface
+{$I-}
+Unit XPC_Parser;
+
+Interface
+
+Uses XPC_ASTNodes;
 
 {$IFDEF FPC}{$MODE DELPHI}{$ENDIF}
 
-const
+Const
+  // default stack size of parser
   yymaxdepth = 1024;
-  (* default stack size of parser *)
 
-type
-  YYSType = integer;
-  (* default value type, may be redefined in Yacc output file *)
-
+Type
   CustomParser = class
   protected
-    yychar: integer; (* current lookahead character *)
+    yychar: integer; // current lookahead character
     yynerrs: integer;
     yyerrflag: integer;
-    (* Flags used internally by the parser routine: *)
+    // Flags used internally by the parser routine:
     yyflag: (yyfnone, yyfaccept, yyfabort, yyferror);
 
     yystate, yysp, yyn : Integer;
 
-  public
-    (* current number of syntax errors reported by the
-      parser *)
-    procedure yyerror(msg: string);
-    (* error message printing routine used by the parser *)
+    _Root:SourceNode;
 
-    procedure yyclearin;
-    (* delete the current lookahead token *)
+    Procedure yyaction ( yyruleno : Integer ); Virtual; Abstract;
 
-    procedure yyaccept;
-    (* trigger accept action of the parser; yyparse accepts returning 0, as if
-      it reached end of input *)
+    Procedure yyerror(msg: string);
+    // error message printing routine used by the parser 
 
-    procedure yyabort;
-    (* like yyaccept, but causes parser to return with value 1, as if an
-      unrecoverable syntax error had been encountered *)
+    Procedure yyclearin;
+    // delete the current lookahead token 
 
-    procedure yyerrlab;
-    (* causes error recovery to be started, as if a syntax error had been
-      encountered *)
+    Procedure yyaccept;
+    // trigger accept action of the parser; yyparse accepts returning 0, as if it reached end of input 
 
-    procedure yyerrok;
-    (* when in error mode, resets the parser to its normal mode of
-      operation *)
+    Procedure yyabort;
+    // like yyaccept, but causes parser to return with value 1, as if an unrecoverable syntax error had been encountered 
 
-    function parse() : integer; virtual; abstract;
-  end;
+    Procedure yyerrlab;
+    // causes error recovery to be started, as if a syntax error had been encountered 
 
-implementation
+    Procedure yyerrok;
+    // when in error mode, resets the parser to its normal mode of  operation
 
-procedure CustomParser.yyerror(msg: string);
-begin
+  Public
+    Function Parse():ASTNode; Virtual; Abstract;
+  End;
+
+Implementation
+
+Procedure CustomParser.yyerror(msg: string);
+Begin
   writeln(msg);
-end (* yyerrmsg *);
+End;
 
-procedure CustomParser.yyclearin;
-begin
+Procedure CustomParser.yyclearin;
+Begin
   yychar := -1;
-end (* yyclearin *);
+End;
 
-procedure CustomParser.yyaccept;
-begin
+Procedure CustomParser.yyaccept;
+Begin
   yyflag := yyfaccept;
-end (* yyaccept *);
+End;
 
-procedure CustomParser.yyabort;
-begin
+Procedure CustomParser.yyabort;
+Begin
   yyflag := yyfabort;
-end (* yyabort *);
+End;
 
-procedure CustomParser.yyerrlab;
-begin
+Procedure CustomParser.yyerrlab;
+Begin
   yyflag := yyferror;
-end (* yyerrlab *);
+End;
 
-procedure CustomParser.yyerrok;
-begin
+Procedure CustomParser.yyerrok;
+Begin
   yyerrflag := 0;
-end (* yyerrork *);
+End;
 
-end (* YaccLib *)
-
-  .
+End.
