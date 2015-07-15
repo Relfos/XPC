@@ -3,7 +3,7 @@ Unit XPC_Delphi;
 {$I terra.inc}
 
 Interface
-Uses TERRA_String, TERRA_Utils, TERRA_Stream, TERRA_Lexer, TERRA_Parser;
+Uses TERRA_String, TERRA_Utils, TERRA_Stream, XPC_Lexer, XPC_Parser;
 
 Type
 	IntegerLiteral1RegexMatcher = Class(RegexTokenMatcher) // matcher for [+-]?[0-9]+

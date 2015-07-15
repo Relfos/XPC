@@ -6,7 +6,7 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, ComCtrls,
-  TERRA_String, TERRA_Utils, TERRA_Stream, TERRA_Parser, TERRA_FileStream,
+  TERRA_String, TERRA_Utils, TERRA_Stream, XPC_Parser, TERRA_FileStream,
   TERRA_Log, llvmAPI;
 
 type

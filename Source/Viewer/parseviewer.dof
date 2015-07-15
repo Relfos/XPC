@@ -94,7 +94,7 @@ OutputDir=
 UnitOutputDir=D:\code\dcu
 PackageDLLOutputDir=
 PackageDCPOutputDir=
-SearchPath=..\..\Libs;..\Parsers
+SearchPath=..\..\Libs;..\Parsers;..\Compiler
 Packages=vcl;rtl;vclie;xmlrtl;inet;inetdbbde;inetdbxpress;vclx;dbrtl;soaprtl;dsnap;VclSmp;dbexpress;vcldb;dbxcds;adortl;ibxpress;vclactnband;bdertl;vclshlctrls;dclOfficeXP;TntUnicodeVcl_R70;CoolTrayIcon_D6plus;TERRA_Components
 Conditionals=
 DebugSourceDirs=
@@ -134,9 +134,10 @@ Comments=
 Count=1
 Item0=WinTypes=Windows;WinProcs=Windows;DbiTypes=BDE;DbiProcs=BDE;DbiErrs=BDE;
 [HistoryLists\hlSearchPath]
-Count=2
-Item0=..\..\Libs;..\Parsers
-Item1=..\..\Libs
+Count=3
+Item0=..\..\Libs;..\Parsers;..\Compiler
+Item1=..\..\Libs;..\Parsers
+Item2=..\..\Libs
 [HistoryLists\hlUnitOutputDirectory]
 Count=1
 Item0=D:\code\dcu
