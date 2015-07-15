@@ -1,0 +1,295 @@
+Unit XPC_PascalParser;
+
+{$I terra.inc}
+
+Interface
+Uses TERRA_Utils, TERRA_IO, TERRA_Collections, TERRA_Error, 
+    XPC_Parser, XPC_PascalLexer, XPC_PascalPreProcessor, XPC_ASTNodes, XPC_ASTUtils;
+
+//    | LBRAC lvalue RBRAC                { $$ := $2; }
+
+Type   
+    PascalParser = Class(CustomParser)
+        Protected
+            _Lexer:PascalLexer;
+            _lastObjName:ASTString;
+              
+            Procedure yyaction ( yyruleno : Integer ); Override;
+             
+            Function yyact(state, sym : Integer; var act : Integer) : Boolean;
+            Function yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
+            Function yycharsym(i : Integer) : String;
+      
+        Public
+            Constructor Create(Source:Stream);
+            Destructor Destroy(); Override;
+
+            Function Parse:ASTNode; Override;
+
+            Property Lexer:PascalLexer Read _Lexer;
+    End;
+  
+%%
+
+Var
+    yylval : YYSType;
+
+Implementation
+
+Function CreateBinaryExpression(e1:ExpressionNode; token:Integer; e2:ExpressionNode):BinaryExpressionNode;
+Begin
+  Case token Of
+				KW_MUL: Result := ProductNode.Create(e1, e2);
+				KW_DIV: Result := DivisionNode.Create(e1, e2);
+				KW_QUOT:Result := QuotientNode.Create(e1, e2);
+				KW_MOD: Result := ModulusNode.Create(e1, e2);
+				KW_SHR: Result := ShiftRightNode.Create(e1, e2);
+				KW_SHL: Result := ShiftLeftNode.Create(e1, e2);
+				KW_AND: Result := LogicalAndNode.Create(e1, e2);
+				KW_SUB: Result := SubtractionNode.Create(e1, e2);
+				KW_SUM: Result := AdditionNode.Create(e1, e2);
+				KW_OR : Result := LogicalOrNode.Create(e1, e2);
+				KW_XOR: Result := LogicalXorNode.Create(e1, e2);
+				KW_EQ : Result := EqualNode.Create(e1, e2);
+				KW_NE : Result := NotEqualNode.Create(e1, e2);
+				KW_LT : Result := LessThanNode.Create(e1, e2);
+				KW_LE : Result := LessOrEqualNode.Create(e1, e2);
+				KW_GT : Result := GreaterThanNode.Create(e1, e2);
+				KW_GE : Result := GreaterOrEqualNode.Create(e1, e2);
+    Else
+      RaiseError('Invalid Binary Operation token: ' + IntToString(token));
+  End;
+End;
+
+Constructor PascalParser.Create(Source:Stream);
+Begin
+    _Lexer := PascalLexer.Create(Source);
+End;
+
+Destructor PascalParser.Destroy();
+Begin
+    _Lexer.Destroy();
+    _Lexer := Nil;
+End;
+  
+Var
+  yyval : YYSType;
+  yys : array [1..yymaxdepth] of Integer;
+  yyv : array [1..yymaxdepth] of YYSType;
+  
+Procedure PascalParser.yyaction(yyruleno : Integer );
+  (* local definitions: *)
+%%
+Begin
+  (* actions: *)
+  case yyruleno of
+%%
+  End;
+End(*yyaction*);
+
+(* parse table: *)
+%%
+
+const _error = 256; (* error token *)
+
+function PascalParser.yyact(state, sym : Integer; var act : Integer) : Boolean;
+  (* search action table *)
+  var k : Integer;
+  Begin
+    k := yyal[state];
+    while (k<=yyah[state]) and (yya[k].sym<>sym) do inc(k);
+    if k>yyah[state] then
+      yyact := false
+    else
+      Begin
+        act := yya[k].act;
+        yyact := true;
+      End;
+  End(*yyact*);
+
+function PascalParser.yygoto(state, sym : Integer; var nstate : Integer) : Boolean;
+  (* search goto table *)
+  var k : Integer;
+  Begin
+    k := yygl[state];
+    while (k<=yygh[state]) and (yyg[k].sym<>sym) do inc(k);
+    if k>yygh[state] then
+      yygoto := false
+    else
+      Begin
+        nstate := yyg[k].act;
+        yygoto := true;
+      End;
+  End(*yygoto*);
+
+function PascalParser.yycharsym(i : Integer) : String;
+Begin
+  if (i >= 1) and (i <= 255) then
+    Begin
+      if i < 32 then
+        Begin
+          if i = 9 then
+            Result := #39'\t'#39
+          else if i = 10 then
+            Result := #39'\f'#39
+          else if i = 13 then
+            Result := #39'\n'#39
+          else
+            Result := #39'\0x' + HexStr(Byte(i)) + #39;
+        End
+      else
+        Result := #39 + Char(i) + #39;
+      Result := ' literal ' + Result;
+    End
+  else
+    Begin
+      if i < -1 then
+        Result := ' unknown'
+      else if i = -1 then
+        Result := ' token $accept'
+      else if i = 0 then
+        Result := ' token $eof'
+      else if i = 256 then
+        Result := ' token $error'
+{$ifdef yyextradebug}
+      else if i <= yymaxtoken then
+        Result := ' token ' + yytokens[yychar].tokenname
+      else
+        Result := ' unknown token';
+{$else}
+      else
+        Result := ' token';
+{$Endif}
+    End;
+  Result := Result + ' ' + IntToString(yychar);
+End;
+
+Function PascalParser.Parse():ASTNode;
+label parse, next, error, errlab, shift, reduce, accept, abort;
+
+Begin
+
+  //initialize
+
+  yystate := 0; yychar := -1; yynerrs := 0; yyerrflag := 0; yysp := 0;
+
+parse:
+
+  // push state and value: 
+
+  inc(yysp);
+  if yysp>yymaxdepth then
+    Begin
+      yyerror('yyparse stack overflow');
+      goto abort;
+    End;
+  yys[yysp] := yystate; yyv[yysp] := yyval;
+
+next:
+
+  If (yyd[yystate]=0) and (yychar=-1) Then // get next symbol
+    Begin
+      yychar := lexer.parse(); 
+      If yychar<0 Then 
+        yychar := 0;
+    End;
+
+  {$IFDEF YYDEBUG}writeln('state ', yystate, yycharsym(yychar));{$EndIF}
+
+  // determine parse action: 
+
+  yyn := yyd[yystate];
+  If yyn<>0 Then 
+    goto reduce; // simple state 
+
+  // no default action; search parse table 
+
+  If Not yyact(yystate, yychar, yyn) Then 
+    goto error
+  Else If yyn>0 Then                      
+    goto shift
+  Else If yyn<0 Then                      
+    goto reduce
+  Else                                    
+    goto accept;
+
+error:
+
+  (* error; start error recovery: *)
+
+  if yyerrflag=0 then 
+  Begin
+    yyerror('syntax error at line '+ IntToString(Lexer.CurrentLine) + ', row '+ IntToString(Lexer.CurrentRow));
+  End;
+    
+errlab:
+
+  if yyerrflag=0 then inc(yynerrs);     (* new error *)
+
+  if yyerrflag<=2 then                  (* incomplete recovery; try again *)
+    Begin
+      yyerrflag := 3;
+      (* uncover a state with shift action on error token *)
+      while (yysp>0) and not ( yyact(yys[yysp], _error, yyn) and
+                               (yyn>0) ) do
+        Begin
+          {$IFDEF YYDEBUG}
+            if yysp>1 then
+              writeln('error recovery pops state ', yys[yysp], ', uncovers ',
+                      yys[yysp-1])
+            else
+              writeln('error recovery fails ... abort');
+          {$EndIF}
+          dec(yysp);
+        End;
+      if yysp=0 then goto abort; (* parser has fallen from stack; abort *)
+      yystate := yyn;            (* simulate shift on error *)
+      goto parse;
+    End
+  else                                  (* no shift yet; discard symbol *)
+    Begin
+      {$IFDEF YYDEBUG}writeln('error recovery discards ' + yycharsym(yychar));{$EndIF}
+      if yychar=0 then goto abort; (* End of input; abort *)
+      yychar := -1; goto next;     (* clear lookahead char and try again *)
+    End;
+
+shift:
+
+  (* go to new state, clear lookahead character: *)
+
+  yystate := yyn; yychar := -1; yyval := yylval;
+  if yyerrflag>0 then dec(yyerrflag);
+
+  goto parse;
+
+reduce:
+
+  (* execute action, pop rule from stack, and go to next state: *)
+
+  {$IFDEF YYDEBUG}writeln('reduce ' + IntToString(-yyn) {$IFDEF YYEXTRADEBUG} + ' rule ' + yyr[-yyn].symname {$EndIF});{$EndIF}
+
+  yyflag := yyfnone; yyaction(-yyn);
+  dec(yysp, yyr[-yyn].len);
+  if yygoto(yys[yysp], yyr[-yyn].sym, yyn) then yystate := yyn;
+
+  (* handle action calls to yyaccept, yyabort and yyerror: *)
+
+  case yyflag of
+    yyfaccept : goto accept;
+    yyfabort  : goto abort;
+    yyferror  : goto errlab;
+  End;
+
+  goto parse;
+
+accept:
+
+  Result := _Root; exit;
+
+abort:
+
+  Result := Nil; exit;
+
+End;
+
+End.

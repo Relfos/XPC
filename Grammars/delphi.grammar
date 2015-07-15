@@ -1,0 +1,88 @@
+Grammar Delphi;
+
+Rules   
+    Goal = Program;
+    
+    BoolLiteral = "true", "false" => Boolean;
+    
+    IntegerLiteral = "[+-]?[0-9]+", "[+-]?[$][0-9a-f]*" => Integer;
+    
+    FloatLiteral = "[+-]?[0-9]+\.[0-9]+", "[+-]?[0-9]+e[+-]?[0-9]+", "[+-]?[0-9]+\.[0-9]+e[+-]?[0-9]+" => Double;
+
+    StringLiteral = "'[^']*'";
+    CharLiteral = "[#][0-9]+";
+    
+    Literal = StringLiteral, CharLiteral, IntegerLiteral, FloatLiteral, BoolLiteral;
+            
+    Identifier = "[_a-zA-Z][0-9a-zA-Z_]*";    
+    IdentifierList = (Identifier ',');
+            
+    WhiteSpace = "[ \n\t]*" => Null;
+       
+    Program = 'program' Identifier ';' [UsesDecl] [(Declarations)] Block '.';
+    UsesDecl = 'uses' IdentifierList ';';    
+    
+    Declarations = Consts, Vars, Types, Functions;
+    
+    Consts = 'const' (ConstDeclaration);
+    ConstDeclaration = Identifier '=' Literal ';';
+    
+    Vars  = 'var' (VarDeclaration);
+    VarDeclaration = IdentifierList ':' Identifier@TypeID ';';
+    
+    Types = 'type' (TypeDeclaration);
+    TypeDeclaration = RecordType, TypeAlias, Enumeration, RangeType, ArrayType;
+    
+    TypeAlias = Identifier '=' Identifier@Alias! ';';
+    RecordType = Identifier '=' ['packed':IsPacked] 'record'! (VarDeclaration) 'end' ';';
+    
+    Enumeration = Identifier '=' '(' ! EnumList ')' ';';
+    EnumList = (Enum ',');
+    Enum = Identifier [ '=' IntegerLiteral ];
+    
+    RangeType = Identifier '=' Range !';';
+    Range = Literal@RangeStart '..' Literal@RangeEnd;
+    RangeList = (Range ',');
+    
+    ArrayType = Identifier '=' Array@ArrayValue ';';
+    Array = 'array' '[' RangeList ']' 'of' Identifier;
+    
+    Functions = RoutineDeclaration ! [RoutineArguments] [RoutineReturnType] ';' [(Declarations)] Block ';';
+    RoutineDeclaration = ProcedureDeclaration, FunctionDeclaration; 
+    ProcedureDeclaration = 'procedure' Identifier;
+    FunctionDeclaration = 'function' Identifier;
+    RoutineArguments = '(' (RoutineArgumentDeclaration ';') ')';
+    RoutineArgumentDeclaration = IdentifierList ':' Identifier@TypeID;
+    RoutineReturnType = ':' Identifier;
+        
+    Block = 'begin' (Statement ';') 'end';       
+    Statement = IfStatement, WhileStatement, RepeatStatement, ForStatement, Assignment, Block;
+        
+    Assignment = Identifier ':=' Expression;    
+
+    WhileStatement = 'while' Expression@Condition 'do' (Statement ';');
+    RepeatStatement = 'repeat' (Statement ';') 'until' Expression@Condition;
+    
+    ForStatement = 'for' Assignment 'to' Expression 'do' (Statement ';');
+    
+    IfStatement = 'if' ! Expression 'then' Statement@TrueStatement ['else' Statement@FalseStatement];    
+    
+    Expression = BinaryExpression, PriorityExpression, UnaryExpression, FunctionCall, Range, Literal, Identifier;
+    
+    FunctionCall = Identifier '(' ExpressionList ')';
+    
+    ExpressionList = (Expression ',');
+    
+    PriorityExpression = '(' Expression ')';
+    
+    UnaryExpression = UnaryOperator Expression;
+    UnaryOperator = '+'@Plus , '-'@Minus, '@'@AddressOf, 'not'@Not;
+    
+    BinaryExpression = Expression@ExprA BinaryOperator? Expression@ExprB;   
+    BinaryOperator = LogicBinaryOperator, ArithmeticBinaryOperator;
+    
+    LogicBinaryExpression = Expression@ExprA LogicBinaryOperator Expression@ExprB;   
+
+    LogicBinaryOperator = '='@Equality, '<>'@Inequality, 'and'@And, 'or'@Or, 'xor'@Xor,  '>'@Greater, '>='@GreaterOrEqual, '<'@Less, '<='@LessOrEqual, 'in'@Inside;
+    ArithmeticBinaryOperator = '+'@Plus , '-'@Minus, 'div'@Division, 'mod'@Modulus, '*'@Product, 'shr'@ShiftLeft, 'shl'@ShiftRight;
+End.

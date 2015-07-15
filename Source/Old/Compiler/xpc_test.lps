@@ -1,0 +1,329 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <ProjectSession>
+    <PathDelim Value="\"/>
+    <Version Value="9"/>
+    <BuildModes Active="Default"/>
+    <Units Count="19">
+      <Unit0>
+        <Filename Value="xpc_test.dpr"/>
+        <IsPartOfProject Value="True"/>
+        <IsVisibleTab Value="True"/>
+        <EditorIndex Value="0"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="1"/>
+        <CursorPos X="17" Y="6"/>
+        <UsageCount Value="40"/>
+        <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit0>
+      <Unit1>
+        <Filename Value="nodebrowser.pas"/>
+        <IsPartOfProject Value="True"/>
+        <HasResources Value="True"/>
+        <UnitName Value="nodebrowser"/>
+        <EditorIndex Value="1"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="38"/>
+        <CursorPos X="1" Y="65"/>
+        <UsageCount Value="40"/>
+        <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit1>
+      <Unit2>
+        <Filename Value="..\leaf3_terra\trunk\Core\TERRA_IO.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TERRA_IO"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="1"/>
+        <CursorPos X="32" Y="21"/>
+        <UsageCount Value="40"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit2>
+      <Unit3>
+        <Filename Value="..\leaf3_terra\trunk\Core\TERRA_MemoryManager.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TERRA_MemoryManager"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="9"/>
+        <CursorPos X="1" Y="26"/>
+        <UsageCount Value="40"/>
+      </Unit3>
+      <Unit4>
+        <Filename Value="..\leaf3_terra\trunk\OS\WindowsPhone\TERRA_FileIO.pas"/>
+        <IsPartOfProject Value="True"/>
+        <UnitName Value="TERRA_FileIO"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="1"/>
+        <CursorPos X="11" Y="17"/>
+        <UsageCount Value="40"/>
+      </Unit4>
+      <Unit5>
+        <Filename Value="..\leaf3_terra\trunk\Utils\terra.inc"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="1"/>
+        <CursorPos X="4" Y="2"/>
+        <UsageCount Value="9"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit5>
+      <Unit6>
+        <Filename Value="..\leaf3_terra\trunk\Core\TERRA_Log.pas"/>
+        <UnitName Value="TERRA_Log"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="39"/>
+        <CursorPos X="16" Y="52"/>
+        <UsageCount Value="9"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit6>
+      <Unit7>
+        <Filename Value="..\leaf3_terra\trunk\Utils\TERRA_Utils.pas"/>
+        <UnitName Value="TERRA_Utils"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="232"/>
+        <CursorPos X="1" Y="247"/>
+        <UsageCount Value="9"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit7>
+      <Unit8>
+        <Filename Value="..\leaf3_terra\trunk\Core\TERRA_Client.pas"/>
+        <UnitName Value="TERRA_Client"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="18"/>
+        <CursorPos X="6" Y="33"/>
+        <UsageCount Value="9"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit8>
+      <Unit9>
+        <Filename Value="..\leaf3_terra\trunk\OS\Windows\TERRA_OS.pas"/>
+        <UnitName Value="TERRA_OS"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="201"/>
+        <CursorPos X="3" Y="216"/>
+        <UsageCount Value="9"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit9>
+      <Unit10>
+        <Filename Value="..\leaf3_terra\trunk\Graphics\TERRA_GraphicsManager.pas"/>
+        <UnitName Value="TERRA_GraphicsManager"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="494"/>
+        <CursorPos X="27" Y="509"/>
+        <UsageCount Value="9"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit10>
+      <Unit11>
+        <Filename Value="..\leaf3_terra\trunk\Graphics\TERRA_Font.pas"/>
+        <UnitName Value="TERRA_Font"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="282"/>
+        <CursorPos X="3" Y="297"/>
+        <UsageCount Value="9"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit11>
+      <Unit12>
+        <Filename Value="..\leaf3_terra\trunk\UI\TERRA_UIVirtualKeyboard.pas"/>
+        <UnitName Value="TERRA_UIVirtualKeyboard"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="143"/>
+        <CursorPos X="54" Y="149"/>
+        <UsageCount Value="9"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit12>
+      <Unit13>
+        <Filename Value="..\leaf3_terra\trunk\Audio\TERRA_MusicTrack.pas"/>
+        <UnitName Value="TERRA_MusicTrack"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="14"/>
+        <CursorPos X="29" Y="24"/>
+        <UsageCount Value="9"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit13>
+      <Unit14>
+        <Filename Value="..\leaf3_terra\trunk\Utils\TERRA_Steam.pas"/>
+        <UnitName Value="TERRA_Steam"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="1"/>
+        <CursorPos X="37" Y="9"/>
+        <UsageCount Value="9"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit14>
+      <Unit15>
+        <Filename Value="..\leaf3_terra\trunk\Libs\Steamworks\headers\SteamAPI.pas"/>
+        <UnitName Value="SteamAPI"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="828"/>
+        <CursorPos X="71" Y="843"/>
+        <UsageCount Value="9"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit15>
+      <Unit16>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <UnitName Value="XPC_PascalLexer"/>
+        <EditorIndex Value="2"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="40255"/>
+        <CursorPos X="1" Y="40268"/>
+        <UsageCount Value="20"/>
+        <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit16>
+      <Unit17>
+        <Filename Value="..\leaf3_terra\trunk\Core\TERRA_Application.pas"/>
+        <UnitName Value="TERRA_Application"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="1763"/>
+        <CursorPos X="7" Y="1778"/>
+        <UsageCount Value="9"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit17>
+      <Unit18>
+        <Filename Value="XPC_PascalParser.pas"/>
+        <UnitName Value="XPC_PascalParser"/>
+        <EditorIndex Value="3"/>
+        <WindowIndex Value="0"/>
+        <TopLine Value="16417"/>
+        <CursorPos X="1" Y="16431"/>
+        <UsageCount Value="20"/>
+        <Loaded Value="True"/>
+        <DefaultSyntaxHighlighter Value="Delphi"/>
+      </Unit18>
+    </Units>
+    <General>
+      <ActiveWindowIndexAtStart Value="0"/>
+    </General>
+    <JumpHistory Count="30" HistoryIndex="29">
+      <Position1>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40249" Column="54" TopLine="40230"/>
+      </Position1>
+      <Position2>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40284" Column="5" TopLine="40255"/>
+      </Position2>
+      <Position3>
+        <Filename Value="XPC_PascalParser.pas"/>
+        <Caret Line="16413" Column="1" TopLine="16402"/>
+      </Position3>
+      <Position4>
+        <Filename Value="XPC_PascalParser.pas"/>
+        <Caret Line="16414" Column="1" TopLine="16402"/>
+      </Position4>
+      <Position5>
+        <Filename Value="XPC_PascalParser.pas"/>
+        <Caret Line="16419" Column="1" TopLine="16402"/>
+      </Position5>
+      <Position6>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40267" Column="1" TopLine="40255"/>
+      </Position6>
+      <Position7>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40269" Column="1" TopLine="40255"/>
+      </Position7>
+      <Position8>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40270" Column="1" TopLine="40255"/>
+      </Position8>
+      <Position9>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40278" Column="1" TopLine="40256"/>
+      </Position9>
+      <Position10>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40235" Column="1" TopLine="40241"/>
+      </Position10>
+      <Position11>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40267" Column="1" TopLine="40253"/>
+      </Position11>
+      <Position12>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40269" Column="1" TopLine="40253"/>
+      </Position12>
+      <Position13>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40270" Column="1" TopLine="40253"/>
+      </Position13>
+      <Position14>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40278" Column="16" TopLine="40255"/>
+      </Position14>
+      <Position15>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40268" Column="1" TopLine="40255"/>
+      </Position15>
+      <Position16>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40269" Column="1" TopLine="40255"/>
+      </Position16>
+      <Position17>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40277" Column="1" TopLine="40255"/>
+      </Position17>
+      <Position18>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40279" Column="1" TopLine="40255"/>
+      </Position18>
+      <Position19>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40281" Column="1" TopLine="40255"/>
+      </Position19>
+      <Position20>
+        <Filename Value="XPC_PascalParser.pas"/>
+        <Caret Line="16426" Column="1" TopLine="16402"/>
+      </Position20>
+      <Position21>
+        <Filename Value="XPC_PascalParser.pas"/>
+        <Caret Line="16434" Column="1" TopLine="16420"/>
+      </Position21>
+      <Position22>
+        <Filename Value="XPC_PascalParser.pas"/>
+        <Caret Line="16435" Column="1" TopLine="16420"/>
+      </Position22>
+      <Position23>
+        <Filename Value="XPC_PascalParser.pas"/>
+        <Caret Line="16440" Column="1" TopLine="16420"/>
+      </Position23>
+      <Position24>
+        <Filename Value="XPC_PascalParser.pas"/>
+        <Caret Line="16430" Column="18" TopLine="16420"/>
+      </Position24>
+      <Position25>
+        <Filename Value="xpc_test.dpr"/>
+        <Caret Line="45" Column="7" TopLine="16"/>
+      </Position25>
+      <Position26>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40268" Column="1" TopLine="40255"/>
+      </Position26>
+      <Position27>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40269" Column="1" TopLine="40255"/>
+      </Position27>
+      <Position28>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40277" Column="1" TopLine="40255"/>
+      </Position28>
+      <Position29>
+        <Filename Value="xpc_test.dpr"/>
+        <Caret Line="18" Column="39" TopLine="1"/>
+      </Position29>
+      <Position30>
+        <Filename Value="XPC_PascalLexer.pas"/>
+        <Caret Line="40268" Column="1" TopLine="40255"/>
+      </Position30>
+    </JumpHistory>
+  </ProjectSession>
+  <Debugging>
+    <BreakPoints Count="1">
+      <Item1>
+        <Kind Value="bpkSource"/>
+        <WatchScope Value="wpsLocal"/>
+        <WatchKind Value="wpkWrite"/>
+        <Source Value="XPC_PascalLexer.pas"/>
+        <Line Value="40268"/>
+      </Item1>
+    </BreakPoints>
+  </Debugging>
+  <EditorMacros Count="0"/>
+</CONFIG>
